@@ -30,7 +30,7 @@ use chain::transaction::OutPoint;
 use ln::channel::{Channel, ChannelError};
 use ln::channelmonitor::{ChannelMonitor, ChannelMonitorUpdateErr, ManyChannelMonitor, CLTV_CLAIM_BUFFER, LATENCY_GRACE_PERIOD_BLOCKS, ANTI_REORG_DELAY};
 use ln::router::Route;
-use ln::features::InitFeatures;
+use ln::features::{InitFeatures, NodeFeatures};
 use ln::msgs;
 use ln::onion_utils;
 use ln::msgs::{ChannelMessageHandler, DecodeError, LightningError};
@@ -355,6 +355,10 @@ pub struct ChannelManager<ChanSigner: ChannelKeys, M: Deref> where M::Target: Ma
 	channel_state: Mutex<ChannelHolder<ChanSigner>>,
 	our_network_key: SecretKey,
 
+	/// Used to track the last value sent in a node_announcement "timestamp" field. We just set
+	/// them to be monotonically increasing since we don't assume access to a time source.
+	last_node_announcement_serial: AtomicUsize,
+
 	/// The bulk of our storage will eventually be here (channels and message queues and the like).
 	/// If we are connected to a peer we always at least have an entry here, even if no channels
 	/// are currently open with that peer.
@@ -648,6 +652,8 @@ impl<ChanSigner: ChannelKeys, M: Deref> ChannelManager<ChanSigner, M> where M::T
 				pending_msg_events: Vec::new(),
 			}),
 			our_network_key: keys_manager.get_node_secret(),
+
+			last_node_announcement_serial: AtomicUsize::new(0),
 
 			per_peer_state: RwLock::new(HashMap::new()),
 
@@ -1315,6 +1321,39 @@ impl<ChanSigner: ChannelKeys, M: Deref> ChannelManager<ChanSigner, M> where M::T
 			node_signature: our_node_sig,
 			bitcoin_signature: our_bitcoin_sig,
 		})
+	}
+
+	/// Generates a signed node_announcement from the given arguments and creates a
+	/// BroadcastNodeAnnouncement event.
+	///
+	/// RGB is a node "color" and alias a printable human-readable string to describe this node to
+	/// humans. They carry no in-protocol meaning.
+	///
+	/// addresses represent the set (possibly empty) of socket addresses on which this node accepts
+	/// incoming connections. These will be broadcast to the network, publicly tying these
+	/// addresses together. If you wish to preserve user privacy, addresses should likely contain
+	/// only Tor Onion addresses.
+	pub fn broadcast_node_announcement(&self, rgb: [u8; 3], alias: [u8; 32], addresses: msgs::NetAddressSet) {
+		let _ = self.total_consistency_lock.read().unwrap();
+
+		let announcement = msgs::UnsignedNodeAnnouncement {
+			features: NodeFeatures::supported(),
+			timestamp: self.last_node_announcement_serial.fetch_add(1, Ordering::AcqRel) as u32,
+			node_id: self.get_our_node_id(),
+			rgb, alias,
+			addresses: addresses.to_vec(),
+			excess_address_data: Vec::new(),
+			excess_data: Vec::new(),
+		};
+		let msghash = hash_to_message!(&Sha256dHash::hash(&announcement.encode()[..])[..]);
+
+		let mut channel_state = self.channel_state.lock().unwrap();
+		channel_state.pending_msg_events.push(events::MessageSendEvent::BroadcastNodeAnnouncement {
+			msg: msgs::NodeAnnouncement {
+				signature: self.secp_ctx.sign(&msghash, &self.our_network_key),
+				contents: announcement
+			},
+		});
 	}
 
 	/// Processes HTLCs which are pending waiting on random forward delay.
@@ -2918,6 +2957,7 @@ impl<ChanSigner: ChannelKeys, M: Deref + Sync + Send> ChannelMessageHandler for 
 					&events::MessageSendEvent::SendShutdown { ref node_id, .. } => node_id != their_node_id,
 					&events::MessageSendEvent::SendChannelReestablish { ref node_id, .. } => node_id != their_node_id,
 					&events::MessageSendEvent::BroadcastChannelAnnouncement { .. } => true,
+					&events::MessageSendEvent::BroadcastNodeAnnouncement { .. } => true,
 					&events::MessageSendEvent::BroadcastChannelUpdate { .. } => true,
 					&events::MessageSendEvent::HandleError { ref node_id, .. } => node_id != their_node_id,
 					&events::MessageSendEvent::PaymentFailureNetworkUpdate { .. } => true,
@@ -3231,6 +3271,8 @@ impl<ChanSigner: ChannelKeys + Writeable, M: Deref> Writeable for ChannelManager
 			peer_state.latest_features.write(writer)?;
 		}
 
+		(self.last_node_announcement_serial.load(Ordering::Acquire) as u32).write(writer)?;
+
 		Ok(())
 	}
 }
@@ -3374,6 +3416,8 @@ impl<'a, R : ::std::io::Read, ChanSigner: ChannelKeys + Readable<R>, M: Deref> R
 			per_peer_state.insert(peer_pubkey, Mutex::new(peer_state));
 		}
 
+		let last_node_announcement_serial: u32 = Readable::read(reader)?;
+
 		let channel_manager = ChannelManager {
 			genesis_hash,
 			fee_estimator: args.fee_estimator,
@@ -3392,6 +3436,8 @@ impl<'a, R : ::std::io::Read, ChanSigner: ChannelKeys + Readable<R>, M: Deref> R
 				pending_msg_events: Vec::new(),
 			}),
 			our_network_key: args.keys_manager.get_node_secret(),
+
+			last_node_announcement_serial: AtomicUsize::new(last_node_announcement_serial as usize),
 
 			per_peer_state: RwLock::new(per_peer_state),
 
