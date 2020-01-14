@@ -1,3 +1,4 @@
+use ln::messaging::messages::LightningMessageId;
 use ln::messaging::Serialize;
 use ln::messaging::types::LightningMessageType;
 
@@ -8,6 +9,10 @@ pub struct PongMessage {
 }
 
 impl Serialize for PongMessage {
+	fn id() -> LightningMessageId {
+		LightningMessageId::Pong
+	}
+
 	fn placeholder_field_array() -> Vec<LightningMessageType> {
 		vec![
 			LightningMessageType::LengthAnnotatedBuffer(Vec::new())

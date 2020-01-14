@@ -1,3 +1,4 @@
+use ln::messaging::messages::LightningMessageId;
 use ln::messaging::Serialize;
 use ln::messaging::types::LightningMessageType;
 
@@ -8,6 +9,10 @@ pub struct PingMessage {
 }
 
 impl Serialize for PingMessage {
+	fn id() -> LightningMessageId {
+		LightningMessageId::Ping
+	}
+
 	fn placeholder_field_array() -> Vec<LightningMessageType> {
 		vec![
 			LightningMessageType::Int16(0),

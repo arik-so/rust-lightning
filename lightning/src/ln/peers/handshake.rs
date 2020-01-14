@@ -77,11 +77,13 @@ impl PeerHandshake {
 
 	pub fn from_data(data: &[u8]) -> (Self, Option<Act>) {
 		// filter first 50 bytes
+		unimplemented!()
 	}
 
 	pub fn process(&self, data: &[u8]) -> (Option<Act>, Option<ConnectedPeer>) {
 		// filter first 50 bytes
 		// data.len()
+		unimplemented!()
 	}
 
 	pub fn process_act_one(act: ActOne) -> ActTwo {

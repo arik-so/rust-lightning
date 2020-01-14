@@ -8,7 +8,11 @@ pub(crate) struct ConnectedPeer {
 }
 
 impl ConnectedPeer {
-	pub fn encrypt(buffer: &[u8]) -> Vec<u8> {}
+	pub fn encrypt(buffer: &[u8]) -> Vec<u8> {
+		unimplemented!()
+	}
 
-	pub fn decrypt(buffer: &[u8]) -> Vec<u8> {}
+	pub fn decrypt(buffer: &[u8]) -> Vec<u8> {
+		unimplemented!()
+	}
 }

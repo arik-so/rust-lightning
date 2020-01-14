@@ -1,3 +1,4 @@
+use ln::messaging::messages::LightningMessageId;
 use ln::messaging::types::LightningMessageType;
 
 mod errors;
@@ -5,6 +6,7 @@ mod messages;
 mod types;
 
 pub trait Serialize {
+	fn id() -> LightningMessageId;
 	fn placeholder_field_array() -> Vec<LightningMessageType>;
 	fn to_field_array(&self) -> Vec<LightningMessageType>;
 	fn from_field_array(fields: &[LightningMessageType]) -> Box<Self>;
@@ -12,6 +14,10 @@ pub trait Serialize {
 	fn serialize(&self) -> Vec<u8> {
 		let fields = self.to_field_array();
 		let mut buffer = Vec::new();
+
+		let id = Self::id() as u16;
+		let id_bytes: [u8; 2] = id.to_be_bytes();
+		buffer.extend(&id_bytes);
 
 		// add data
 		for field in fields {
@@ -64,7 +70,7 @@ pub trait Serialize {
 	fn parse(buffer: &[u8]) -> Box<Self> {
 		// read the elements
 		let mut placeholder_fields = Self::placeholder_field_array();
-		let mut index = 0;
+		let mut index = 2;
 		for field in placeholder_fields.iter_mut() {
 			match field {
 				LightningMessageType::Int16(integer) => {
@@ -164,5 +170,38 @@ pub trait Serialize {
 			};
 		};
 		Self::from_field_array(&placeholder_fields)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use ln::messaging::messages::{LightningMessage, Ping};
+	use ln::messaging::Serialize;
+
+	#[test]
+	fn codec_works() {
+		let message = Ping {
+			num_pong_bytes: 290,
+			ignored: vec![0, 0, 0, 0],
+		};
+		let serialization = message.serialize();
+		println!("extension: {:?}", serialization);
+		let deserialization = Ping::parse(&serialization);
+		println!("recovery: {:#?}", deserialization);
+		assert_eq!(deserialization.num_pong_bytes, 290);
+		assert_eq!(deserialization.ignored.len(), 4);
+		receive_lightning_message(LightningMessage::Ping(*deserialization));
+	}
+
+	pub fn receive_lightning_message(message: LightningMessage) {
+		match message {
+			LightningMessage::Ping(ping) => {
+				println!("It's a ping message! {:?}", ping);
+			}
+			LightningMessage::Pong(pong) => {
+				println!("It's a pong message! {:?}", pong);
+			},
+			_ => {}
+		};
 	}
 }
