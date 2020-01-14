@@ -156,7 +156,11 @@ pub trait Serialize {
 					*data = (&buffer[index..index + length as usize]).to_vec();
 					index += length as usize;
 				}
-				_ => {}
+				LightningMessageType::TrailingBuffer(data) => {
+					let bytes = &buffer[index..];
+					index += bytes.len();
+					*data = bytes.to_vec();
+				}
 			};
 		};
 		Self::from_field_array(&placeholder_fields)
