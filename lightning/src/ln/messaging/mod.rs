@@ -49,8 +49,8 @@ pub trait Serialize {
 				LightningMessageType::Signature(data) => {
 					data.to_vec()
 				}
-				LightningMessageType::LengthAnnotatedBuffer(length, data) => {
-					let length_bytes: [u8; 2] = length.to_be_bytes();
+				LightningMessageType::LengthAnnotatedBuffer(data) => {
+					let length_bytes: [u8; 2] = (data.len() as u16).to_be_bytes();
 					let mut extension = length_bytes.to_vec();
 					extension.extend(data);
 					extension
@@ -145,7 +145,7 @@ pub trait Serialize {
 
 					*signature = bytes;
 				}
-				LightningMessageType::LengthAnnotatedBuffer(_, data) => {
+				LightningMessageType::LengthAnnotatedBuffer(data) => {
 					let current_bytes = &buffer[index..index + 2];
 					index += 2;
 

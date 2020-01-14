@@ -10,7 +10,7 @@ pub enum LightningMessageType {
 	Byte(u8),
 	Color([u8; 3]),
 	ShortChannelId([u8; 8]),
-	LengthAnnotatedBuffer(u16, Vec<u8>),
+	LengthAnnotatedBuffer(Vec<u8>),
 	TrailingBuffer(Vec<u8>),
 }
 
@@ -28,7 +28,7 @@ impl LightningMessageType {
 
 	pub fn length_annotated_buffer_value(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 		match self {
-			LightningMessageType::LengthAnnotatedBuffer(_, value) => {
+			LightningMessageType::LengthAnnotatedBuffer(value) => {
 				Ok(value.to_owned())
 			}
 			_ => {

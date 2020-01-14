@@ -11,14 +11,14 @@ impl Serialize for PingMessage {
 	fn placeholder_field_array() -> Vec<LightningMessageType> {
 		vec![
 			LightningMessageType::Int16(0),
-			LightningMessageType::LengthAnnotatedBuffer(0, Vec::new())
+			LightningMessageType::LengthAnnotatedBuffer(Vec::new())
 		]
 	}
 
 	fn to_field_array(&self) -> Vec<LightningMessageType> {
 		let mut fields = Vec::new();
 		fields.push(LightningMessageType::Int16(self.num_pong_bytes));
-		fields.push(LightningMessageType::LengthAnnotatedBuffer(self.ignored.len() as u16, self.ignored.clone()));
+		fields.push(LightningMessageType::LengthAnnotatedBuffer(self.ignored.clone()));
 		fields
 	}
 
