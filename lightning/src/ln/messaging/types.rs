@@ -26,18 +26,6 @@ impl LightningMessageType {
 		}
 	}
 
-	/*pub fn int_16_value_mut(&self) -> Result<&mut u16, Box<dyn std::error::Error>> {
-		match *self {
-			LightningMessageType::Int16(mut value) => {
-				Ok(&mut value)
-			}
-			_ => {
-				Err(Box::new(UnexpectedTypeError {}))
-			}
-		}
-	}*/
-
-
 	pub fn length_annotated_buffer_value(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 		match self {
 			LightningMessageType::LengthAnnotatedBuffer(value) => {
@@ -48,15 +36,4 @@ impl LightningMessageType {
 			}
 		}
 	}
-
-	/*pub fn length_annotated_buffer_value_mut(self) -> Result<&mut Vec<u8>, Box<dyn std::error::Error>> {
-		match self {
-			LightningMessageType::LengthAnnotatedBuffer(mut value) => {
-				Ok(&mut value)
-			}
-			_ => {
-				Err(Box::new(UnexpectedTypeError {}))
-			}
-		}
-	}*/
 }
