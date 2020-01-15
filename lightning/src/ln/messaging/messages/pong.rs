@@ -4,7 +4,6 @@ use ln::messaging::types::LightningMessageType;
 
 #[derive(Debug)]
 pub struct PongMessage {
-	pub byteslen: Option<u16>,
 	pub ignored: Vec<u8>,
 }
 
@@ -20,21 +19,16 @@ impl Serde for PongMessage {
 	}
 
 	fn fill_field_array(&self, placeholders: &mut [LightningMessageType]) {
-		unimplemented!()
+		if let LightningMessageType::LengthAnnotatedBuffer(ref mut value) = placeholders[0] {
+			*value = self.ignored.to_vec();
+		}
 	}
 
 	fn from_field_array(fields: &[LightningMessageType]) -> Box<Self> {
 		let ignored = fields[1].length_annotated_buffer_value().unwrap();
 
 		Box::new(PongMessage {
-			byteslen: Some(ignored.len() as u16),
-			ignored,
+			ignored
 		})
-	}
-
-	fn to_field_array(&self) -> Vec<LightningMessageType> {
-		let mut fields = Vec::new();
-		fields.push(LightningMessageType::LengthAnnotatedBuffer(self.ignored.clone()));
-		fields
 	}
 }

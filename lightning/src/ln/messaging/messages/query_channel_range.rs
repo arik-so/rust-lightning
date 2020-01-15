@@ -25,7 +25,18 @@ impl Serde for QueryChannelRangeMessage {
 	}
 
 	fn fill_field_array(&self, placeholders: &mut [LightningMessageType]) {
-		unimplemented!()
+		if let LightningMessageType::Hash(ref mut value) = placeholders[0] {
+			*value = self.chain_hash
+		}
+		if let LightningMessageType::Int32(ref mut value) = placeholders[1] {
+			*value = self.first_blocknum
+		}
+		if let LightningMessageType::Int32(ref mut value) = placeholders[2] {
+			*value = self.number_of_blocks
+		}
+		if let LightningMessageType::TrailingBuffer(ref mut value) = placeholders[3] {
+			*value = self.query_channel_range_tlvs.to_vec()
+		}
 	}
 
 	fn from_field_array(fields: &[LightningMessageType]) -> Box<Self> {
