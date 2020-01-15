@@ -1,6 +1,7 @@
 pub use ln::messaging::messages::ping::PingMessage as Ping;
 pub use ln::messaging::messages::pong::PongMessage as Pong;
 pub use ln::messaging::messages::query_channel_range::QueryChannelRangeMessage as QueryChannelRange;
+use ln::messaging::Serialize;
 
 mod ping;
 mod pong;
@@ -36,6 +37,7 @@ pub enum LightningMessageId {
 	ReplyChannelRange = 264,
 }
 
+#[derive(Debug)]
 pub enum LightningMessage {
 	Ping(Ping),
 	Pong(Pong),
@@ -43,18 +45,18 @@ pub enum LightningMessage {
 }
 
 impl LightningMessage {
-	fn parse(buffer: &[u8]) -> LightningMessage {
-		let id_slice = &buffer[index..index + 2];
+	pub fn parse(buffer: &[u8]) -> LightningMessage {
+		let id_slice = &buffer[0..2];
 		let mut id_bytes = [0; 2];
-		id_bytes.copy_from_slice(current_bytes);
+		id_bytes.copy_from_slice(id_slice);
 
 		let id = u16::from_be_bytes(id_bytes);
 		match id {
-			LightningMessageId::Ping => {
-				message = Ping::parse(buffer);
-
+			id if id == LightningMessageId::Ping as u16 => LightningMessage::Ping(*Ping::parse(buffer)),
+			id if id == LightningMessageId::Pong as u16 => LightningMessage::Pong(*Pong::parse(buffer)),
+			_ => {
+				unimplemented!()
 			}
-		};
-		unimplemented!()
+		}
 	}
 }

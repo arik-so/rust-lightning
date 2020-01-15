@@ -191,6 +191,8 @@ mod tests {
 		assert_eq!(deserialization.num_pong_bytes, 290);
 		assert_eq!(deserialization.ignored.len(), 4);
 		receive_lightning_message(LightningMessage::Ping(*deserialization));
+		let smart_parse = LightningMessage::parse(&serialization);
+		println!("recovery: {:#?}", smart_parse);
 	}
 
 	pub fn receive_lightning_message(message: LightningMessage) {
