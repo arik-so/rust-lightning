@@ -40,14 +40,17 @@ impl Serde for QueryChannelRangeMessage {
 	}
 
 	fn from_field_array(fields: &[LightningMessageType]) -> Box<Self> {
-		let num_pong_bytes = fields[0].int_16_value().unwrap();
-		let ignored = fields[1].length_annotated_buffer_value().unwrap();
+		let chain_hash = fields[0].hash_value().unwrap();
+		let first_blocknum = fields[1].int_32_value().unwrap();
+		let number_of_blocks = fields[2].int_32_value().unwrap();
+		let query_channel_range_tlvs = fields[3].trailing_buffer_value().unwrap();
 
-//		Box::new(QueryChannelRangeMessage {
-//			num_pong_bytes,
-//			ignored,
-//		})
-		unimplemented!();
+		Box::new(QueryChannelRangeMessage {
+			chain_hash,
+			first_blocknum,
+			number_of_blocks,
+			query_channel_range_tlvs,
+		})
 	}
 
 	fn to_field_array(&self) -> Vec<LightningMessageType> {
