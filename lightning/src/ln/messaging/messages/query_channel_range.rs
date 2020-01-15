@@ -1,5 +1,5 @@
 use ln::messaging::messages::LightningMessageId;
-use ln::messaging::Serialize;
+use ln::messaging::serde::Serde;
 use ln::messaging::types::LightningMessageType;
 
 #[derive(Debug)]
@@ -10,7 +10,7 @@ pub struct QueryChannelRangeMessage {
 	pub query_channel_range_tlvs: Vec<u8>,
 }
 
-impl Serialize for QueryChannelRangeMessage {
+impl Serde for QueryChannelRangeMessage {
 	fn id() -> LightningMessageId {
 		LightningMessageId::QueryChannelRange
 	}
@@ -24,13 +24,8 @@ impl Serialize for QueryChannelRangeMessage {
 		]
 	}
 
-	fn to_field_array(&self) -> Vec<LightningMessageType> {
-		let mut fields = Vec::new();
-		fields.push(LightningMessageType::Hash(self.chain_hash));
-		fields.push(LightningMessageType::Int32(self.first_blocknum));
-		fields.push(LightningMessageType::Int32(self.number_of_blocks));
-		fields.push(LightningMessageType::TrailingBuffer(self.query_channel_range_tlvs.clone()));
-		fields
+	fn fill_field_array(&self, placeholders: &mut [LightningMessageType]) {
+		unimplemented!()
 	}
 
 	fn from_field_array(fields: &[LightningMessageType]) -> Box<Self> {
@@ -42,5 +37,14 @@ impl Serialize for QueryChannelRangeMessage {
 //			ignored,
 //		})
 		unimplemented!();
+	}
+
+	fn to_field_array(&self) -> Vec<LightningMessageType> {
+		let mut fields = Vec::new();
+		fields.push(LightningMessageType::Hash(self.chain_hash));
+		fields.push(LightningMessageType::Int32(self.first_blocknum));
+		fields.push(LightningMessageType::Int32(self.number_of_blocks));
+		fields.push(LightningMessageType::TrailingBuffer(self.query_channel_range_tlvs.clone()));
+		fields
 	}
 }

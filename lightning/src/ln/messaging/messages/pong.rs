@@ -1,5 +1,5 @@
 use ln::messaging::messages::LightningMessageId;
-use ln::messaging::Serialize;
+use ln::messaging::serde::Serde;
 use ln::messaging::types::LightningMessageType;
 
 #[derive(Debug)]
@@ -8,7 +8,7 @@ pub struct PongMessage {
 	pub ignored: Vec<u8>,
 }
 
-impl Serialize for PongMessage {
+impl Serde for PongMessage {
 	fn id() -> LightningMessageId {
 		LightningMessageId::Pong
 	}
@@ -19,10 +19,8 @@ impl Serialize for PongMessage {
 		]
 	}
 
-	fn to_field_array(&self) -> Vec<LightningMessageType> {
-		let mut fields = Vec::new();
-		fields.push(LightningMessageType::LengthAnnotatedBuffer(self.ignored.clone()));
-		fields
+	fn fill_field_array(&self, placeholders: &mut [LightningMessageType]) {
+		unimplemented!()
 	}
 
 	fn from_field_array(fields: &[LightningMessageType]) -> Box<Self> {
@@ -32,5 +30,11 @@ impl Serialize for PongMessage {
 			byteslen: Some(ignored.len() as u16),
 			ignored,
 		})
+	}
+
+	fn to_field_array(&self) -> Vec<LightningMessageType> {
+		let mut fields = Vec::new();
+		fields.push(LightningMessageType::LengthAnnotatedBuffer(self.ignored.clone()));
+		fields
 	}
 }

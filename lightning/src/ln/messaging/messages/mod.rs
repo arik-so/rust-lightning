@@ -1,7 +1,7 @@
 pub use ln::messaging::messages::ping::PingMessage as Ping;
 pub use ln::messaging::messages::pong::PongMessage as Pong;
 pub use ln::messaging::messages::query_channel_range::QueryChannelRangeMessage as QueryChannelRange;
-use ln::messaging::Serialize;
+use ln::messaging::serde::Serde;
 
 mod ping;
 mod pong;

@@ -1,5 +1,5 @@
 use ln::messaging::messages::LightningMessageId;
-use ln::messaging::Serialize;
+use ln::messaging::serde::Serde;
 use ln::messaging::types::LightningMessageType;
 
 #[derive(Debug)]
@@ -8,7 +8,7 @@ pub struct PingMessage {
 	pub ignored: Vec<u8>,
 }
 
-impl Serialize for PingMessage {
+impl Serde for PingMessage {
 	fn id() -> LightningMessageId {
 		LightningMessageId::Ping
 	}
@@ -20,11 +20,13 @@ impl Serialize for PingMessage {
 		]
 	}
 
-	fn to_field_array(&self) -> Vec<LightningMessageType> {
-		let mut fields = Vec::new();
-		fields.push(LightningMessageType::Int16(self.num_pong_bytes));
-		fields.push(LightningMessageType::LengthAnnotatedBuffer(self.ignored.clone()));
-		fields
+	fn fill_field_array(&self, placeholders: &mut [LightningMessageType]) {
+		if let LightningMessageType::Int16(ref mut value) = placeholders[0] {
+			*value = self.num_pong_bytes;
+		}
+		if let LightningMessageType::LengthAnnotatedBuffer(ref mut value) = placeholders[1] {
+			*value = self.ignored.to_vec();
+		}
 	}
 
 	fn from_field_array(fields: &[LightningMessageType]) -> Box<Self> {
