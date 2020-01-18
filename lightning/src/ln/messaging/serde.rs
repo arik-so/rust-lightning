@@ -5,7 +5,7 @@ pub trait Serde {
 	fn id() -> LightningMessageId;
 	fn placeholder_field_array() -> Vec<LightningMessageType>;
 	fn fill_field_array(&self, placeholders: &mut [LightningMessageType]);
-	fn from_field_array(fields: &[LightningMessageType]) -> Box<Self>;
+	fn from_field_array(fields: &mut Vec<LightningMessageType>) -> Box<Self>;
 
 	fn to_field_array(&self) -> Vec<LightningMessageType> {
 		let mut fields = Self::placeholder_field_array();
@@ -171,7 +171,9 @@ pub trait Serde {
 				}
 			};
 		};
-		Self::from_field_array(&placeholder_fields)
+		let instance = Self::from_field_array(&mut placeholder_fields);
+		assert_eq!(placeholder_fields.len(), 0);
+		instance
 	}
 }
 

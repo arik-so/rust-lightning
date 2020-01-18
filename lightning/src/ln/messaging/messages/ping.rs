@@ -29,11 +29,11 @@ impl Serde for PingMessage {
 		}
 	}
 
-	fn from_field_array(fields: &[LightningMessageType]) -> Box<Self> {
-		let num_pong_bytes = fields[0].int_16_value().unwrap();
-		let ignored = fields[1].length_annotated_buffer_value().unwrap();
+	fn from_field_array(fields: &mut Vec<LightningMessageType>) -> Box<Self> {
+		let num_pong_bytes = fields.remove(0).into_int16().unwrap();
+		let ignored = fields.remove(0).into_length_annotated_buffer().unwrap();
 
-		Box::new(PingMessage {
+		Box::new(Self {
 			num_pong_bytes,
 			ignored,
 		})

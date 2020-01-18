@@ -24,10 +24,10 @@ impl Serde for PongMessage {
 		}
 	}
 
-	fn from_field_array(fields: &[LightningMessageType]) -> Box<Self> {
-		let ignored = fields[1].length_annotated_buffer_value().unwrap();
+	fn from_field_array(fields: &mut Vec<LightningMessageType>) -> Box<Self> {
+		let ignored = fields.remove(0).into_length_annotated_buffer().unwrap();
 
-		Box::new(PongMessage {
+		Box::new(Self {
 			ignored
 		})
 	}

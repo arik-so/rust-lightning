@@ -15,8 +15,8 @@ pub enum LightningMessageType {
 }
 
 impl LightningMessageType {
-	pub fn int_16_value(&self) -> Result<u16, Box<dyn std::error::Error>> {
-		match *self {
+	pub fn into_int16(self) -> Result<u16, Box<dyn std::error::Error>> {
+		match self {
 			LightningMessageType::Int16(value) => {
 				Ok(value)
 			}
@@ -26,8 +26,8 @@ impl LightningMessageType {
 		}
 	}
 
-	pub fn int_32_value(&self) -> Result<u32, Box<dyn std::error::Error>> {
-		match *self {
+	pub fn into_int32(self) -> Result<u32, Box<dyn std::error::Error>> {
+		match self {
 			LightningMessageType::Int32(value) => {
 				Ok(value)
 			}
@@ -37,8 +37,8 @@ impl LightningMessageType {
 		}
 	}
 
-	pub fn int_64_value(&self) -> Result<u64, Box<dyn std::error::Error>> {
-		match *self {
+	pub fn into_int64(self) -> Result<u64, Box<dyn std::error::Error>> {
+		match self {
 			LightningMessageType::Int64(value) => {
 				Ok(value)
 			}
@@ -48,8 +48,8 @@ impl LightningMessageType {
 		}
 	}
 
-	pub fn hash_value(&self) -> Result<[u8; 32], Box<dyn std::error::Error>> {
-		match *self {
+	pub fn into_hash(self) -> Result<[u8; 32], Box<dyn std::error::Error>> {
+		match self {
 			LightningMessageType::Hash(value) => {
 				Ok(value)
 			}
@@ -59,8 +59,8 @@ impl LightningMessageType {
 		}
 	}
 
-	pub fn point_value(&self) -> Result<[u8; 33], Box<dyn std::error::Error>> {
-		match *self {
+	pub fn into_point(self) -> Result<[u8; 33], Box<dyn std::error::Error>> {
+		match self {
 			LightningMessageType::Point(value) => {
 				Ok(value)
 			}
@@ -70,8 +70,8 @@ impl LightningMessageType {
 		}
 	}
 
-	pub fn signature_value(&self) -> Result<[u8; 64], Box<dyn std::error::Error>> {
-		match *self {
+	pub fn into_signature(self) -> Result<[u8; 64], Box<dyn std::error::Error>> {
+		match self {
 			LightningMessageType::Signature(value) => {
 				Ok(value)
 			}
@@ -81,8 +81,8 @@ impl LightningMessageType {
 		}
 	}
 
-	pub fn byte_value(&self) -> Result<u8, Box<dyn std::error::Error>> {
-		match *self {
+	pub fn into_byte(self) -> Result<u8, Box<dyn std::error::Error>> {
+		match self {
 			LightningMessageType::Byte(value) => {
 				Ok(value)
 			}
@@ -92,8 +92,8 @@ impl LightningMessageType {
 		}
 	}
 
-	pub fn color_value(&self) -> Result<[u8; 3], Box<dyn std::error::Error>> {
-		match *self {
+	pub fn into_color(self) -> Result<[u8; 3], Box<dyn std::error::Error>> {
+		match self {
 			LightningMessageType::Color(value) => {
 				Ok(value)
 			}
@@ -103,8 +103,8 @@ impl LightningMessageType {
 		}
 	}
 
-	pub fn short_channel_id_value(&self) -> Result<[u8; 8], Box<dyn std::error::Error>> {
-		match *self {
+	pub fn into_short_channel_id(self) -> Result<[u8; 8], Box<dyn std::error::Error>> {
+		match self {
 			LightningMessageType::ShortChannelId(value) => {
 				Ok(value)
 			}
@@ -114,10 +114,10 @@ impl LightningMessageType {
 		}
 	}
 
-	pub fn length_annotated_buffer_value(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+	pub fn into_length_annotated_buffer(self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 		match self {
 			LightningMessageType::LengthAnnotatedBuffer(value) => {
-				Ok(value.to_owned())
+				Ok(value)
 			}
 			_ => {
 				Err(Box::new(UnexpectedTypeError {}))
@@ -125,10 +125,10 @@ impl LightningMessageType {
 		}
 	}
 
-	pub fn trailing_buffer_value(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+	pub fn into_trailing_buffer(self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 		match self {
 			LightningMessageType::TrailingBuffer(value) => {
-				Ok(value.to_owned())
+				Ok(value)
 			}
 			_ => {
 				Err(Box::new(UnexpectedTypeError {}))

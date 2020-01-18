@@ -12,7 +12,9 @@ impl ConnectedPeer {
 		unimplemented!()
 	}
 
-	pub fn decrypt(buffer: &[u8]) -> Vec<u8> {
-		unimplemented!()
+	pub fn decrypt(buffer: &[u8]) -> (Vec<u8>, &[u8]) {
+
+		// unimplemented!()
+		(Vec::new(), &buffer[2..])
 	}
 }

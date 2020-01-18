@@ -39,26 +39,17 @@ impl Serde for QueryChannelRangeMessage {
 		}
 	}
 
-	fn from_field_array(fields: &[LightningMessageType]) -> Box<Self> {
-		let chain_hash = fields[0].hash_value().unwrap();
-		let first_blocknum = fields[1].int_32_value().unwrap();
-		let number_of_blocks = fields[2].int_32_value().unwrap();
-		let query_channel_range_tlvs = fields[3].trailing_buffer_value().unwrap();
+	fn from_field_array(fields: &mut Vec<LightningMessageType>) -> Box<Self> {
+		let chain_hash = fields.remove(0).into_hash().unwrap();
+		let first_blocknum = fields.remove(0).into_int32().unwrap();
+		let number_of_blocks = fields.remove(0).into_int32().unwrap();
+		let query_channel_range_tlvs = fields.remove(0).into_trailing_buffer().unwrap();
 
-		Box::new(QueryChannelRangeMessage {
+		Box::new(Self {
 			chain_hash,
 			first_blocknum,
 			number_of_blocks,
 			query_channel_range_tlvs,
 		})
-	}
-
-	fn to_field_array(&self) -> Vec<LightningMessageType> {
-		let mut fields = Vec::new();
-		fields.push(LightningMessageType::Hash(self.chain_hash));
-		fields.push(LightningMessageType::Int32(self.first_blocknum));
-		fields.push(LightningMessageType::Int32(self.number_of_blocks));
-		fields.push(LightningMessageType::TrailingBuffer(self.query_channel_range_tlvs.clone()));
-		fields
 	}
 }
