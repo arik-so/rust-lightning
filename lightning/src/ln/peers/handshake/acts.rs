@@ -1,8 +1,8 @@
-pub struct ActOne([u8; 50]);
+pub struct ActOne(pub(crate) [u8; 50]);
 
-pub struct ActTwo([u8; 50]);
+pub struct ActTwo(pub(crate) [u8; 50]);
 
-pub struct ActThree([u8; 66]);
+pub struct ActThree(pub(crate) [u8; 66]);
 
 pub enum Act {
 	One(ActOne),
