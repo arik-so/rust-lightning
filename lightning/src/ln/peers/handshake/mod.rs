@@ -1,24 +1,43 @@
+use std::cell::Cell;
+use std::ops::Deref;
+
 use bitcoin_hashes::{Hash, HashEngine, Hmac, HmacEngine};
 use bitcoin_hashes::sha256::Hash as Sha256;
 use secp256k1::{PublicKey, SecretKey};
 
+use ln::peers::handshake::acts::{ActOne, ActThree, ActTwo};
+use ln::peers::handshake::states::{HandshakeState, LastIncomingMessageExpectation};
 use ln::peers::peer::ConnectedPeer;
-use ln::peers::handshake::states::HandshakeState;
-use ln::peers::handshake::acts::{ActOne, ActTwo, ActThree};
 
 mod acts;
 mod states;
 
 struct PeerHandshake {
-	state: HandshakeState,
+	state: Option<HandshakeState>,
 	private_key: [u8; 32],
 
-	hash: HandshakeHash,
-	chaining_key: [u8; 32],
+	// hash: HandshakeHash,
+	// chaining_key: [u8; 32],
 }
 
 impl PeerHandshake {
 	pub fn new(private_key: [u8; 32]) -> Self {
+		let mut handshake = PeerHandshake {
+			state: Some(HandshakeState::Blank),
+			private_key,
+			// hash: HandshakeHash::new(initial_hash_preimage.as_slice()),
+			// chaining_key,
+		};
+		handshake
+	}
+
+
+	pub fn initiate(&mut self, ephemeral_private_key: [u8; 32], remote_public_key: [u8; 33]) -> Result<ActOne, String> {
+		if let Some(HandshakeState::Blank) = self.state.take() {} else {
+			return Err("incorrect state".to_string());
+		}
+
+		// do the proper initialization
 		let protocol_name = b"Noise_XK_secp256k1_ChaChaPoly_SHA256";
 		let prologue = b"lightning";
 
@@ -29,18 +48,18 @@ impl PeerHandshake {
 		let mut initial_hash_preimage = chaining_key.to_vec();
 		initial_hash_preimage.extend_from_slice(prologue.as_ref());
 
-		let mut handshake = PeerHandshake {
-			state: HandshakeState::Blank,
-			private_key,
-			hash: HandshakeHash::new(initial_hash_preimage.as_slice()),
+		let hash = HandshakeHash::new(initial_hash_preimage.as_slice());
+
+		/*
+		Serialize and process act one here
+		*/
+
+		self.state = Some(HandshakeState::AwaitingActTwo(LastIncomingMessageExpectation {
+			hash,
 			chaining_key,
-		};
-		handshake
-	}
+			temporary_key: [0; 32],
+		}));
 
-
-	pub fn initiate(&mut self, ephemeral_private_key: [u8; 32], remote_public_key: [u8; 33]) -> Result<ActOne, String> {
-		self.state = self.state.initiate()?;
 		Ok(ActOne([0; 50]))
 	}
 
@@ -56,18 +75,26 @@ impl PeerHandshake {
 
 
 	pub fn process_act_one(&mut self, act: ActOne) -> ActTwo {
-		self.hash.update(remote_public_key.as_ref());
+//		let state = *self.state;
+		let state = self.state.as_ref();
+
+		let act_one_expectation = match state {
+			Some(HandshakeState::AwaitingActOne(act_one_expectation)) => act_one_expectation,
+			_ => { panic!("unexpected state"); }
+		};
+
+		let hash = act_one_expectation.hash;
 
 		let version = act.0[0];
 
-		let mut ephemeral_private_key: [u8; 33];
-		ephemeral_private_key.copy_from_slice(&act.0[1..34]);
+		let mut ephemeral_public_key = [0u8; 33];
+		ephemeral_public_key.copy_from_slice(&act.0[1..34]);
 
-		let mut chacha_tag: [u8; 32];
+		let mut chacha_tag = [0u8; 32];
 		chacha_tag.copy_from_slice(&act.0[34..50]);
 
 		// update the hash with the own public key
-		self.hash.update(Self::private_key_to_public_key(self.private_key).as_ref());
+		// self.hash.update(Self::private_key_to_public_key(self.private_key).as_ref());
 
 		// process the act message
 
@@ -75,6 +102,13 @@ impl PeerHandshake {
 		// calculate ECDH with partner's pubkey and local privkey
 		// HKDF(chaining key + ECDH) -> chaining key' + next temporary key
 		// Validate chacha tag (temporary key, 0, self.hash, chacha_tag)
+
+		self.state = Some(HandshakeState::AwaitingActThree(LastIncomingMessageExpectation {
+			hash: hash,
+			chaining_key: [0; 32],
+			temporary_key: [0; 32],
+		}));
+
 
 		// serialize_act_two
 
@@ -108,7 +142,7 @@ impl PeerHandshake {
 	}
 }
 
-struct HandshakeHash {
+pub(crate) struct HandshakeHash {
 	value: [u8; 32]
 }
 

@@ -1,11 +1,15 @@
+use ln::peers::handshake::HandshakeHash;
+
+// #[derive(Clone)]
 pub enum HandshakeState {
 	Blank,
-	AwaitingActOne,
-	AwaitingActTwo,
-	AwaitingActThree,
+	AwaitingActOne(ActOneExpectation),
+	AwaitingActTwo(LastIncomingMessageExpectation),
+	AwaitingActThree(LastIncomingMessageExpectation),
 	Complete,
 }
 
+/*
 impl HandshakeState {
 	pub fn initiate(&self) -> Result<Self, String> {
 		if let HandshakeState::Blank = self {
@@ -22,4 +26,18 @@ impl HandshakeState {
 			_ => { HandshakeState::Complete }
 		}
 	}
+}
+*/
+
+// #[derive(Clone)]
+pub struct ActOneExpectation {
+	pub(crate) hash: HandshakeHash,
+	pub(crate) chaining_key: [u8; 32],
+}
+
+// #[derive(Clone)]
+pub struct LastIncomingMessageExpectation {
+	pub(crate) hash: HandshakeHash,
+	pub(crate) chaining_key: [u8; 32],
+	pub(crate) temporary_key: [u8; 32],
 }
