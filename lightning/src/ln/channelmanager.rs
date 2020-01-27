@@ -3494,6 +3494,15 @@ pub struct ChannelManagerReadArgs<'a, ChanSigner: 'a + ChannelKeys, M: Deref> wh
 	pub channel_monitors: &'a mut HashMap<OutPoint, &'a mut ChannelMonitor<ChanSigner>>,
 }
 
+// Implement ReadableArgs for an Arc'd ChannelManager to make it a bit easier to work with the
+// SipmleArcChannelManager type:
+impl<'a, R : ::std::io::Read, ChanSigner: ChannelKeys + Readable<R>, M: Deref> ReadableArgs<R, ChannelManagerReadArgs<'a, ChanSigner, M>> for (Sha256dHash, Arc<ChannelManager<ChanSigner, M>>) where M::Target: ManyChannelMonitor<ChanSigner> {
+	fn read(reader: &mut R, args: ChannelManagerReadArgs<'a, ChanSigner, M>) -> Result<Self, DecodeError> {
+		let (blockhash, chan_manager) = <(Sha256dHash, ChannelManager<ChanSigner, M>)>::read(reader, args)?;
+		Ok((blockhash, Arc::new(chan_manager)))
+	}
+}
+
 impl<'a, R : ::std::io::Read, ChanSigner: ChannelKeys + Readable<R>, M: Deref> ReadableArgs<R, ChannelManagerReadArgs<'a, ChanSigner, M>> for (Sha256dHash, ChannelManager<ChanSigner, M>) where M::Target: ManyChannelMonitor<ChanSigner> {
 	fn read(reader: &mut R, args: ChannelManagerReadArgs<'a, ChanSigner, M>) -> Result<Self, DecodeError> {
 		let _ver: u8 = Readable::read(reader)?;
