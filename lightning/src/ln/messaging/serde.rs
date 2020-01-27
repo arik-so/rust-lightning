@@ -199,6 +199,20 @@ mod tests {
 		println!("recovery: {:#?}", smart_parse);
 	}
 
+	#[test]
+	fn test_send_arbitrary_message() {
+		let message = Ping {
+			num_pong_bytes: 290,
+			ignored: vec![0, 0, 0, 0],
+		};
+		let bytes = serialize_message_send(&message);
+		assert_eq!(bytes.len(), 10);
+	}
+
+	fn serialize_message_send(message: &impl Serde) -> Vec<u8>{
+		message.serialize()
+	}
+
 	pub fn receive_lightning_message(message: LightningMessage) {
 		match message {
 			LightningMessage::Ping(ping) => {

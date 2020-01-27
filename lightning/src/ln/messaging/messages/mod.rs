@@ -54,9 +54,21 @@ impl LightningMessage {
 		match id {
 			id if id == LightningMessageId::Ping as u16 => LightningMessage::Ping(*Ping::parse(buffer)),
 			id if id == LightningMessageId::Pong as u16 => LightningMessage::Pong(*Pong::parse(buffer)),
+			id if id == LightningMessageId::QueryChannelRange as u16 => LightningMessage::QueryChannelRange(*QueryChannelRange::parse(buffer)),
 			_ => {
 				unimplemented!()
 			}
 		}
 	}
+
+	pub fn serialize(&self) -> Vec<u8>{
+		match self {
+			LightningMessage::Ping(m) => m.serialize(),
+			LightningMessage::Pong(m) => m.serialize(),
+			LightningMessage::QueryChannelRange(m) => m.serialize(),
+			_ => panic!()
+		}
+	}
+
+
 }
