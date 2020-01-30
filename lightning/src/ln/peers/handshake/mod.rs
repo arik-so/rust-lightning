@@ -3,22 +3,21 @@ use std::ops::Deref;
 
 use bitcoin_hashes::{Hash, HashEngine, Hmac, HmacEngine};
 use bitcoin_hashes::sha256::Hash as Sha256;
+use hex;
 use secp256k1::{PublicKey, SecretKey};
 
+use ln::peers::{chacha, hkdf};
 use ln::peers::handshake::acts::{ActOne, ActThree, ActTwo};
-use ln::peers::handshake::states::{ActOneExpectation, HandshakeState, LastIncomingMessageExpectation};
+use ln::peers::handshake::states::{ActOneExpectation, ActThreeExpectation, ActTwoExpectation, HandshakeState};
 use ln::peers::peer::ConnectedPeer;
-use util::hkdf;
 
 mod acts;
 mod states;
+mod tests;
 
 struct PeerHandshake {
 	state: Option<HandshakeState>,
 	private_key: [u8; 32],
-
-	// hash: HandshakeHash,
-	// chaining_key: [u8; 32],
 }
 
 impl PeerHandshake {
@@ -26,8 +25,6 @@ impl PeerHandshake {
 		let mut handshake = PeerHandshake {
 			state: Some(HandshakeState::Blank),
 			private_key,
-			// hash: HandshakeHash::new(initial_hash_preimage.as_slice()),
-			// chaining_key,
 		};
 		handshake
 	}
@@ -50,39 +47,74 @@ impl PeerHandshake {
 		(hash, chaining_key) // hash, chaining_key
 	}
 
+	pub fn calculate_act_message(&self, local_private_key: &[u8; 32], remote_public_key: &[u8; 33], chaining_key: [u8; 32], hash: &mut HandshakeHash) -> ([u8; 50], [u8; 32], [u8; 32]) {
+		let local_public_key = Self::private_key_to_public_key(local_private_key);
 
-	pub fn initiate(&mut self, ephemeral_private_key: [u8; 32], remote_public_key: [u8; 33]) -> Result<ActOne, String> {
+		hash.update(&local_public_key);
+
+		let ecdh = Self::ecdh(local_private_key, &remote_public_key);
+		let (chaining_key, temporary_key) = hkdf::derive(&chaining_key, &ecdh);
+		let tagged_ciphertext = chacha::encrypt(&temporary_key, 0, &hash.value, &[0; 0]);
+
+		hash.update(&tagged_ciphertext);
+
+		let mut act_vec = [0u8].to_vec();
+		act_vec.extend_from_slice(&local_public_key);
+		act_vec.extend_from_slice(tagged_ciphertext.as_slice());
+		let mut act = [0u8; 50];
+		act.copy_from_slice(act_vec.as_slice());
+		(act, chaining_key, temporary_key)
+	}
+
+	pub fn initiate(&mut self, ephemeral_private_key: &[u8; 32], remote_public_key: &[u8; 33]) -> Result<ActOne, String> {
 		if let Some(HandshakeState::Blank) = &self.state {} else {
 			return Err("incorrect state".to_string());
 		}
 
-		let (hash, chaining_key) = Self::initialize_state(&remote_public_key);
+		let (mut hash, chaining_key) = Self::initialize_state(&remote_public_key);
 
-		/*
-		pre-process and serialize act one here
-		*/
+		let (act_one, chaining_key, temporary_key) = self.calculate_act_message(ephemeral_private_key, remote_public_key, chaining_key, &mut hash);
 
-		self.state = Some(HandshakeState::AwaitingActTwo(LastIncomingMessageExpectation {
+		self.state = Some(HandshakeState::AwaitingActTwo(ActTwoExpectation {
 			hash,
 			chaining_key,
-			temporary_key: [0; 32],
+			temporary_key,
+			ephemeral_private_key: ephemeral_private_key.clone(),
 		}));
 
-		Ok(ActOne([0; 50]))
+		// serialize act one
+		Ok(ActOne(act_one))
 	}
 
-	/*
-	pub fn process(&mut self, data: &[u8]) -> Result<(Option<Act>, Option<ConnectedPeer>), String> {
-		if let HandshakeState::Blank = self.state {
-			self.state = self.state.advance(); // we are now awaiting act one
-		}
+	fn process_act_message(&self, act_bytes: [u8; 50], local_private_key: &[u8; 32], chaining_key: [u8; 32], hash: &mut HandshakeHash) -> ([u8; 33], [u8; 32], [u8; 32]) {
+		let version = act_bytes[0];
 
-		unimplemented!()
+		let mut ephemeral_public_key = [0u8; 33];
+		ephemeral_public_key.copy_from_slice(&act_bytes[1..34]);
+
+		let mut chacha_tag = [0u8; 16];
+		chacha_tag.copy_from_slice(&act_bytes[34..50]);
+
+		// process the act message
+
+		// update hash with partner's pubkey
+		hash.update(&ephemeral_public_key);
+
+		// calculate ECDH with partner's pubkey and local privkey
+		let ecdh = Self::ecdh(local_private_key, &ephemeral_public_key);
+
+		// HKDF(chaining key, ECDH) -> chaining key' + next temporary key
+		let (chaining_key, temporary_key) = hkdf::derive(&chaining_key, &ecdh);
+
+		// Validate chacha tag (temporary key, 0, self.hash, chacha_tag)
+		let mut chacha = chacha::decrypt(&temporary_key, 0, &hash.value, &chacha_tag).unwrap();
+
+		hash.update(&chacha_tag);
+
+		(ephemeral_public_key, chaining_key, temporary_key)
 	}
-	*/
 
-
-	pub fn process_act_one(&mut self, act: ActOne) -> ActTwo {
+	pub fn process_act_one(&mut self, act: ActOne, ephemeral_private_key: &[u8; 32]) -> ActTwo {
 		let state = self.state.take();
 		let act_one_expectation = match state {
 			Some(HandshakeState::AwaitingActOne(act_state)) => act_state,
@@ -102,48 +134,41 @@ impl PeerHandshake {
 			}
 		};
 
-
-		let version = act.0[0];
-
-		let mut ephemeral_public_key = [0u8; 33];
-		ephemeral_public_key.copy_from_slice(&act.0[1..34]);
-
-		let mut chacha_tag = [0u8; 16];
-		chacha_tag.copy_from_slice(&act.0[34..50]);
-
-		// update the hash with the own public key
-		// self.hash.update(Self::private_key_to_public_key(self.private_key).as_ref());
-
-		// process the act message
-
-		// update hash with partner's pubkey
 		let mut hash = act_one_expectation.hash;
-		hash.update(&ephemeral_public_key);
+		let (remote_ephemeral_public_key, chaining_key, temporary_key) = self.process_act_message(act.0,  &self.private_key, act_one_expectation.chaining_key, &mut hash);
 
-		// calculate ECDH with partner's pubkey and local privkey
-		let ecdh = Self::ecdh(&self.private_key, &ephemeral_public_key);
+		let (act_two, chaining_key, temporary_key) = self.calculate_act_message(ephemeral_private_key, &remote_ephemeral_public_key, chaining_key, &mut hash);
 
-		// HKDF(chaining key, ECDH) -> chaining key' + next temporary key
-		let (chaining_key, temporary_key) = hkdf::derive(&act_one_expectation.chaining_key, &ecdh);
+		println!("act 2: {:?}", hex::encode(&act_two.to_vec()));
 
-		// Validate chacha tag (temporary key, 0, self.hash, chacha_tag)
-		// TODO: arik
-
-
-		self.state = Some(HandshakeState::AwaitingActThree(LastIncomingMessageExpectation {
+		self.state = Some(HandshakeState::AwaitingActThree(ActThreeExpectation {
 			hash,
 			chaining_key,
 			temporary_key,
+			remote_ephemeral_public_key,
 		}));
 
-
-		// serialize_act_two
-
-		ActTwo([0; 50])
+		ActTwo(act_two)
 	}
 
 	pub fn process_act_two(&mut self, act: ActTwo) -> (ActThree, ConnectedPeer) {
-		unimplemented!()
+		let state = self.state.take();
+		let act_two_expectation = match state {
+			Some(HandshakeState::AwaitingActTwo(act_state)) => act_state,
+			_ => {
+				self.state = state;
+				panic!("unexpected state!")
+			}
+		};
+
+		let mut hash = act_two_expectation.hash;
+		let (_, chaining_key, temporary_key) = self.process_act_message(act.0, &act_two_expectation.ephemeral_private_key, act_two_expectation.chaining_key, &mut hash);
+
+		self.state = Some(HandshakeState::Complete);
+
+		// start serializing act three
+
+		unimplemented!();
 	}
 
 	pub fn process_act_three(&mut self, act: ActThree) -> ConnectedPeer {
@@ -178,7 +203,9 @@ impl HandshakeHash {
 		let mut hash = Self {
 			value: [0; 32]
 		};
-		hash.update(first_input);
+		let mut sha = Sha256::engine();
+		sha.input(first_input);
+		hash.value = Sha256::from_engine(sha).into_inner();
 		hash
 	}
 
@@ -187,38 +214,5 @@ impl HandshakeHash {
 		sha.input(self.value.as_ref());
 		sha.input(input);
 		self.value = Sha256::from_engine(sha).into_inner();
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use secp256k1::key::{PublicKey, SecretKey};
-
-	use ln::peers::handshake::{HandshakeState, PeerHandshake};
-
-	#[test]
-	fn test_exchange() {
-		let local_private_key = [0x_11_u8; 32];
-		let remote_private_key = [0x_21_u8; 32];
-
-		let mut local_handshake = PeerHandshake::new(local_private_key);
-		let mut remote_handshake = PeerHandshake::new(remote_private_key);
-
-		let local_ephemeral_private_key = [0x_12_u8; 32];
-		let remote_ephemeral_private_key = [0x_22_u8; 32];
-
-		let remote_public_key = public_key_from_private_key(remote_private_key);
-
-		let act_1_message = local_handshake.initiate(local_ephemeral_private_key, remote_public_key);
-		let act_2_message = remote_handshake.process_act_one(act_1_message.unwrap());
-		let act_3_message = local_handshake.process_act_two(act_2_message);
-		remote_handshake.process_act_three(act_3_message.0);
-	}
-
-	fn public_key_from_private_key(private_key: [u8; 32]) -> [u8; 33] {
-		let curve = secp256k1::Secp256k1::new();
-		let sk_object = SecretKey::from_slice(private_key.as_ref()).unwrap();
-		let pk_object = PublicKey::from_secret_key(&curve, &sk_object);
-		pk_object.serialize()
 	}
 }
