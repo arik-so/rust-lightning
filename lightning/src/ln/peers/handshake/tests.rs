@@ -2,7 +2,7 @@
 
 use secp256k1::key::{PublicKey, SecretKey};
 
-use ln::peers::handshake::{HandshakeState, PeerHandshake};
+use ln::peers::handshake::PeerHandshake;
 
 #[test]
 fn test_exchange() {

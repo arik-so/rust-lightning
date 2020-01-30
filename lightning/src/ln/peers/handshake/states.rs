@@ -47,5 +47,6 @@ pub struct ActThreeExpectation {
 	pub(crate) hash: HandshakeHash,
 	pub(crate) chaining_key: [u8; 32],
 	pub(crate) temporary_key: [u8; 32],
+	pub(crate) ephemeral_private_key: [u8; 32],
 	pub(crate) remote_ephemeral_public_key: [u8; 33],
 }

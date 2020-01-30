@@ -1,17 +1,15 @@
-use std::cell::Cell;
-use std::ops::Deref;
-
-use bitcoin_hashes::{Hash, HashEngine, Hmac, HmacEngine};
+use bitcoin_hashes::{Hash, HashEngine};
 use bitcoin_hashes::sha256::Hash as Sha256;
-use hex;
 use secp256k1::{PublicKey, SecretKey};
 
 use ln::peers::{chacha, hkdf};
 use ln::peers::handshake::acts::{ActOne, ActThree, ActTwo};
+use ln::peers::handshake::hash::HandshakeHash;
 use ln::peers::handshake::states::{ActOneExpectation, ActThreeExpectation, ActTwoExpectation, HandshakeState};
 use ln::peers::peer::ConnectedPeer;
 
 mod acts;
+mod hash;
 mod states;
 mod tests;
 
@@ -22,7 +20,7 @@ struct PeerHandshake {
 
 impl PeerHandshake {
 	pub fn new(private_key: [u8; 32]) -> Self {
-		let mut handshake = PeerHandshake {
+		let handshake = PeerHandshake {
 			state: Some(HandshakeState::Blank),
 			private_key,
 		};
@@ -54,7 +52,12 @@ impl PeerHandshake {
 
 		let (mut hash, chaining_key) = Self::initialize_state(&remote_public_key);
 
-		let (act_one, chaining_key, temporary_key) = self.calculate_act_message(ephemeral_private_key, remote_public_key, chaining_key, &mut hash);
+		let (act_one, chaining_key, temporary_key) = self.calculate_act_message(
+			ephemeral_private_key,
+			remote_public_key,
+			chaining_key,
+			&mut hash,
+		);
 
 		self.state = Some(HandshakeState::AwaitingActTwo(ActTwoExpectation {
 			hash,
@@ -88,7 +91,7 @@ impl PeerHandshake {
 		};
 
 		let mut hash = act_one_expectation.hash;
-		let (remote_ephemeral_public_key, chaining_key, temporary_key) = self.process_act_message(
+		let (remote_ephemeral_public_key, chaining_key, _) = self.process_act_message(
 			act.0,
 			&self.private_key,
 			act_one_expectation.chaining_key,
@@ -106,6 +109,7 @@ impl PeerHandshake {
 			hash,
 			chaining_key,
 			temporary_key,
+			ephemeral_private_key: ephemeral_private_key.clone(),
 			remote_ephemeral_public_key,
 		}));
 
@@ -123,7 +127,7 @@ impl PeerHandshake {
 		};
 
 		let mut hash = act_two_expectation.hash;
-		let (_, chaining_key, temporary_key) = self.process_act_message(
+		let (remote_ephemeral_public_key, chaining_key, temporary_key) = self.process_act_message(
 			act.0,
 			&act_two_expectation.ephemeral_private_key,
 			act_two_expectation.chaining_key,
@@ -133,11 +137,71 @@ impl PeerHandshake {
 		self.state = Some(HandshakeState::Complete);
 
 		// start serializing act three
-		unimplemented!();
+
+		let static_public_key = Self::private_key_to_public_key(&self.private_key);
+		let tagged_encrypted_pubkey = chacha::encrypt(&temporary_key, 1, &hash.value, &static_public_key);
+		hash.update(&tagged_encrypted_pubkey);
+
+		let ecdh = Self::ecdh(&self.private_key, &remote_ephemeral_public_key);
+		let (chaining_key, temporary_key) = hkdf::derive(&chaining_key, &ecdh);
+		let authentication_tag = chacha::encrypt(&temporary_key, 0, &hash.value, &[0; 0]);
+		let (sending_key, receiving_key) = hkdf::derive(&chaining_key, &[0; 0]);
+
+		let mut act_three_vec = [0u8].to_vec();
+		act_three_vec.extend_from_slice(&tagged_encrypted_pubkey);
+		act_three_vec.extend_from_slice(authentication_tag.as_slice());
+		let mut act_three = [0u8; 66];
+		act_three.copy_from_slice(act_three_vec.as_slice());
+
+		let connected_peer = ConnectedPeer {
+			sending_key,
+			receiving_key,
+			chaining_key,
+			sending_nonce: 0,
+			receiving_nonce: 0,
+		};
+		(ActThree(act_three), connected_peer)
 	}
 
 	pub fn process_act_three(&mut self, act: ActThree) -> ConnectedPeer {
-		unimplemented!()
+		let state = self.state.take();
+		let act_three_expectation = match state {
+			Some(HandshakeState::AwaitingActThree(act_state)) => act_state,
+			_ => {
+				self.state = state;
+				panic!("unexpected state!")
+			}
+		};
+
+		let version = act.0[0];
+
+		let mut tagged_encrypted_pubkey = [0u8; 49];
+		tagged_encrypted_pubkey.copy_from_slice(&act.0[1..50]);
+
+		let mut chacha_tag = [0u8; 16];
+		chacha_tag.copy_from_slice(&act.0[50..66]);
+
+		let mut hash = act_three_expectation.hash;
+
+		let remote_pubkey_vec = chacha::decrypt(&act_three_expectation.temporary_key, 1, &hash.value, &tagged_encrypted_pubkey).unwrap();
+		let mut remote_pubkey = [0u8; 33];
+		remote_pubkey.copy_from_slice(remote_pubkey_vec.as_slice());
+
+		hash.update(&tagged_encrypted_pubkey);
+
+		let ecdh = Self::ecdh(&act_three_expectation.ephemeral_private_key, &remote_pubkey);
+		let (chaining_key, temporary_key) = hkdf::derive(&act_three_expectation.chaining_key, &ecdh);
+		let tag_check = chacha::decrypt(&temporary_key, 0, &hash.value, &chacha_tag).unwrap();
+		let (receiving_key, sending_key) = hkdf::derive(&chaining_key, &[0; 0]);
+
+		let connected_peer = ConnectedPeer {
+			sending_key,
+			receiving_key,
+			chaining_key,
+			sending_nonce: 0,
+			receiving_nonce: 0,
+		};
+		connected_peer
 	}
 
 	fn calculate_act_message(&self, local_private_key: &[u8; 32], remote_public_key: &[u8; 33], chaining_key: [u8; 32], hash: &mut HandshakeHash) -> ([u8; 50], [u8; 32], [u8; 32]) {
@@ -203,28 +267,5 @@ impl PeerHandshake {
 		let mut sha = Sha256::engine();
 		sha.input(preimage.as_ref());
 		Sha256::from_engine(sha).into_inner()
-	}
-}
-
-pub(crate) struct HandshakeHash {
-	value: [u8; 32]
-}
-
-impl HandshakeHash {
-	fn new(first_input: &[u8]) -> Self {
-		let mut hash = Self {
-			value: [0; 32]
-		};
-		let mut sha = Sha256::engine();
-		sha.input(first_input);
-		hash.value = Sha256::from_engine(sha).into_inner();
-		hash
-	}
-
-	fn update(&mut self, input: &[u8]) {
-		let mut sha = Sha256::engine();
-		sha.input(self.value.as_ref());
-		sha.input(input);
-		self.value = Sha256::from_engine(sha).into_inner();
 	}
 }
