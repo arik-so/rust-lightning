@@ -19,8 +19,8 @@ fn test_exchange() {
 
 	let act_1_message = local_handshake.initiate(&local_ephemeral_private_key, &remote_public_key);
 	let act_2_message = remote_handshake.process_act_one(act_1_message.unwrap(), &remote_ephemeral_private_key);
-	let act_3_message = local_handshake.process_act_two(act_2_message);
-	remote_handshake.process_act_three(act_3_message.0);
+	let act_3_message = local_handshake.process_act_two(act_2_message.unwrap());
+	remote_handshake.process_act_three(act_3_message.unwrap().0);
 }
 
 fn public_key_from_private_key(private_key: [u8; 32]) -> [u8; 33] {

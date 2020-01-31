@@ -70,7 +70,11 @@ impl PeerHandshake {
 		Ok(ActOne(act_one))
 	}
 
-	pub fn process_act_one(&mut self, act: ActOne, ephemeral_private_key: &[u8; 32]) -> ActTwo {
+	pub fn process_act(&mut self, buffer: &[u8]) -> Result<(Option<Vec<u8>>, Option(ConnectedPeer)), String> {
+		unimplemented!()
+	}
+
+	pub fn process_act_one(&mut self, act: ActOne, ephemeral_private_key: &[u8; 32]) -> Result<ActTwo, String> {
 		let state = self.state.take();
 		let act_one_expectation = match state {
 			Some(HandshakeState::AwaitingActOne(act_state)) => act_state,
@@ -86,7 +90,7 @@ impl PeerHandshake {
 			}
 			_ => {
 				self.state = state;
-				panic!("unexpected state")
+				return Err("unexpected state".to_string());
 			}
 		};
 
@@ -96,7 +100,7 @@ impl PeerHandshake {
 			&self.private_key,
 			act_one_expectation.chaining_key,
 			&mut hash,
-		);
+		)?;
 
 		let (act_two, chaining_key, temporary_key) = self.calculate_act_message(
 			ephemeral_private_key,
@@ -113,16 +117,16 @@ impl PeerHandshake {
 			remote_ephemeral_public_key,
 		}));
 
-		ActTwo(act_two)
+		Ok(ActTwo(act_two))
 	}
 
-	pub fn process_act_two(&mut self, act: ActTwo) -> (ActThree, ConnectedPeer) {
+	pub fn process_act_two(&mut self, act: ActTwo) -> Result<(ActThree, ConnectedPeer), String> {
 		let state = self.state.take();
 		let act_two_expectation = match state {
 			Some(HandshakeState::AwaitingActTwo(act_state)) => act_state,
 			_ => {
 				self.state = state;
-				panic!("unexpected state!")
+				return Err("unexpected state".to_string());
 			}
 		};
 
@@ -132,7 +136,7 @@ impl PeerHandshake {
 			&act_two_expectation.ephemeral_private_key,
 			act_two_expectation.chaining_key,
 			&mut hash,
-		);
+		)?;
 
 		self.state = Some(HandshakeState::Complete);
 
@@ -161,16 +165,16 @@ impl PeerHandshake {
 			sending_nonce: 0,
 			receiving_nonce: 0,
 		};
-		(ActThree(act_three), connected_peer)
+		Ok((ActThree(act_three), connected_peer))
 	}
 
-	pub fn process_act_three(&mut self, act: ActThree) -> ConnectedPeer {
+	pub fn process_act_three(&mut self, act: ActThree) -> Result<ConnectedPeer, String> {
 		let state = self.state.take();
 		let act_three_expectation = match state {
 			Some(HandshakeState::AwaitingActThree(act_state)) => act_state,
 			_ => {
 				self.state = state;
-				panic!("unexpected state!")
+				return Err("unexpected state".to_string());
 			}
 		};
 
@@ -184,7 +188,7 @@ impl PeerHandshake {
 
 		let mut hash = act_three_expectation.hash;
 
-		let remote_pubkey_vec = chacha::decrypt(&act_three_expectation.temporary_key, 1, &hash.value, &tagged_encrypted_pubkey).unwrap();
+		let remote_pubkey_vec = chacha::decrypt(&act_three_expectation.temporary_key, 1, &hash.value, &tagged_encrypted_pubkey)?;
 		let mut remote_pubkey = [0u8; 33];
 		remote_pubkey.copy_from_slice(remote_pubkey_vec.as_slice());
 
@@ -192,7 +196,7 @@ impl PeerHandshake {
 
 		let ecdh = Self::ecdh(&act_three_expectation.ephemeral_private_key, &remote_pubkey);
 		let (chaining_key, temporary_key) = hkdf::derive(&act_three_expectation.chaining_key, &ecdh);
-		let tag_check = chacha::decrypt(&temporary_key, 0, &hash.value, &chacha_tag).unwrap();
+		let tag_check = chacha::decrypt(&temporary_key, 0, &hash.value, &chacha_tag)?;
 		let (receiving_key, sending_key) = hkdf::derive(&chaining_key, &[0; 0]);
 
 		let connected_peer = ConnectedPeer {
@@ -203,7 +207,7 @@ impl PeerHandshake {
 			sending_nonce: 0,
 			receiving_nonce: 0,
 		};
-		connected_peer
+		Ok(connected_peer)
 	}
 
 	fn calculate_act_message(&self, local_private_key: &[u8; 32], remote_public_key: &[u8; 33], chaining_key: [u8; 32], hash: &mut HandshakeHash) -> ([u8; 50], [u8; 32], [u8; 32]) {
@@ -225,7 +229,7 @@ impl PeerHandshake {
 		(act, chaining_key, temporary_key)
 	}
 
-	fn process_act_message(&self, act_bytes: [u8; 50], local_private_key: &[u8; 32], chaining_key: [u8; 32], hash: &mut HandshakeHash) -> ([u8; 33], [u8; 32], [u8; 32]) {
+	fn process_act_message(&self, act_bytes: [u8; 50], local_private_key: &[u8; 32], chaining_key: [u8; 32], hash: &mut HandshakeHash) -> Result<([u8; 33], [u8; 32], [u8; 32]), String> {
 		let version = act_bytes[0];
 
 		let mut ephemeral_public_key = [0u8; 33];
@@ -246,11 +250,11 @@ impl PeerHandshake {
 		let (chaining_key, temporary_key) = hkdf::derive(&chaining_key, &ecdh);
 
 		// Validate chacha tag (temporary key, 0, self.hash, chacha_tag)
-		let mut chacha = chacha::decrypt(&temporary_key, 0, &hash.value, &chacha_tag).unwrap();
+		let mut chacha = chacha::decrypt(&temporary_key, 0, &hash.value, &chacha_tag)?;
 
 		hash.update(&chacha_tag);
 
-		(ephemeral_public_key, chaining_key, temporary_key)
+		Ok((ephemeral_public_key, chaining_key, temporary_key))
 	}
 
 	fn private_key_to_public_key(private_key: &[u8; 32]) -> [u8; 33] {

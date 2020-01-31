@@ -27,9 +27,11 @@ impl ConnectedPeer {
 		ciphertext
 	}
 
-	pub fn decrypt<'a>(&mut self, buffer: &'a [u8]) -> (Option<Vec<u8>>, &'a [u8]) { // the response slice should have the same lifetime as the argument. It's the slice data is read from
+	///
+	/// Decrypts message. Undelimited_buffer is all the (remaining) raw bytes from the peer
+	pub fn decrypt(&mut self, buffer: &[u8]) -> (Option<Vec<u8>>, usize) { // the response slice should have the same lifetime as the argument. It's the slice data is read from
 		if buffer.len() < 18 {
-			return (None, buffer);
+			return (None, 0);
 		}
 
 		let encrypted_length = &buffer[0..18]; // todo: abort if too short
@@ -40,7 +42,7 @@ impl ConnectedPeer {
 
 		let message_end_index = message_length + 18; // todo: abort if too short
 		if buffer.len() < message_end_index {
-			return (None, buffer);
+			return (None, 0);
 		}
 
 		let encrypted_message = &buffer[18..message_end_index];
@@ -51,9 +53,7 @@ impl ConnectedPeer {
 
 		self.increment_receiving_nonce();
 
-		let unread_buffer = &buffer[message_end_index..];
-
-		(Some(message), unread_buffer)
+		(Some(message), message_end_index)
 	}
 
 	fn increment_sending_nonce(&mut self) {
