@@ -1,10 +1,9 @@
-use test::Concurrent::No;
-
 use ln::peers::{chacha, hkdf};
 
 pub(crate) struct ConnectedPeer {
 	pub(crate) sending_key: [u8; 32],
 	pub(crate) receiving_key: [u8; 32],
+
 	pub(crate) sending_chaining_key: [u8; 32],
 	pub(crate) receiving_chaining_key: [u8; 32],
 
@@ -14,7 +13,18 @@ pub(crate) struct ConnectedPeer {
 
 impl ConnectedPeer {
 	pub fn encrypt(&mut self, buffer: &[u8]) -> Vec<u8> {
-		unimplemented!()
+		let length = buffer.len() as u16;
+		let length_bytes = length.to_be_bytes();
+
+		let encrypted_length = chacha::encrypt(&self.sending_key, self.sending_nonce as u64, &[0; 0], &length_bytes);
+		self.increment_sending_nonce();
+
+		let encrypted_message = chacha::encrypt(&self.sending_key, self.sending_nonce as u64, &[0; 0], buffer);
+		self.increment_sending_nonce();
+
+		let mut ciphertext = encrypted_length;
+		ciphertext.extend_from_slice(&encrypted_message);
+		ciphertext
 	}
 
 	pub fn decrypt<'a>(&mut self, buffer: &'a [u8]) -> (Option<Vec<u8>>, &'a [u8]) { // the response slice should have the same lifetime as the argument. It's the slice data is read from
@@ -66,5 +76,49 @@ impl ConnectedPeer {
 		let (new_chaining_key, new_key) = hkdf::derive(chaining_key, key);
 		chaining_key.copy_from_slice(&new_chaining_key);
 		key.copy_from_slice(&new_key);
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use ln::peers::peer::ConnectedPeer;
+
+	#[test]
+	fn test_chaining() {
+		let chaining_key_vec = hex::decode("919219dbb2920afa8db80f9a51787a840bcf111ed8d588caf9ab4be716e42b01").unwrap();
+		let mut chaining_key = [0u8; 32];
+		chaining_key.copy_from_slice(&chaining_key_vec);
+
+		let sending_key_vec = hex::decode("969ab31b4d288cedf6218839b27a3e2140827047f2c0f01bf5c04435d43511a9").unwrap();
+		let mut sending_key = [0u8; 32];
+		sending_key.copy_from_slice(&sending_key_vec);
+
+		let receiving_key_vec = hex::decode("bb9020b8965f4df047e07f955f3c4b88418984aadc5cdb35096b9ea8fa5c3442").unwrap();
+		let mut receiving_key = [0u8; 32];
+		receiving_key.copy_from_slice(&receiving_key_vec);
+
+		let mut connected_peer = ConnectedPeer {
+			sending_key,
+			receiving_key,
+			sending_chaining_key: chaining_key,
+			receiving_chaining_key: chaining_key,
+			sending_nonce: 0,
+			receiving_nonce: 0,
+		};
+
+		let message = hex::decode("68656c6c6f").unwrap();
+		let mut encrypted_messages: Vec<Vec<u8>> = Vec::new();
+
+		for i in 0..1002 {
+			let encrypted_message = connected_peer.encrypt(&message);
+			encrypted_messages.push(encrypted_message);
+		}
+
+		assert_eq!(encrypted_messages[0], hex::decode("cf2b30ddf0cf3f80e7c35a6e6730b59fe802473180f396d88a8fb0db8cbcf25d2f214cf9ea1d95").unwrap());
+		assert_eq!(encrypted_messages[1], hex::decode("72887022101f0b6753e0c7de21657d35a4cb2a1f5cde2650528bbc8f837d0f0d7ad833b1a256a1").unwrap());
+		assert_eq!(encrypted_messages[500], hex::decode("178cb9d7387190fa34db9c2d50027d21793c9bc2d40b1e14dcf30ebeeeb220f48364f7a4c68bf8").unwrap());
+		assert_eq!(encrypted_messages[501], hex::decode("1b186c57d44eb6de4c057c49940d79bb838a145cb528d6e8fd26dbe50a60ca2c104b56b60e45bd").unwrap());
+		assert_eq!(encrypted_messages[1000], hex::decode("4a2f3cc3b5e78ddb83dcb426d9863d9d9a723b0337c89dd0b005d89f8d3c05c52b76b29b740f09").unwrap());
+		assert_eq!(encrypted_messages[1001], hex::decode("2ecd8c8a5629d0d02ab457a0fdd0f7b90a192cd46be5ecb6ca570bfc5e268338b1a16cf4ef2d36").unwrap());
 	}
 }
