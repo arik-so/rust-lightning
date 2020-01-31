@@ -156,7 +156,8 @@ impl PeerHandshake {
 		let connected_peer = ConnectedPeer {
 			sending_key,
 			receiving_key,
-			chaining_key,
+			sending_chaining_key: chaining_key,
+			receiving_chaining_key: chaining_key,
 			sending_nonce: 0,
 			receiving_nonce: 0,
 		};
@@ -197,7 +198,8 @@ impl PeerHandshake {
 		let connected_peer = ConnectedPeer {
 			sending_key,
 			receiving_key,
-			chaining_key,
+			sending_chaining_key: chaining_key,
+			receiving_chaining_key: chaining_key,
 			sending_nonce: 0,
 			receiving_nonce: 0,
 		};
