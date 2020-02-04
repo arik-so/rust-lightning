@@ -127,8 +127,12 @@ pub trait ManyChannelMonitor<ChanSigner: ChannelKeys>: Send + Sync {
 	fn add_update_monitor(&self, funding_txo: OutPoint, monitor: ChannelMonitor<ChanSigner>) -> Result<(), ChannelMonitorUpdateErr>;
 
 	/// Used by ChannelManager to get list of HTLC resolved onchain and which needed to be updated
-	/// with success or failure backward
-	fn fetch_pending_htlc_updated(&self) -> Vec<HTLCUpdate>;
+	/// with success or failure.
+	///
+	/// You should probably just call through to
+	/// ChannelMonitor::get_and_clear_pending_htlcs_updated() for each ChannelMonitor and return
+	/// the full list.
+	fn get_and_clear_pending_htlcs_updated(&self) -> Vec<HTLCUpdate>;
 }
 
 /// A simple implementation of a ManyChannelMonitor and ChainListener. Can be used to create a
@@ -150,7 +154,6 @@ pub struct SimpleManyChannelMonitor<Key, ChanSigner: ChannelKeys> {
 	chain_monitor: Arc<ChainWatchInterface>,
 	broadcaster: Arc<BroadcasterInterface>,
 	pending_events: Mutex<Vec<events::Event>>,
-	pending_htlc_updated: Mutex<HashMap<PaymentHash, Vec<(HTLCSource, Option<PaymentPreimage>)>>>,
 	logger: Arc<Logger>,
 	fee_estimator: Arc<FeeEstimator>
 }
@@ -159,11 +162,10 @@ impl<'a, Key : Send + cmp::Eq + hash::Hash, ChanSigner: ChannelKeys> ChainListen
 	fn block_connected(&self, header: &BlockHeader, height: u32, txn_matched: &[&Transaction], _indexes_of_txn_matched: &[u32]) {
 		let block_hash = header.bitcoin_hash();
 		let mut new_events: Vec<events::Event> = Vec::with_capacity(0);
-		let mut htlc_updated_infos = Vec::new();
 		{
 			let mut monitors = self.monitors.lock().unwrap();
 			for monitor in monitors.values_mut() {
-				let (txn_outputs, spendable_outputs, mut htlc_updated) = monitor.block_connected(txn_matched, height, &block_hash, &*self.broadcaster, &*self.fee_estimator);
+				let (txn_outputs, spendable_outputs) = monitor.block_connected(txn_matched, height, &block_hash, &*self.broadcaster, &*self.fee_estimator);
 				if spendable_outputs.len() > 0 {
 					new_events.push(events::Event::SpendableOutputs {
 						outputs: spendable_outputs,
@@ -173,35 +175,6 @@ impl<'a, Key : Send + cmp::Eq + hash::Hash, ChanSigner: ChannelKeys> ChainListen
 				for (ref txid, ref outputs) in txn_outputs {
 					for (idx, output) in outputs.iter().enumerate() {
 						self.chain_monitor.install_watch_outpoint((txid.clone(), idx as u32), &output.script_pubkey);
-					}
-				}
-				htlc_updated_infos.append(&mut htlc_updated);
-			}
-		}
-		{
-			// ChannelManager will just need to fetch pending_htlc_updated and pass state backward
-			let mut pending_htlc_updated = self.pending_htlc_updated.lock().unwrap();
-			for htlc in htlc_updated_infos.drain(..) {
-				match pending_htlc_updated.entry(htlc.2) {
-					hash_map::Entry::Occupied(mut e) => {
-						// In case of reorg we may have htlc outputs solved in a different way so
-						// we prefer to keep claims but don't store duplicate updates for a given
-						// (payment_hash, HTLCSource) pair.
-						let mut existing_claim = false;
-						e.get_mut().retain(|htlc_data| {
-							if htlc.0 == htlc_data.0 {
-								if htlc_data.1.is_some() {
-									existing_claim = true;
-									true
-								} else { false }
-							} else { true }
-						});
-						if !existing_claim {
-							e.get_mut().push((htlc.0, htlc.1));
-						}
-					}
-					hash_map::Entry::Vacant(e) => {
-						e.insert(vec![(htlc.0, htlc.1)]);
 					}
 				}
 			}
@@ -228,7 +201,6 @@ impl<Key : Send + cmp::Eq + hash::Hash + 'static, ChanSigner: ChannelKeys> Simpl
 			chain_monitor,
 			broadcaster,
 			pending_events: Mutex::new(Vec::new()),
-			pending_htlc_updated: Mutex::new(HashMap::new()),
 			logger,
 			fee_estimator: feeest,
 		};
@@ -281,17 +253,10 @@ impl<ChanSigner: ChannelKeys> ManyChannelMonitor<ChanSigner> for SimpleManyChann
 		}
 	}
 
-	fn fetch_pending_htlc_updated(&self) -> Vec<HTLCUpdate> {
-		let mut updated = self.pending_htlc_updated.lock().unwrap();
-		let mut pending_htlcs_updated = Vec::with_capacity(updated.len());
-		for (k, v) in updated.drain() {
-			for htlc_data in v {
-				pending_htlcs_updated.push(HTLCUpdate {
-					payment_hash: k,
-					payment_preimage: htlc_data.1,
-					source: htlc_data.0,
-				});
-			}
+	fn get_and_clear_pending_htlcs_updated(&self) -> Vec<HTLCUpdate> {
+		let mut pending_htlcs_updated = Vec::new();
+		for chan in self.monitors.lock().unwrap().values_mut() {
+			pending_htlcs_updated.append(&mut chan.get_and_clear_pending_htlcs_updated());
 		}
 		pending_htlcs_updated
 	}
@@ -637,6 +602,8 @@ pub struct ChannelMonitor<ChanSigner: ChannelKeys> {
 
 	payment_preimages: HashMap<PaymentHash, PaymentPreimage>,
 
+	pending_htlcs_updated: HashMap<PaymentHash, Vec<(HTLCSource, Option<PaymentPreimage>)>>,
+
 	destination_script: Script,
 	// Thanks to data loss protection, we may be able to claim our non-htlc funds
 	// back, this is the script we have to spend from but we need to
@@ -747,6 +714,7 @@ impl<ChanSigner: ChannelKeys> PartialEq for ChannelMonitor<ChanSigner> {
 			self.current_remote_commitment_number != other.current_remote_commitment_number ||
 			self.current_local_signed_commitment_tx != other.current_local_signed_commitment_tx ||
 			self.payment_preimages != other.payment_preimages ||
+			self.pending_htlcs_updated != other.pending_htlcs_updated ||
 			self.destination_script != other.destination_script ||
 			self.to_remote_rescue != other.to_remote_rescue ||
 			self.pending_claim_requests != other.pending_claim_requests ||
@@ -935,6 +903,16 @@ impl<ChanSigner: ChannelKeys + Writeable> ChannelMonitor<ChanSigner> {
 			writer.write_all(&payment_preimage.0[..])?;
 		}
 
+		writer.write_all(&byte_utils::be64_to_array(self.pending_htlcs_updated.len() as u64))?;
+		for (payment_hash, data) in self.pending_htlcs_updated.iter() {
+			writer.write_all(&payment_hash.0[..])?;
+			writer.write_all(&byte_utils::be64_to_array(data.len() as u64))?;
+			for &(ref source, ref payment_preimage) in data.iter() {
+				source.write(writer)?;
+				write_option!(payment_preimage);
+			}
+		}
+
 		self.last_block_hash.write(writer)?;
 		self.destination_script.write(writer)?;
 		if let Some((ref to_remote_script, ref local_key)) = self.to_remote_rescue {
@@ -1053,6 +1031,8 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 			current_remote_commitment_number: 1 << 48,
 
 			payment_preimages: HashMap::new(),
+			pending_htlcs_updated: HashMap::new(),
+
 			destination_script: destination_script,
 			to_remote_rescue: None,
 
@@ -1414,6 +1394,22 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 			}
 		}
 		res
+	}
+
+	/// Get the list of HTLCs who's status has been updated on chain. This should be called by
+	/// ChannelManager via ManyChannelMonitor::get_and_clear_pending_htlcs_updated().
+	pub fn get_and_clear_pending_htlcs_updated(&mut self) -> Vec<HTLCUpdate> {
+		let mut pending_htlcs_updated = Vec::with_capacity(self.pending_htlcs_updated.len());
+		for (k, v) in self.pending_htlcs_updated.drain() {
+			for htlc_data in v {
+				pending_htlcs_updated.push(HTLCUpdate {
+					payment_hash: k,
+					payment_preimage: htlc_data.1,
+					source: htlc_data.0,
+				});
+			}
+		}
+		pending_htlcs_updated
 	}
 
 	/// Can only fail if idx is < get_min_seen_secret
@@ -2394,11 +2390,39 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 		}
 	}
 
+	fn append_htlc_updated(&mut self, mut htlc_updated_infos: Vec<(HTLCSource, Option<PaymentPreimage>, PaymentHash)>) {
+		// ChannelManager will just need to fetch pending_htlcs_updated and pass state backward
+		for htlc in htlc_updated_infos.drain(..) {
+			match self.pending_htlcs_updated.entry(htlc.2) {
+				hash_map::Entry::Occupied(mut e) => {
+					// In case of reorg we may have htlc outputs solved in a different way so
+					// we prefer to keep claims but don't store duplicate updates for a given
+					// (payment_hash, HTLCSource) pair.
+					let mut existing_claim = false;
+					e.get_mut().retain(|htlc_data| {
+						if htlc.0 == htlc_data.0 {
+							if htlc_data.1.is_some() {
+								existing_claim = true;
+								true
+							} else { false }
+						} else { true }
+					});
+					if !existing_claim {
+						e.get_mut().push((htlc.0, htlc.1));
+					}
+				}
+				hash_map::Entry::Vacant(e) => {
+					e.insert(vec![(htlc.0, htlc.1)]);
+				}
+			}
+		}
+	}
+
 	/// Called by ChannelMonitor::block_connected, which implements ChainListener::block_connected.
 	/// Eventually this should be pub and, roughly, implement ChainListener, however this requires
 	/// &mut self, as well as returns new spendable outputs and outpoints to watch for spending of
 	/// on-chain.
-	fn block_connected(&mut self, txn_matched: &[&Transaction], height: u32, block_hash: &Sha256dHash, broadcaster: &BroadcasterInterface, fee_estimator: &FeeEstimator)-> (Vec<(Sha256dHash, Vec<TxOut>)>, Vec<SpendableOutputDescriptor>, Vec<(HTLCSource, Option<PaymentPreimage>, PaymentHash)>) {
+	fn block_connected(&mut self, txn_matched: &[&Transaction], height: u32, block_hash: &Sha256dHash, broadcaster: &BroadcasterInterface, fee_estimator: &FeeEstimator)-> (Vec<(Sha256dHash, Vec<TxOut>)>, Vec<SpendableOutputDescriptor>) {
 		for tx in txn_matched {
 			let mut output_val = 0;
 			for out in tx.output.iter() {
@@ -2411,7 +2435,6 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 		log_trace!(self, "Block {} at height {} connected with {} txn matched", block_hash, height, txn_matched.len());
 		let mut watch_outputs = Vec::new();
 		let mut spendable_outputs = Vec::new();
-		let mut htlc_updated = Vec::new();
 		let mut bump_candidates = HashSet::new();
 		for tx in txn_matched {
 			if tx.input.len() == 1 {
@@ -2470,10 +2493,8 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 			// While all commitment/HTLC-Success/HTLC-Timeout transactions have one input, HTLCs
 			// can also be resolved in a few other ways which can have more than one output. Thus,
 			// we call is_resolving_htlc_output here outside of the tx.input.len() == 1 check.
-			let mut updated = self.is_resolving_htlc_output(&tx, height);
-			if updated.len() > 0 {
-				htlc_updated.append(&mut updated);
-			}
+			let htlcs_updated = self.is_resolving_htlc_output(&tx, height);
+			self.append_htlc_updated(htlcs_updated);
 
 			// Scan all input to verify is one of the outpoint spent is of interest for us
 			let mut claimed_outputs_material = Vec::new();
@@ -2596,7 +2617,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 					},
 					OnchainEvent::HTLCUpdate { htlc_update } => {
 						log_trace!(self, "HTLC {} failure update has got enough confirmations to be passed upstream", log_bytes!((htlc_update.1).0));
-						htlc_updated.push((htlc_update.0, None, htlc_update.1));
+						self.append_htlc_updated(vec![(htlc_update.0, None, htlc_update.1)]);
 					},
 					OnchainEvent::ContentiousOutpoint { outpoint, .. } => {
 						self.claimable_outpoints.remove(&outpoint);
@@ -2628,7 +2649,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 		for &(ref txid, ref output_scripts) in watch_outputs.iter() {
 			self.outputs_to_watch.insert(txid.clone(), output_scripts.iter().map(|o| o.script_pubkey.clone()).collect());
 		}
-		(watch_outputs, spendable_outputs, htlc_updated)
+		(watch_outputs, spendable_outputs)
 	}
 
 	fn block_disconnected(&mut self, height: u32, block_hash: &Sha256dHash, broadcaster: &BroadcasterInterface, fee_estimator: &FeeEstimator) {
@@ -3217,6 +3238,20 @@ impl<R: ::std::io::Read, ChanSigner: ChannelKeys + Readable<R>> ReadableArgs<R, 
 			}
 		}
 
+		let pending_htlcs_updated_len: u64 = Readable::read(reader)?;
+		let mut pending_htlcs_updated = HashMap::with_capacity(cmp::min(pending_htlcs_updated_len as usize, MAX_ALLOC_SIZE / (32 + 8*3)));
+		for _ in 0..pending_htlcs_updated_len {
+			let payment_hash: PaymentHash = Readable::read(reader)?;
+			let htlcs_len: u64 = Readable::read(reader)?;
+			let mut htlcs = Vec::with_capacity(cmp::min(htlcs_len as usize, MAX_ALLOC_SIZE / 64));
+			for _ in 0..htlcs_len {
+				htlcs.push((Readable::read(reader)?, Readable::read(reader)?));
+			}
+			if let Some(_) = pending_htlcs_updated.insert(payment_hash, htlcs) {
+				return Err(DecodeError::InvalidValue);
+			}
+		}
+
 		let last_block_hash: Sha256dHash = Readable::read(reader)?;
 		let destination_script = Readable::read(reader)?;
 		let to_remote_rescue = match <u8 as Readable<R>>::read(reader)? {
@@ -3317,6 +3352,7 @@ impl<R: ::std::io::Read, ChanSigner: ChannelKeys + Readable<R>> ReadableArgs<R, 
 			current_remote_commitment_number,
 
 			payment_preimages,
+			pending_htlcs_updated,
 
 			destination_script,
 			to_remote_rescue,
