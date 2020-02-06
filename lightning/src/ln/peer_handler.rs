@@ -118,8 +118,6 @@ pub(crate) struct Peer {
 	pub(crate) awaiting_write_event: bool,
 
 	pub(crate) pending_read_buffer: Vec<u8>,
-	pub(crate) pending_read_buffer_pos: usize,
-	pub(crate) pending_read_is_header: bool,
 
 	pub(crate) sync_status: InitSyncTracker,
 
