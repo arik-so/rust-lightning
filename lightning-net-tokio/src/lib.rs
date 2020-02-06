@@ -42,7 +42,7 @@ pub struct Connection {
 	id: u64,
 }
 impl Connection {
-	fn schedule_read(peer_manager: Arc<peer_handler::PeerManager<SocketDescriptor>>, us: Arc<Mutex<Self>>, reader: futures::stream::SplitStream<tokio_codec::Framed<TcpStream, tokio_codec::BytesCodec>>) {
+	fn schedule_read(peer_manager: Arc<peer_handler::PeerCoordinator<SocketDescriptor>>, us: Arc<Mutex<Self>>, reader: futures::stream::SplitStream<tokio_codec::Framed<TcpStream, tokio_codec::BytesCodec>>) {
 		let us_ref = us.clone();
 		let us_close_ref = us.clone();
 		let peer_manager_ref = peer_manager.clone();
@@ -110,7 +110,7 @@ impl Connection {
 	///
 	/// You should poll the Receive end of event_notify and call get_and_clear_pending_events() on
 	/// ChannelManager and ChannelMonitor objects.
-	pub fn setup_inbound(peer_manager: Arc<peer_handler::PeerManager<SocketDescriptor>>, event_notify: mpsc::Sender<()>, stream: TcpStream) {
+	pub fn setup_inbound(peer_manager: Arc<peer_handler::PeerCoordinator<SocketDescriptor>>, event_notify: mpsc::Sender<()>, stream: TcpStream) {
 		let (reader, us) = Self::new(event_notify, stream);
 
 		if let Ok(_) = peer_manager.new_inbound_connection(SocketDescriptor::new(us.clone(), peer_manager.clone())) {
@@ -124,7 +124,7 @@ impl Connection {
 	///
 	/// You should poll the Receive end of event_notify and call get_and_clear_pending_events() on
 	/// ChannelManager and ChannelMonitor objects.
-	pub fn setup_outbound(peer_manager: Arc<peer_handler::PeerManager<SocketDescriptor>>, event_notify: mpsc::Sender<()>, their_node_id: PublicKey, stream: TcpStream) {
+	pub fn setup_outbound(peer_manager: Arc<peer_handler::PeerCoordinator<SocketDescriptor>>, event_notify: mpsc::Sender<()>, their_node_id: PublicKey, stream: TcpStream) {
 		let (reader, us) = Self::new(event_notify, stream);
 
 		if let Ok(initial_send) = peer_manager.new_outbound_connection(their_node_id, SocketDescriptor::new(us.clone(), peer_manager.clone())) {
@@ -142,7 +142,7 @@ impl Connection {
 	///
 	/// You should poll the Receive end of event_notify and call get_and_clear_pending_events() on
 	/// ChannelManager and ChannelMonitor objects.
-	pub fn connect_outbound(peer_manager: Arc<peer_handler::PeerManager<SocketDescriptor>>, event_notify: mpsc::Sender<()>, their_node_id: PublicKey, addr: SocketAddr) {
+	pub fn connect_outbound(peer_manager: Arc<peer_handler::PeerCoordinator<SocketDescriptor>>, event_notify: mpsc::Sender<()>, their_node_id: PublicKey, addr: SocketAddr) {
 		let connect_timeout = Delay::new(Instant::now() + Duration::from_secs(10)).then(|_| {
 			future::err(std::io::Error::new(std::io::ErrorKind::TimedOut, "timeout reached"))
 		});
@@ -161,10 +161,10 @@ impl Connection {
 pub struct SocketDescriptor {
 	conn: Arc<Mutex<Connection>>,
 	id: u64,
-	peer_manager: Arc<peer_handler::PeerManager<SocketDescriptor>>,
+	peer_manager: Arc<peer_handler::PeerCoordinator<SocketDescriptor>>,
 }
 impl SocketDescriptor {
-	fn new(conn: Arc<Mutex<Connection>>, peer_manager: Arc<peer_handler::PeerManager<SocketDescriptor>>) -> Self {
+	fn new(conn: Arc<Mutex<Connection>>, peer_manager: Arc<peer_handler::PeerCoordinator<SocketDescriptor>>) -> Self {
 		let id = conn.lock().unwrap().id;
 		Self { conn, id, peer_manager }
 	}
