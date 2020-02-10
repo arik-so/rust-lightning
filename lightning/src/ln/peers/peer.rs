@@ -29,7 +29,9 @@ impl Peer {
 	}
 
 	pub fn new_inbound(private_key: SecretKey, ephemeral_private_key: Option<SecretKey>) -> Self {
-		let handshake = PeerHandshake::new(&private_key);
+		let mut handshake = PeerHandshake::new(&private_key);
+		handshake.make_inbound();
+
 		let ephemeral_private_key = ephemeral_private_key.unwrap_or(Self::generate_ephemeral_private_key());
 
 		Peer {
