@@ -582,8 +582,7 @@ impl<Descriptor: SocketDescriptor, CM: Deref> PeerManager<Descriptor, CM> where 
 										peer.pending_read_is_header = true;
 
 										let mut reader = ::std::io::Cursor::new(&msg_data[..]);
-										let message_result = wire::read(&mut reader);
-										let message = match message_result {
+										let message = match wire::read(&mut reader) {
 											Ok(x) => x,
 											Err(e) => {
 												match e {
