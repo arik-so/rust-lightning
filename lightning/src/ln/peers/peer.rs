@@ -9,8 +9,8 @@ enum PeerState {
 }
 
 struct Peer {
-	ephemeral_private_key: [u8; 32],
-	remote_public_key: Option<[u8; 33]>,
+	ephemeral_private_key: SecretKey,
+	remote_public_key: Option<PublicKey>,
 	state: PeerState,
 
 	pending_read_buffer: Vec<u8>,
@@ -28,11 +28,8 @@ impl Peer {
 		}
 	}
 
-	pub fn new_inbound(private_key: SecretKey, ephemeral_private_key: Option<[u8; 32]>) -> Self {
-		let mut private_key_slice = [0u8; 32];
-		private_key_slice.copy_from_slice(&private_key[..]);
-
-		let handshake = PeerHandshake::new(private_key_slice);
+	pub fn new_inbound(private_key: SecretKey, ephemeral_private_key: Option<SecretKey>) -> Self {
+		let handshake = PeerHandshake::new(&private_key);
 		let ephemeral_private_key = ephemeral_private_key.unwrap_or(Self::generate_ephemeral_private_key());
 
 		Peer {
@@ -46,16 +43,13 @@ impl Peer {
 		}
 	}
 
-	pub fn new_outbound(private_key: SecretKey, remote_pubkey: PublicKey, ephemeral_private_key: Option<[u8; 32]>) -> Self {
-		let mut private_key_slice = [0u8; 32];
-		private_key_slice.copy_from_slice(&private_key[..]);
-
-		let handshake = PeerHandshake::new(private_key_slice);
+	pub fn new_outbound(private_key: SecretKey, remote_pubkey: PublicKey, ephemeral_private_key: Option<SecretKey>) -> Self {
+		let handshake = PeerHandshake::new(&private_key);
 		let ephemeral_private_key = ephemeral_private_key.unwrap_or(Self::generate_ephemeral_private_key());
 
 		Peer {
-			ephemeral_private_key: [0; 32],
-			remote_public_key: Some(remote_pubkey.serialize()),
+			ephemeral_private_key,
+			remote_public_key: Some(remote_pubkey),
 			state: PeerState::Handshake(handshake),
 
 			pending_read_buffer: Vec::new(),
@@ -78,7 +72,7 @@ impl Peer {
 
 		// we need `&mut self.state` in order to use `ref mut`
 		if let PeerState::Handshake(ref mut handshake) = &mut self.state {
-			let result = handshake.process_act(&buffer, self.ephemeral_private_key, self.remote_public_key).unwrap();
+			let result = handshake.process_act(&buffer, &self.ephemeral_private_key, self.remote_public_key.as_ref()).unwrap();
 
 			let output = result.0;
 			let offset = result.1;
@@ -98,10 +92,10 @@ impl Peer {
 		}
 	}
 
-	fn generate_ephemeral_private_key() -> [u8; 32] {
+	fn generate_ephemeral_private_key() -> SecretKey {
 		let mut rng = thread_rng();
 		let mut ephemeral_bytes = [0; 32];
 		rng.fill_bytes(&mut ephemeral_bytes);
-		ephemeral_bytes
+		SecretKey::from_slice(&ephemeral_bytes).expect("You broke elliptic curve cryptography")
 	}
 }

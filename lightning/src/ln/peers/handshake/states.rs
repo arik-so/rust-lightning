@@ -1,4 +1,5 @@
 use ln::peers::handshake::hash::HandshakeHash;
+use secp256k1::{SecretKey, PublicKey};
 
 pub enum HandshakeState {
 	Blank,
@@ -17,13 +18,13 @@ pub struct ActTwoExpectation {
 	pub(super) hash: HandshakeHash,
 	pub(super) chaining_key: [u8; 32],
 	pub(super) temporary_key: [u8; 32],
-	pub(super) ephemeral_private_key: [u8; 32],
+	pub(super) ephemeral_private_key: SecretKey,
 }
 
 pub struct ActThreeExpectation {
 	pub(super) hash: HandshakeHash,
 	pub(super) chaining_key: [u8; 32],
 	pub(super) temporary_key: [u8; 32],
-	pub(super) ephemeral_private_key: [u8; 32],
-	pub(super) remote_ephemeral_public_key: [u8; 33],
+	pub(super) ephemeral_private_key: SecretKey,
+	pub(super) remote_ephemeral_public_key: PublicKey,
 }
