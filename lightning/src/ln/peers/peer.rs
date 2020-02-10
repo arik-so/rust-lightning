@@ -9,6 +9,8 @@ pub struct ConnectedPeer {
 
 	pub(crate) receiving_nonce: u32,
 	pub(crate) sending_nonce: u32,
+
+	pub(super) read_buffer: Option<Vec<u8>>,
 }
 
 impl ConnectedPeer {
@@ -25,6 +27,40 @@ impl ConnectedPeer {
 		let mut ciphertext = encrypted_length;
 		ciphertext.extend_from_slice(&encrypted_message);
 		ciphertext
+	}
+
+	pub fn decrypt_message_stream(&mut self, new_data: Option<&[u8]>) -> Vec<Vec<u8>> {
+		let mut read_buffer = if let Some(buffer) = self.read_buffer.take() {
+			buffer
+		} else {
+			Vec::new()
+		};
+
+		if let Some(data) = new_data {
+			read_buffer.extend_from_slice(data);
+		}
+
+		let mut messages = Vec::new();
+
+		loop {
+			// todo: find way that won't require cloning the entire buffer
+			let (current_message, offset) = self.decrypt(&read_buffer[..]);
+			if offset == 0 {
+				break;
+			}
+
+			read_buffer.drain(0..offset);
+
+			if let Some(message) = current_message {
+				messages.push(message);
+			} else {
+				break;
+			}
+		}
+
+		self.read_buffer = Some(read_buffer);
+
+		messages
 	}
 
 	///
@@ -104,6 +140,7 @@ mod tests {
 			receiving_chaining_key: chaining_key,
 			sending_nonce: 0,
 			receiving_nonce: 0,
+			read_buffer: None,
 		};
 
 		let message = hex::decode("68656c6c6f").unwrap();

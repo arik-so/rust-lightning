@@ -247,6 +247,7 @@ impl PeerHandshake {
 			receiving_chaining_key: chaining_key,
 			sending_nonce: 0,
 			receiving_nonce: 0,
+			read_buffer: None,
 		};
 		Ok((ActThree(act_three), connected_peer))
 	}
@@ -289,6 +290,7 @@ impl PeerHandshake {
 			receiving_chaining_key: chaining_key,
 			sending_nonce: 0,
 			receiving_nonce: 0,
+			read_buffer: None,
 		};
 		Ok(connected_peer)
 	}
