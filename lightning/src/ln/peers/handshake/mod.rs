@@ -6,7 +6,7 @@ use ln::peers::{chacha, hkdf};
 use ln::peers::handshake::acts::{ActOne, ActThree, ActTwo};
 use ln::peers::handshake::hash::HandshakeHash;
 use ln::peers::handshake::states::{ActOneExpectation, ActThreeExpectation, ActTwoExpectation, HandshakeState};
-use ln::peers::peer::ConnectedPeer;
+use ln::peers::conduit::Conduit;
 
 mod acts;
 mod hash;
@@ -16,8 +16,6 @@ mod tests;
 pub struct PeerHandshake {
 	state: Option<HandshakeState>,
 	private_key: [u8; 32],
-	ephemeral_private_key: Option<[u8; 32]>,
-	remote_public_key: Option<[u8; 33]>,
 }
 
 impl PeerHandshake {
@@ -25,20 +23,11 @@ impl PeerHandshake {
 		let handshake = PeerHandshake {
 			state: Some(HandshakeState::Blank),
 			private_key,
-			ephemeral_private_key: None,
-			remote_public_key: None,
 		};
 		handshake
 	}
 
-	pub fn make_initiator(&mut self, ephemeral_private_key: &[u8; 32], remote_public_key: &[u8; 33]) {
-		self.ephemeral_private_key = Some(ephemeral_private_key.clone());
-		self.remote_public_key = Some(remote_public_key.clone());
-	}
-
-	pub fn make_responder(&mut self, ephemeral_private_key: &[u8; 32]) {
-		self.ephemeral_private_key = Some(ephemeral_private_key.clone());
-
+	pub fn make_inbound(&mut self) {
 		let public_key = Self::private_key_to_public_key(&self.private_key);
 		let (hash, chaining_key) = Self::initialize_state(&public_key);
 		self.state = Some(HandshakeState::AwaitingActOne(ActOneExpectation {
@@ -67,13 +56,7 @@ impl PeerHandshake {
 
 	/// Process act dynamically
 	/// The role must be set before this method can be called
-	pub fn process_act(&mut self, input: &[u8]) -> Result<(Vec<u8>, usize, Option<ConnectedPeer>), String> {
-		let ephemeral_private_key = if let Some(ephemeral_private_key) = self.ephemeral_private_key {
-			ephemeral_private_key
-		} else {
-			return Err("Call make_initiator() or make_responder() to configure role first".to_string());
-		};
-
+	pub fn process_act(&mut self, input: &[u8], ephemeral_private_key: [u8; 32], remote_public_key: Option<[u8; 33]>) -> Result<(Vec<u8>, usize, Option<Conduit>), String> {
 		let mut response: Vec<u8> = Vec::new();
 		let mut offset = 0usize;
 		let input_length = input.len();
@@ -81,7 +64,7 @@ impl PeerHandshake {
 
 		let act_response = match &self.state {
 			Some(HandshakeState::Blank) => {
-				let remote_public_key = self.remote_public_key.ok_or("Call make_initiator() first")?;
+				let remote_public_key = remote_public_key.ok_or("Call make_initiator() first")?;
 				let act_one = self.initiate(&ephemeral_private_key, &remote_public_key)?;
 				response = act_one.0.to_vec();
 			}
@@ -203,7 +186,7 @@ impl PeerHandshake {
 		Ok(ActTwo(act_two))
 	}
 
-	pub(crate) fn process_act_two(&mut self, act: ActTwo) -> Result<(ActThree, ConnectedPeer), String> {
+	pub(crate) fn process_act_two(&mut self, act: ActTwo) -> Result<(ActThree, Conduit), String> {
 		let state = self.state.take();
 		let act_two_expectation = match state {
 			Some(HandshakeState::AwaitingActTwo(act_state)) => act_state,
@@ -240,7 +223,7 @@ impl PeerHandshake {
 		let mut act_three = [0u8; 66];
 		act_three.copy_from_slice(act_three_vec.as_slice());
 
-		let connected_peer = ConnectedPeer {
+		let connected_peer = Conduit {
 			sending_key,
 			receiving_key,
 			sending_chaining_key: chaining_key,
@@ -252,7 +235,7 @@ impl PeerHandshake {
 		Ok((ActThree(act_three), connected_peer))
 	}
 
-	pub(crate) fn process_act_three(&mut self, act: ActThree) -> Result<ConnectedPeer, String> {
+	pub(crate) fn process_act_three(&mut self, act: ActThree) -> Result<Conduit, String> {
 		let state = self.state.take();
 		let act_three_expectation = match state {
 			Some(HandshakeState::AwaitingActThree(act_state)) => act_state,
@@ -283,7 +266,7 @@ impl PeerHandshake {
 		let tag_check = chacha::decrypt(&temporary_key, 0, &hash.value, &chacha_tag)?;
 		let (receiving_key, sending_key) = hkdf::derive(&chaining_key, &[0; 0]);
 
-		let connected_peer = ConnectedPeer {
+		let connected_peer = Conduit {
 			sending_key,
 			receiving_key,
 			sending_chaining_key: chaining_key,

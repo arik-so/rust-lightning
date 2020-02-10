@@ -30,7 +30,7 @@ use bitcoin_hashes::sha256::Hash as Sha256;
 use bitcoin_hashes::sha256::HashEngine as Sha256Engine;
 use bitcoin_hashes::{HashEngine, Hash};
 use ln::peers::handshake::PeerHandshake;
-use ln::peers::peer::ConnectedPeer;
+use ln::peers::conduit::Conduit;
 
 /// Provides references to trait impls which handle different types of messages.
 pub struct MessageHandler<CM: Deref> where CM::Target: msgs::ChannelMessageHandler {
@@ -112,7 +112,7 @@ enum InitSyncTracker {
 
 struct Peer {
 	handshake: PeerHandshake,
-	conduit: Option<ConnectedPeer>,
+	conduit: Option<Conduit>,
 	channel_encryptor: PeerChannelEncryptor, // todo: make legacy
 	outbound: bool,
 	their_node_id: Option<PublicKey>,
@@ -287,9 +287,8 @@ impl<Descriptor: SocketDescriptor, CM: Deref> PeerManager<Descriptor, CM> where 
 		let mut channel_encryptor = PeerChannelEncryptor::new_outbound(their_node_id.clone(), self.get_ephemeral_key());
 
 		let mut peer_handshake = PeerHandshake::new([1; 32]); // initialize with empty private key
-		peer_handshake.make_initiator(&[2; 32], &their_node_id.serialize());
 
-		let (res, _, _) = peer_handshake.process_act(&[]).unwrap();
+		let (res, _, _) = peer_handshake.process_act(&[], [0; 32], None).unwrap();
 
 		let mut peers = self.peers.lock().unwrap();
 		if peers.peers.insert(descriptor, Peer {
@@ -328,7 +327,7 @@ impl<Descriptor: SocketDescriptor, CM: Deref> PeerManager<Descriptor, CM> where 
 		let channel_encryptor = PeerChannelEncryptor::new_inbound(&self.our_node_secret);
 
 		let mut peer_handshake = PeerHandshake::new([1; 32]); // initialize with empty private key
-		peer_handshake.make_responder(&[2; 32]);
+		peer_handshake.make_inbound();
 
 		let mut peers = self.peers.lock().unwrap();
 		if peers.peers.insert(descriptor, Peer {
@@ -565,7 +564,7 @@ impl<Descriptor: SocketDescriptor, CM: Deref> PeerManager<Descriptor, CM> where 
 							}
 
 						if peer.conduit.is_none() {
-							let handshake_process = peer.handshake.process_act(&peer.pending_read_buffer[..]).unwrap();
+							let handshake_process = peer.handshake.process_act(&peer.pending_read_buffer[..], [0; 32], None).unwrap();
 							let offset = handshake_process.1;
 
 							// offset pending read buffer by the processed amount
