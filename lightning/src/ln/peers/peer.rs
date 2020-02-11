@@ -61,7 +61,8 @@ impl Peer {
 		}
 	}
 
-	pub fn read_data(&mut self, buffer: &[u8]) {
+	/// Returns true if new messages have been added to the inbox
+	pub fn read_data(&mut self, buffer: &[u8]) -> bool {
 		/*
 		* First: is the handshake complete?
 		* If not, give the data to the handshake object, having it return the overflow index
@@ -94,10 +95,15 @@ impl Peer {
 			}
 		}
 
+		let mut new_message_count = 0;
+
 		if let PeerState::Connected(ref mut conduit) = &mut self.state {
 			let mut new_messages = conduit.decrypt_message_stream(Some(&self.pending_read_buffer));
 			self.inbox.append(&mut new_messages);
-		}
+			new_message_count = new_messages.len();
+		};
+
+		new_message_count > 0
 	}
 
 	fn generate_ephemeral_private_key() -> SecretKey {
