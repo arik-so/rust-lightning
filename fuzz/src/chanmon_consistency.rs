@@ -77,9 +77,12 @@ static mut IN_RESTORE: bool = false;
 pub struct TestChannelMonitor {
 	pub simple_monitor: Arc<channelmonitor::SimpleManyChannelMonitor<OutPoint, EnforcingChannelKeys>>,
 	pub update_ret: Mutex<Result<(), channelmonitor::ChannelMonitorUpdateErr>>,
-	pub latest_good_update: Mutex<HashMap<OutPoint, Vec<u8>>>,
-	pub latest_update_good: Mutex<HashMap<OutPoint, bool>>,
-	pub latest_updates_good_at_last_ser: Mutex<HashMap<OutPoint, bool>>,
+	// If we reload a node with an old copy of ChannelMonitors, the ChannelManager deserialization
+	// logic will automatically force-close our channels for us (as we don't have an up-to-date
+	// monitor implying we are not able to punish misbehaving counterparties). Because this test
+	// "fails" if we ever force-close a channel, we avoid doing so, always saving the latest
+	// fully-serialized monitor state here, as well as the corresponding update_id.
+	pub latest_monitors: Mutex<HashMap<OutPoint, (u64, Vec<u8>)>>,
 	pub should_update_manager: atomic::AtomicBool,
 }
 impl TestChannelMonitor {
@@ -87,42 +90,45 @@ impl TestChannelMonitor {
 		Self {
 			simple_monitor: Arc::new(channelmonitor::SimpleManyChannelMonitor::new(chain_monitor, broadcaster, logger, feeest)),
 			update_ret: Mutex::new(Ok(())),
-			latest_good_update: Mutex::new(HashMap::new()),
-			latest_update_good: Mutex::new(HashMap::new()),
-			latest_updates_good_at_last_ser: Mutex::new(HashMap::new()),
+			latest_copies: Mutex::new(HashMap::new()),
+			pending_updates: Mutex::new(HashMap::new()),
 			should_update_manager: atomic::AtomicBool::new(false),
 		}
 	}
 }
 impl channelmonitor::ManyChannelMonitor<EnforcingChannelKeys> for TestChannelMonitor {
-	fn add_update_monitor(&self, funding_txo: OutPoint, monitor: channelmonitor::ChannelMonitor<EnforcingChannelKeys>) -> Result<(), channelmonitor::ChannelMonitorUpdateErr> {
+	fn add_monitor(&self, funding_txo: OutPoint, monitor: channelmonitor::ChannelMonitor<EnforcingChannelKeys>) -> Result<(), channelmonitor::ChannelMonitorUpdateErr> {
 		let ret = self.update_ret.lock().unwrap().clone();
+		let mut ser = VecWriter(Vec::new());
+		monitor.write_for_disk(&mut ser).unwrap();
 		if let Ok(()) = ret {
-			let mut ser = VecWriter(Vec::new());
-			monitor.write_for_disk(&mut ser).unwrap();
-			self.latest_good_update.lock().unwrap().insert(funding_txo, ser.0);
-			match self.latest_update_good.lock().unwrap().entry(funding_txo) {
-				hash_map::Entry::Vacant(e) => { e.insert(true); },
-				hash_map::Entry::Occupied(mut e) => {
-					if !e.get() && unsafe { IN_RESTORE } {
-						// Technically we can't consider an update to be "good" unless we're doing
-						// it in response to a test_restore_channel_monitor as the channel may
-						// still be waiting on such a call, so only set us to good if we're in the
-						// middle of a restore call.
-						e.insert(true);
-					}
-				},
-			}
 			self.should_update_manager.store(true, atomic::Ordering::Relaxed);
+			if let Some(_) = self.pending_copies.lock().unwrap().insert(funding_txo, ser.0) {
+				panic!("Already had monitor pre-add_monitor");
+			}
+			if let Some(_) = self.latest_copies.lock().unwrap().remove(funding_txo) {
+				panic!("Already had regular monitor pre-add_monitor");
+			}
 		} else {
-			self.latest_update_good.lock().unwrap().insert(funding_txo, false);
+			if let Some(_) = self.latest_copies.lock().unwrap().insert(funding_txo, ser.0) {
+				panic!("Already had monitor pre-add_monitor");
+			}
+			if let Some(_) = self.pending_copies.lock().unwrap().remove(funding_txo) {
+				panic!("Already had pending monitor pre-add_monitor");
+			}
 		}
-		assert!(self.simple_monitor.add_update_monitor(funding_txo, monitor).is_ok());
+		if let Some(_) = self.pending_updates.lock().unwrap().remove(funding_txo) {
+			panic!("Already had updates pre-add_monitor");
+		}
+		assert!(self.simple_monitor.add_monitor(funding_txo, monitor).is_ok());
 		ret
 	}
 
 	fn update_monitor(&self, funding_txo: OutPoint, update: channelmonitor::ChannelMonitorUpdate) -> Result<(), channelmonitor::ChannelMonitorUpdateErr> {
-		unimplemented!(); //TODO
+		let mut ser = VecWriter(Vec::new());
+		update.write(&mut ser).unwrap();
+		let pending_updates = self.pending_updates.lock().unwrap();
+		pending_updates.entry(funding_txo).or_insert(Vec::new()).push(ser.0);
 	}
 
 	fn get_and_clear_pending_htlcs_updated(&self) -> Vec<HTLCUpdate> {
@@ -214,10 +220,10 @@ pub fn do_test(data: &[u8]) {
 			config.peer_channel_config_limits.min_dust_limit_satoshis = 0;
 
 			let mut monitors = HashMap::new();
-			let mut old_monitors = $old_monitors.latest_good_update.lock().unwrap();
+			let mut old_monitors = $old_monitors.latest_copies.lock().unwrap();
 			for (outpoint, monitor_ser) in old_monitors.drain() {
 				monitors.insert(outpoint, <(Sha256d, ChannelMonitor<EnforcingChannelKeys>)>::read(&mut Cursor::new(&monitor_ser), Arc::clone(&logger)).expect("Failed to read monitor").1);
-				monitor.latest_good_update.lock().unwrap().insert(outpoint, monitor_ser);
+				monitor.latest_copies.lock().unwrap().insert(outpoint, monitor_ser);
 			}
 			let mut monitor_refs = HashMap::new();
 			for (outpoint, monitor) in monitors.iter_mut() {
@@ -238,7 +244,7 @@ pub fn do_test(data: &[u8]) {
 			for (_, was_good) in $old_monitors.latest_updates_good_at_last_ser.lock().unwrap().iter() {
 				if !was_good {
 					// If the last time we updated a monitor we didn't successfully update (and we
-					// have sense updated our serialized copy of the ChannelManager) we may
+					// have since updated our serialized copy of the ChannelManager) we may
 					// force-close the channel on our counterparty cause we know we're missing
 					// something. Thus, we just return here since we can't continue to test.
 					return;
