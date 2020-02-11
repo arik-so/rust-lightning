@@ -1,8 +1,12 @@
+use std::io::Cursor;
+
 use rand::{Rng, thread_rng};
 use secp256k1::{PublicKey, SecretKey};
 
 use ln::peers::conduit::Conduit;
 use ln::peers::handshake::PeerHandshake;
+use ln::wire;
+use ln::wire::Message;
 
 enum PeerState {
 	Handshake(PeerHandshake),
@@ -17,7 +21,7 @@ struct Peer {
 	pending_read_buffer: Vec<u8>,
 	pending_write_buffer: Vec<u8>,
 
-	inbox: Vec<Vec<u8>>,
+	inbox: Vec<Message>,
 }
 
 impl Peer {
@@ -99,7 +103,14 @@ impl Peer {
 
 		if let PeerState::Connected(ref mut conduit) = &mut self.state {
 			let mut new_messages = conduit.decrypt_message_stream(Some(&self.pending_read_buffer));
-			self.inbox.append(&mut new_messages);
+
+			for current_message in new_messages.iter_mut() {
+				let mut cursor = Cursor::new(current_message);
+				// todo: rethink cursor indirection
+				let parsed_message = wire::read(&mut cursor).unwrap();
+				self.inbox.push(parsed_message);
+			}
+
 			new_message_count = new_messages.len();
 		};
 
