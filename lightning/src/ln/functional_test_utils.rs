@@ -104,7 +104,7 @@ impl<'a, 'b> Drop for Node<'a, 'b> {
 				monitor.write_for_disk(&mut w).unwrap();
 				let (_, new_mon) = <(Sha256d, ChannelMonitor<EnforcingChannelKeys>)>::read(
 					&mut ::std::io::Cursor::new(&w.0), Arc::clone(&self.logger) as Arc<Logger>).unwrap();
-				if let Err(_) = new_monitor.add_update_monitor(new_mon.get_funding_txo().unwrap(), new_mon) {
+				if let Err(_) = new_monitor.add_monitor(new_mon.get_funding_txo().unwrap(), new_mon) {
 					panic!();
 				}
 			}
