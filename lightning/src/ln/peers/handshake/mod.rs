@@ -3,10 +3,10 @@ use bitcoin_hashes::sha256::Hash as Sha256;
 use secp256k1::{PublicKey, SecretKey};
 
 use ln::peers::{chacha, hkdf};
+use ln::peers::conduit::Conduit;
 use ln::peers::handshake::acts::{ActOne, ActThree, ActTwo};
 use ln::peers::handshake::hash::HandshakeHash;
 use ln::peers::handshake::states::{ActOneExpectation, ActThreeExpectation, ActTwoExpectation, HandshakeState};
-use ln::peers::conduit::Conduit;
 
 mod acts;
 mod hash;
@@ -56,11 +56,12 @@ impl PeerHandshake {
 
 	/// Process act dynamically
 	/// The role must be set before this method can be called
-	pub fn process_act(&mut self, input: &[u8], ephemeral_private_key: &SecretKey, remote_public_key: Option<&PublicKey>) -> Result<(Vec<u8>, usize, Option<Conduit>), String> {
+	pub fn process_act(&mut self, input: &[u8], ephemeral_private_key: &SecretKey, remote_public_key: Option<&PublicKey>) -> Result<(Vec<u8>, usize, Option<Conduit>, Option<PublicKey>), String> {
 		let mut response: Vec<u8> = Vec::new();
 		let mut offset = 0usize;
 		let input_length = input.len();
 		let mut connected_peer = None;
+		let mut remote_pubkey = None;
 
 		let act_response = match &self.state {
 			Some(HandshakeState::Blank) => {
@@ -105,14 +106,15 @@ impl PeerHandshake {
 				let mut act_three_buffer = [0u8; 66];
 				act_three_buffer.copy_from_slice(&input);
 
-				let peer = self.process_act_three(ActThree(act_three_buffer))?;
-				connected_peer = Some(peer);
+				let (public_key, conduit) = self.process_act_three(ActThree(act_three_buffer))?;
+				connected_peer = Some(conduit);
+				remote_pubkey = Some(public_key);
 			}
 			_ => {
 				return Err("no acts left to process".to_string());
 			}
 		};
-		Ok((response, offset, connected_peer))
+		Ok((response, offset, connected_peer, remote_pubkey))
 	}
 
 	pub fn initiate(&mut self, ephemeral_private_key: &SecretKey, remote_public_key: &PublicKey) -> Result<ActOne, String> {
@@ -235,7 +237,7 @@ impl PeerHandshake {
 		Ok((ActThree(act_three), connected_peer))
 	}
 
-	pub(crate) fn process_act_three(&mut self, act: ActThree) -> Result<Conduit, String> {
+	pub(crate) fn process_act_three(&mut self, act: ActThree) -> Result<(PublicKey, Conduit), String> {
 		let state = self.state.take();
 		let act_three_expectation = match state {
 			Some(HandshakeState::AwaitingActThree(act_state)) => act_state,
@@ -277,7 +279,7 @@ impl PeerHandshake {
 			receiving_nonce: 0,
 			read_buffer: None,
 		};
-		Ok(connected_peer)
+		Ok((remote_pubkey, connected_peer))
 	}
 
 	fn calculate_act_message(&self, local_private_key: &SecretKey, remote_public_key: &PublicKey, chaining_key: [u8; 32], hash: &mut HandshakeHash) -> ([u8; 50], [u8; 32], [u8; 32]) {

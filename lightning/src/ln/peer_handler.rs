@@ -288,7 +288,7 @@ impl<Descriptor: SocketDescriptor, CM: Deref> PeerManager<Descriptor, CM> where 
 
 		let mut peer_handshake = PeerHandshake::new(&self.our_node_secret); // initialize with empty private key
 
-		let (res, _, _) = peer_handshake.process_act(&[], &self.get_ephemeral_key(), None).unwrap();
+		let (res, _, _, _) = peer_handshake.process_act(&[], &self.get_ephemeral_key(), None).unwrap();
 
 		let mut peers = self.peers.lock().unwrap();
 		if peers.peers.insert(descriptor, Peer {

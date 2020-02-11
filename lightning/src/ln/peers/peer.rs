@@ -1,7 +1,8 @@
-use ln::peers::handshake::PeerHandshake;
-use ln::peers::conduit::Conduit;
+use rand::{Rng, thread_rng};
 use secp256k1::{PublicKey, SecretKey};
-use rand::{thread_rng, Rng};
+
+use ln::peers::conduit::Conduit;
+use ln::peers::handshake::PeerHandshake;
 
 enum PeerState {
 	Handshake(PeerHandshake),
@@ -85,6 +86,11 @@ impl Peer {
 			if let Some(conduit) = result.2 {
 				// update conduit
 				self.state = PeerState::Connected(conduit);
+
+				if let Some(pubkey) = result.3 {
+					// update the public key if we learned what it is
+					self.remote_public_key = Some(pubkey);
+				}
 			}
 		}
 
