@@ -1060,8 +1060,9 @@ impl<Descriptor: SocketDescriptor, CM: Deref> PeerManager<Descriptor, CM> where 
 
 	/// Indicates that the given socket descriptor's connection is now closed.
 	///
-	/// This must be called even if a PeerHandleError was given for a read_event or write_event,
-	/// but must NOT be called if a PeerHandleError was provided out of a new_\*\_connection event!
+	/// This must only be called if the socket has been lost and must NOT be called in any case
+	/// where other parts of this library (eg PeerHandleError, explicit disconnect_socket calls)
+	/// instruct you to disconnect the peer.
 	///
 	/// Panics if the descriptor was not previously registered in a successful new_*_connection event.
 	pub fn disconnect_event(&self, descriptor: &Descriptor) {
@@ -1097,10 +1098,12 @@ impl<Descriptor: SocketDescriptor, CM: Deref> PeerManager<Descriptor, CM> where 
 			let peers_needing_send = &mut peers.peers_needing_send;
 			let node_id_to_descriptor = &mut peers.node_id_to_descriptor;
 			let peers = &mut peers.peers;
+			let mut descriptors_needing_disconnect = Vec::new();
 
 			peers.retain(|descriptor, peer| {
 				if peer.awaiting_pong == true {
 					peers_needing_send.remove(descriptor);
+					descriptors_needing_disconnect.push(descriptor.clone());
 					match peer.their_node_id {
 						Some(node_id) => {
 							node_id_to_descriptor.remove(&node_id);
@@ -1108,15 +1111,15 @@ impl<Descriptor: SocketDescriptor, CM: Deref> PeerManager<Descriptor, CM> where 
 						},
 						None => {}
 					}
+				} else {
+					let ping = msgs::Ping {
+						ponglen: 0,
+						byteslen: 0,
+					};
+					peer.pending_outbound_buffer.push_back(encode_msg!(&ping));
+					let mut descriptor_clone = descriptor.clone();
+					self.do_attempt_write_data(&mut descriptor_clone, peer);
 				}
-
-				let ping = msgs::Ping {
-					ponglen: 0,
-					byteslen: 0,
-				};
-				peer.pending_outbound_buffer.push_back(encode_msg!(&ping));
-				let mut descriptor_clone = descriptor.clone();
-				self.do_attempt_write_data(&mut descriptor_clone, peer);
 
 				if peer.awaiting_pong {
 					false // Drop the peer
@@ -1125,6 +1128,10 @@ impl<Descriptor: SocketDescriptor, CM: Deref> PeerManager<Descriptor, CM> where 
 					true
 				}
 			});
+
+			for mut descriptor in descriptors_needing_disconnect.drain(..) {
+				descriptor.disconnect_socket();
+			}
 		}
 	}
 }

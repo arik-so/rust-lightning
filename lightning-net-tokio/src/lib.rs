@@ -68,6 +68,7 @@ impl Connection {
 						shutdown_socket!("disconnect_socket() call from RL");
 					}
 					if let Err(e) = peer_manager.write_event(&mut SocketDescriptor::new(us.clone())) {
+						us.lock().unwrap().need_disconnect_event = false;
 						shutdown_socket!(e);
 					}
 				} }
@@ -118,7 +119,10 @@ impl Connection {
 									_ => panic!()
 								}
 							},
-							Err(e) => shutdown_socket!(e),
+							Err(e) => {
+								us.lock().unwrap().need_disconnect_event = false;
+								shutdown_socket!(e)
+							},
 						}
 					},
 					Err(e) => {
