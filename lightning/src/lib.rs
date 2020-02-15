@@ -10,7 +10,6 @@
 //! instead of having a rather-separate lightning appendage to a wallet.
 
 #![cfg_attr(not(feature = "fuzztarget"), deny(missing_docs))]
-#![forbid(unsafe_code)]
 
 // In general, rust is absolutely horrid at supporting users doing things like,
 // for example, compiling Rust code for real environments. Disable useless lints
