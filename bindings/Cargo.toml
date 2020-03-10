@@ -10,5 +10,6 @@ edition = "2018"
 crate-type = ["staticlib"]
 
 [dependencies]
+lazy_static = "1.4.0"
 lightning = {path = "../lightning"}
 secp256k1 = "0.15"

@@ -5,7 +5,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
-	pub fn as_mut_ptr(mut self) -> *mut Self {
+	pub fn into_mut_ptr(self) -> *mut Self {
 		Box::into_raw(Box::new(self))
 	}
 }
