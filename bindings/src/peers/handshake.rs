@@ -4,20 +4,20 @@ use secp256k1::{PublicKey, SecretKey};
 
 use lightning::ln::peers::handshake::PeerHandshake as RawHandshake;
 
-use crate::buffer::{LDKBufferArgument, LDKBufferResponse};
-use crate::error::LDKError;
-use crate::peers::conduit::LDKConduit;
+use crate::buffer::{BufferArgument, BufferResponse};
+use crate::error::Error;
+use crate::peers::conduit::Conduit;
 
-pub struct LDKPeerHandshake(RawHandshake);
+pub struct PeerHandshake(RawHandshake);
 
 #[repr(C)]
-pub struct LDKHandshakeResult {
-	pub next_act: *mut LDKBufferResponse,
-	pub conduit: *mut LDKConduit,
+pub struct HandshakeResult {
+	pub next_act: *mut BufferResponse,
+	pub conduit: *mut Conduit,
 }
 
 #[no_mangle]
-pub extern "C" fn peer_handshake_new_outbound(private_key: *const u8, ephemeral_private_key: *const u8, remote_public_key: *const u8) -> *mut LDKPeerHandshake {
+pub extern "C" fn peer_handshake_new_outbound(private_key: *const u8, ephemeral_private_key: *const u8, remote_public_key: *const u8) -> *mut PeerHandshake {
 	let private_key_slice = unsafe {
 		assert!(!private_key.is_null());
 		slice::from_raw_parts(private_key, 32)
@@ -40,13 +40,13 @@ pub extern "C" fn peer_handshake_new_outbound(private_key: *const u8, ephemeral_
 	let public_key_object = PublicKey::from_slice(public_key_slice).unwrap();
 
 	let handshake = RawHandshake::new_outbound(&private_key_object, &public_key_object, &ephemeral_private_key_object);
-	let peer_handshake = LDKPeerHandshake(handshake);
+	let peer_handshake = PeerHandshake(handshake);
 
 	Box::into_raw(Box::new(peer_handshake))
 }
 
 #[no_mangle]
-pub extern "C" fn peer_handshake_new_inbound(private_key: *const u8, ephemeral_private_key: *const u8) -> *mut LDKPeerHandshake {
+pub extern "C" fn peer_handshake_new_inbound(private_key: *const u8, ephemeral_private_key: *const u8) -> *mut PeerHandshake {
 	let private_key_slice = unsafe {
 		assert!(!private_key.is_null());
 		slice::from_raw_parts(private_key, 32)
@@ -63,35 +63,24 @@ pub extern "C" fn peer_handshake_new_inbound(private_key: *const u8, ephemeral_p
 	let ephemeral_private_key_object = SecretKey::from_slice(ephemeral_private_key_slice).unwrap();
 
 	let handshake = RawHandshake::new_inbound(&private_key_object, &ephemeral_private_key_object);
-	let peer_handshake = LDKPeerHandshake(handshake);
+	let peer_handshake = PeerHandshake(handshake);
 
 	Box::into_raw(Box::new(peer_handshake))
 }
 
 #[no_mangle]
-pub extern "C" fn peer_handshake_process_act(peer: &mut LDKPeerHandshake, act_data: &LDKBufferArgument, error: *mut LDKError) -> *mut LDKHandshakeResult {
-	/*
-	let ffi_error: Error = String::from("there is a massive error going on!").into();
-	println!("about to write to the null pointer");
-	unsafe { std::ptr::write(error, ffi_error); }
-	println!("returning a null pointer");
-	return std::ptr::null_mut();
-	*/
-
-	/* let input_data = unsafe {
-		LDKBuffer::from_ptr(act_data)
-	}; */
+pub extern "C" fn peer_handshake_process_act(peer: &mut PeerHandshake, act_data: &BufferArgument, error: *mut Error) -> *mut HandshakeResult {
 	let input_data = unsafe { act_data.to_vec() };
 
 	let response = peer.0.process_act(&input_data);
 	if response.is_err() {
-		let ffi_error: LDKError = response.err().unwrap().into();
+		let ffi_error: Error = response.err().unwrap().into();
 		unsafe { std::ptr::write(error, ffi_error); }
 		return std::ptr::null_mut();
 	}
 
 	let act_response = response.unwrap();
-	let mut result = LDKHandshakeResult {
+	let mut result = HandshakeResult {
 		next_act: std::ptr::null_mut(),
 		conduit: std::ptr::null_mut(),
 	};
@@ -100,13 +89,13 @@ pub extern "C" fn peer_handshake_process_act(peer: &mut LDKPeerHandshake, act_da
 	if let Some(next_act) = next_act_option {
 		let next_act_vector = next_act.serialize();
 		println!("next_act_vector: {:?}", next_act_vector);
-		let buffer: LDKBufferResponse = next_act_vector.into();
+		let buffer: BufferResponse = next_act_vector.into();
 		result.next_act = buffer.into_mut_ptr();
 	}
 
 	let conduit_option = act_response.1;
 	if let Some(conduit) = conduit_option {
-		let wrapped_conduit = LDKConduit(conduit);
+		let wrapped_conduit = Conduit(conduit);
 		result.conduit = Box::into_raw(Box::new(wrapped_conduit));
 	}
 

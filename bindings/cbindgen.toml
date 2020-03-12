@@ -142,7 +142,7 @@ style = "type"
 
 # A prefix to add before the name of every item
 # default: no prefix is added
-# prefix = "LDK_"
+prefix = "LDK"
 
 # Types of items that we'll generate. If empty, then all types of item are emitted.
 #

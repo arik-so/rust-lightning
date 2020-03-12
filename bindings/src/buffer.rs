@@ -1,10 +1,10 @@
 #[repr(C)]
-pub struct LDKBufferArgument {
+pub struct BufferArgument {
 	data: *const u8,
 	length: usize,
 }
 
-impl LDKBufferArgument {
+impl BufferArgument {
 	pub fn into_mut_ptr(self) -> *mut Self {
 		Box::into_raw(Box::new(self))
 	}
@@ -19,18 +19,18 @@ impl LDKBufferArgument {
 }
 
 #[repr(C)]
-pub struct LDKBufferResponse {
+pub struct BufferResponse {
 	data: *mut u8,
 	length: usize,
 }
 
-impl LDKBufferResponse {
+impl BufferResponse {
 	pub fn into_mut_ptr(self) -> *mut Self {
 		Box::into_raw(Box::new(self))
 	}
 }
 
-impl From<Vec<u8>> for LDKBufferResponse {
+impl From<Vec<u8>> for BufferResponse {
 	fn from(bytes: Vec<u8>) -> Self {
 		let mut slice = bytes.into_boxed_slice();
 		let data = slice.as_mut_ptr();
@@ -42,10 +42,10 @@ impl From<Vec<u8>> for LDKBufferResponse {
 }
 
 #[no_mangle]
-pub extern "C" fn free_buffer(raw_buffer: *mut LDKBufferResponse) {
+pub extern "C" fn free_buffer(raw_buffer: *mut BufferResponse) {
 	unsafe {
 		if raw_buffer.is_null() { return; }
 		let buffer = Box::from_raw(raw_buffer);
-		let data = std::slice::from_raw_parts_mut(buffer.data, buffer.length);
+		let _ = std::slice::from_raw_parts_mut(buffer.data, buffer.length);
 	};
 }

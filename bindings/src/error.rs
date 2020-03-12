@@ -4,12 +4,12 @@ use std::ffi::CString;
 use std::os::raw::c_char;
 
 #[repr(C)]
-pub struct LDKError {
+pub struct Error {
 	message: *mut c_char,
 	length: usize,
 }
 
-impl From<String> for LDKError {
+impl From<String> for Error {
 	fn from(error: String) -> Self {
 		let length = error.len();
 		let message = CString::new(error).unwrap().into_raw();
@@ -17,7 +17,7 @@ impl From<String> for LDKError {
 	}
 }
 
-impl From<&str> for LDKError {
+impl From<&str> for Error {
 	fn from(error: &str) -> Self {
 		let length = error.len();
 		let message = CString::new(error).unwrap().into_raw();
@@ -25,7 +25,7 @@ impl From<&str> for LDKError {
 	}
 }
 
-impl LDKError {
+impl Error {
 	pub fn into_mut_ptr(self) -> *mut Self {
 		Box::into_raw(Box::new(self))
 	}
