@@ -1,8 +1,5 @@
-xgen-headers:
-	cbindgen -v ./ -c cbindgen.toml -o ffi.h
-
 gen-headers:
-	cbindgen -v --crate bindings -c cbindgen.toml -o ffi.h
+	cbindgen -v --crate bindings -c cbindgen.toml -o ldk_ffi.h
 
 gen-lib:
 	cargo lipo --release
