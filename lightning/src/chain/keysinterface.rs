@@ -37,6 +37,7 @@ use ln::msgs::DecodeError;
 /// spend on-chain. The information needed to do this is provided in this enum, including the
 /// outpoint describing which txid and output index is available, the full output which exists at
 /// that txid/index, and any keys or other information required to sign.
+#[derive(Clone, PartialEq)]
 pub enum SpendableOutputDescriptor {
 	/// An output to a script which was provided via KeysInterface, thus you should already know
 	/// how to spend it. No keys are provided as rust-lightning was never given any keys - only the
@@ -53,7 +54,7 @@ pub enum SpendableOutputDescriptor {
 	/// The private key which should be used to sign the transaction is provided, as well as the
 	/// full witness redeemScript which is hashed in the output script_pubkey.
 	/// The witness in the spending input should be:
-	/// <BIP 143 signature generated with the given key> <one zero byte aka OP_0>
+	/// <BIP 143 signature generated with the given key> <empty vector> (MINIMALIF standard rule)
 	/// <witness_script as provided>
 	/// Note that the nSequence field in the input must be set to_self_delay (which corresponds to
 	/// the transaction not being broadcastable until at least to_self_delay blocks after the input
@@ -85,6 +86,57 @@ pub enum SpendableOutputDescriptor {
 		key: SecretKey,
 		/// The output which is reference by the given outpoint
 		output: TxOut,
+	}
+}
+
+impl Writeable for SpendableOutputDescriptor {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ::std::io::Error> {
+		match self {
+			&SpendableOutputDescriptor::StaticOutput { ref outpoint, ref output } => {
+				0u8.write(writer)?;
+				outpoint.write(writer)?;
+				output.write(writer)?;
+			},
+			&SpendableOutputDescriptor::DynamicOutputP2WSH { ref outpoint, ref key, ref witness_script, ref to_self_delay, ref output } => {
+				1u8.write(writer)?;
+				outpoint.write(writer)?;
+				key.write(writer)?;
+				witness_script.write(writer)?;
+				to_self_delay.write(writer)?;
+				output.write(writer)?;
+			},
+			&SpendableOutputDescriptor::DynamicOutputP2WPKH { ref outpoint, ref key, ref output } => {
+				2u8.write(writer)?;
+				outpoint.write(writer)?;
+				key.write(writer)?;
+				output.write(writer)?;
+			},
+		}
+		Ok(())
+	}
+}
+
+impl Readable for SpendableOutputDescriptor {
+	fn read<R: ::std::io::Read>(reader: &mut R) -> Result<Self, DecodeError> {
+		match Readable::read(reader)? {
+			0u8 => Ok(SpendableOutputDescriptor::StaticOutput {
+				outpoint: Readable::read(reader)?,
+				output: Readable::read(reader)?,
+			}),
+			1u8 => Ok(SpendableOutputDescriptor::DynamicOutputP2WSH {
+				outpoint: Readable::read(reader)?,
+				key: Readable::read(reader)?,
+				witness_script: Readable::read(reader)?,
+				to_self_delay: Readable::read(reader)?,
+				output: Readable::read(reader)?,
+			}),
+			2u8 => Ok(SpendableOutputDescriptor::DynamicOutputP2WPKH {
+				outpoint: Readable::read(reader)?,
+				key: Readable::read(reader)?,
+				output: Readable::read(reader)?,
+			}),
+			_ => Err(DecodeError::InvalidValue),
+		}
 	}
 }
 
@@ -135,7 +187,8 @@ pub trait KeysInterface: Send + Sync {
 /// (TODO: We shouldn't require that, and should have an API to get them at deser time, due mostly
 /// to the possibility of reentrancy issues by calling the user's code during our deserialization
 /// routine).
-/// TODO: remove Clone once we start returning ChannelUpdate objects instead of copying ChannelMonitor
+/// TODO: We should remove Clone by instead requesting a new ChannelKeys copy when we create
+/// ChannelMonitors instead of expecting to clone the one out of the Channel into the monitors.
 pub trait ChannelKeys : Send+Clone {
 	/// Gets the private key for the anchor tx
 	fn funding_key<'a>(&'a self) -> &'a SecretKey;
@@ -329,8 +382,8 @@ impl Writeable for InMemoryChannelKeys {
 	}
 }
 
-impl<R: ::std::io::Read> Readable<R> for InMemoryChannelKeys {
-	fn read(reader: &mut R) -> Result<Self, DecodeError> {
+impl Readable for InMemoryChannelKeys {
+	fn read<R: ::std::io::Read>(reader: &mut R) -> Result<Self, DecodeError> {
 		let funding_key = Readable::read(reader)?;
 		let revocation_base_key = Readable::read(reader)?;
 		let payment_base_key = Readable::read(reader)?;
