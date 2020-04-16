@@ -1,6 +1,7 @@
 use std::slice;
 
 use secp256k1::{PublicKey, SecretKey};
+use wasm_bindgen::prelude::*;
 
 use lightning::ln::peers::handshake::PeerHandshake as RawHandshake;
 
@@ -11,9 +12,9 @@ use crate::peers::conduit::Conduit;
 #[wasm_bindgen]
 pub struct PeerHandshake(RawHandshake);
 
-impl PeerHandshake{
+// #[wasm_bindgen]
+impl PeerHandshake {
 
-	#[wasm_bindgen]
 	pub fn new_outbound(private_key_slice: &[u8], ephemeral_private_key_slice: &[u8], public_key_slice: &[u8]) -> Self {
 		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
 		let ephemeral_private_key_object = SecretKey::from_slice(ephemeral_private_key_slice).unwrap();
@@ -24,7 +25,6 @@ impl PeerHandshake{
 		peer_handshake
 	}
 
-	#[wasm_bindgen]
 	pub fn new_inbound(private_key_slice: &[u8], ephemeral_private_key_slice: &[u8]) -> Self {
 		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
 		let ephemeral_private_key_object = SecretKey::from_slice(ephemeral_private_key_slice).unwrap();
@@ -34,9 +34,8 @@ impl PeerHandshake{
 		peer_handshake
 	}
 
-	#[wasm_bindgen]
-	pub fn process_act(&mut self, input_data: &[u8], ) -> WasmHandshakeResult {
-		let response = peer.0.process_act(input_data);
+	pub fn process_act(&mut self, input_data: &[u8]) -> WasmHandshakeResult {
+		let response = self.0.process_act(input_data);
 
 		/*if response.is_err() {
 			// handle error
@@ -66,10 +65,9 @@ impl PeerHandshake{
 
 		result
 	}
-
 }
 
-#[wasm_bindgen]
+// #[wasm_bindgen]
 pub struct WasmHandshakeResult {
 	pub next_act: Option<Vec<u8>>,
 	pub conduit: Option<Conduit>,
@@ -136,7 +134,6 @@ pub extern "C" fn peer_handshake_new_inbound(private_key: *const u8, ephemeral_p
 }
 
 #[no_mangle]
-#[wasm_bindgen]
 pub extern "C" fn peer_handshake_process_act(peer: &mut PeerHandshake, act_data: &BufferArgument, error: *mut Error) -> *mut HandshakeResult {
 	let input_data = unsafe { act_data.to_vec() };
 

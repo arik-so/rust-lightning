@@ -1,17 +1,20 @@
+use wasm_bindgen::prelude::*;
+
 use lightning::ln::peers::conduit::Conduit as RawConduit;
+
 use crate::buffer::{BufferArgument, BufferResponse};
 use crate::error::Error;
 
 #[wasm_bindgen]
 pub struct Conduit(pub(super) RawConduit);
 
-impl Conduit{
+#[wasm_bindgen]
+impl Conduit {
 
-	#[wasm_bindgen]
 	pub fn peer_conduit_decrypt(&mut self, message: &[u8]) -> Vec<u8> {
 		let input_data = message.to_vec();
 
-		let response = conduit.0.decrypt_single_message(Some(&input_data));
+		let response = self.0.decrypt_single_message(Some(&input_data));
 
 		/*
 		if response.is_none() {
