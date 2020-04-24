@@ -37,7 +37,16 @@ def handle_type(type):
 		elif type == 'PublicKey':
 			imports.add('secp256k1::PublicKey')
 
-			input_converter += "\n\tlet {name} = PublicKey::from_slice({name}).unwrap();"
+			input_converter = """\tlet {name} = unsafe {
+\t\tassert!(!{name}.is_null());
+\t\tslice::from_raw_parts({name}, 33)
+\t};
+
+\tlet {name} = PublicKey::from_slice({name}).unwrap();"""
+
+			return_type = '*const u8'
+			output_converter = "{field}.serialize().as_ptr()"
+
 		elif type == '[u8; 32]':
 			input_converter = """\tlet {name}_slice = unsafe {
 \t\tassert!(!{name}.is_null());
@@ -46,6 +55,10 @@ def handle_type(type):
 
 \tlet mut {name} = [0u8; 32];
 \t{name}.copy_from_slice({name}_slice);"""
+
+			return_type = '*const u8'
+			output_converter = "{field}.as_ptr()"
+
 		elif type == 'Signature':
 			imports.add('secp256k1::Signature')
 
@@ -56,7 +69,8 @@ def handle_type(type):
 
 \tlet {name} = Signature::from_der(&{name}).unwrap();"""
 
-
+			return_type = '*const u8'
+			output_converter = "{field}.serialize_der().as_ptr()"
 
 	elif type == 'OptionalField<Script>':
 		# argument = '&BufferArgument'
@@ -128,7 +142,7 @@ def generate_struct_binding(struct_details):
 			converter = type_handlers['output_converter']
 			getter_body = f"message.0.{current_field['name']}"
 			if converter is not None:
-				pass
+				getter_body = converter.replace('{field}', getter_body)
 			getter = f"#[no_mangle]\npub extern \"C\" fn {getter_signature} {{\n\t{getter_body}\n}}"
 			print(getter)
 			getters.append(getter)
