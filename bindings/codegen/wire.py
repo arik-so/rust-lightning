@@ -1,101 +1,10 @@
 import os
 import re
 
-all_types = set()
-unhandled_types = set()
-imports = set()
+import config
 
-def handle_type(type):
-	# for debugging
-	all_types.add(type)
-	is_handled = False
+from rust_types import handle_type, imports, all_types, unhandled_types
 
-	argument = type
-	return_type = None
-	input_converter = None
-	output_converter = None
-
-	if type in ['u32', 'u16', 'u8', 'u64']:
-		return_type = type
-		is_handled = True
-	elif type in ['[u8; 32]', 'Signature', 'PublicKey', 'Sha256dHash']:
-		argument = '*const u8'
-		is_handled = True
-
-		imports.add('std::slice')
-
-		input_converter = """\tlet {name} = unsafe {
-\t\tassert!(!{name}.is_null());
-\t\tslice::from_raw_parts({name}, 32)
-\t};"""
-
-		if type == 'Sha256dHash':
-			imports.add('bitcoin_hashes::Hash')
-			imports.add('bitcoin_hashes::sha256d::Hash as Sha256dHash')
-
-			input_converter += "\n\tlet {name} = Sha256dHash::from_slice({name}).unwrap();"
-		elif type == 'PublicKey':
-			imports.add('secp256k1::PublicKey')
-
-			input_converter = """\tlet {name} = unsafe {
-\t\tassert!(!{name}.is_null());
-\t\tslice::from_raw_parts({name}, 33)
-\t};
-
-\tlet {name} = PublicKey::from_slice({name}).unwrap();"""
-
-			return_type = '*const u8'
-			output_converter = "{field}.serialize().as_ptr()"
-
-		elif type == '[u8; 32]':
-			input_converter = """\tlet {name}_slice = unsafe {
-\t\tassert!(!{name}.is_null());
-\t\tslice::from_raw_parts({name}, 32)
-\t};
-
-\tlet mut {name} = [0u8; 32];
-\t{name}.copy_from_slice({name}_slice);"""
-
-			return_type = '*const u8'
-			output_converter = "{field}.as_ptr()"
-
-		elif type == 'Signature':
-			imports.add('secp256k1::Signature')
-
-			input_converter = """\tlet {name} = unsafe {
-\t\tassert!(!{name}.is_null());
-\t\tslice::from_raw_parts({name}, 65)
-\t};
-
-\tlet {name} = Signature::from_der(&{name}).unwrap();"""
-
-			return_type = '*const u8'
-			output_converter = "{field}.serialize_der().as_ptr()"
-
-	elif type == 'OptionalField<Script>':
-		# argument = '&BufferArgument'
-		# imports.add('crate::buffer::BufferArgument')
-		argument = None
-		input_converter = "\tlet {name} = OptionalField::Absent;"
-		imports.add('lightning::ln::msgs::OptionalField')
-
-		return_type = None
-
-		is_handled = True
-	elif type == '&\'static str':
-		argument = '*const c_char'
-		imports.add('std::os::raw::c_char')
-		is_handled = True
-
-	if not is_handled:
-		unhandled_types.add(type)
-
-	return {
-		'argument': argument,
-		'return_type': return_type,
-		'input_converter': input_converter,
-		'output_converter': output_converter
-	}
 
 def generate_field_argument(field):
 	field_name = field['name']
@@ -105,6 +14,7 @@ def generate_field_argument(field):
 		return None
 	argument = f"{field_name}: {type_details['argument']}"
 	return argument
+
 
 def generate_struct_binding(struct_details):
 	struct_name = camel_to_snake_case(struct_details['name'])
@@ -155,13 +65,14 @@ def generate_struct_binding(struct_details):
 		'getters': generate_getters()
 	}
 
+
 def generate_bindings(messages):
 	bindings_file = os.path.dirname(__file__) + "/../../bindings/src/peers/gen_wire.rs"
 	bindings_code = ""
 	for struct_code in messages:
 		struct_details = parse_struct(struct_code)
-		if struct_details['name'] not in ['Ping', 'Pong', 'OpenChannel', 'AcceptChannel', 'FundingCreated', 'FundingSigned', 'FundingLocked']:
-			continue # let's get a few types working first
+		if config.FILTER_MESSAGES and struct_details['name'] not in config.SUPPORTED_MESSAGES:
+			continue  # let's get a few types working first
 
 		imports.add(f"lightning::ln::msgs::{struct_details['name']} as Raw{struct_details['name']}")
 		binding = generate_struct_binding(struct_details)
@@ -197,7 +108,7 @@ def parse_struct(struct_code):
 		for matchNum, match in enumerate(matches, start=1):
 			field_name = match.group(1)
 			field_type = match.group(2)
-			field = { 'name': field_name, 'type': field_type }
+			field = {'name': field_name, 'type': field_type}
 			fields.append(field)
 		return fields
 
@@ -232,6 +143,7 @@ def scan_wire_messages():
 
 	return message_structs
 
+
 def camel_to_snake_case(str):
 	res = [str[0].lower()]
 	for i in range(1, len(str)):
@@ -240,9 +152,9 @@ def camel_to_snake_case(str):
 		previous_char = None
 		next_char = None
 		if i > 0:
-			previous_char = str[i-1]
-		if i < len(str)-1:
-			next_char = str[i+1]
+			previous_char = str[i - 1]
+		if i < len(str) - 1:
+			next_char = str[i + 1]
 
 		if current_char.isupper() and previous_char is not None:
 			if previous_char.islower() or (next_char is not None and next_char.islower()):
@@ -252,6 +164,7 @@ def camel_to_snake_case(str):
 		res.append(current_char.lower())
 
 	return ''.join(res)
+
 
 message_structs = scan_wire_messages()
 generate_bindings(message_structs)

@@ -155,17 +155,19 @@ pub struct FundingLocked {
 
 /// A shutdown message to be sent or received from a peer
 #[derive(Clone, PartialEq)]
+#[allow(missing_docs)]
 pub struct Shutdown {
-	pub(crate) channel_id: [u8; 32],
-	pub(crate) scriptpubkey: Script,
+	pub channel_id: [u8; 32],
+	pub scriptpubkey: Script,
 }
 
 /// A closing_signed message to be sent or received from a peer
 #[derive(Clone, PartialEq)]
+#[allow(missing_docs)]
 pub struct ClosingSigned {
-	pub(crate) channel_id: [u8; 32],
-	pub(crate) fee_satoshis: u64,
-	pub(crate) signature: Signature,
+	pub channel_id: [u8; 32],
+	pub fee_satoshis: u64,
+	pub signature: Signature,
 }
 
 /// An update_add_htlc message to be sent or received from a peer
