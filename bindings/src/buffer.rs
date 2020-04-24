@@ -4,6 +4,12 @@ pub struct BufferArgument {
 	length: usize,
 }
 
+#[repr(C)]
+pub struct BufferArgumentArray {
+	buffers: *mut BufferArgument,
+	length: usize,
+}
+
 impl BufferArgument {
 	pub fn into_mut_ptr(self) -> *mut Self {
 		Box::into_raw(Box::new(self))
@@ -18,13 +24,39 @@ impl BufferArgument {
 	}
 }
 
+impl BufferArgumentArray {
+	pub unsafe fn to_vec(&self) -> Vec<Vec<u8>> {
+		if self.buffers.is_null() {
+			return vec![];
+		}
+		let buffers = Vec::from_raw_parts(self.buffers, self.length, self.length);
+		let mut data = vec![];
+		for buffer in buffers {
+			data.push(buffer.to_vec());
+		}
+		data
+	}
+}
+
 #[repr(C)]
 pub struct BufferResponse {
 	data: *mut u8,
 	length: usize,
 }
 
+#[repr(C)]
+pub struct BufferResponseArray {
+	buffers: *const BufferResponse,
+	length: usize,
+}
+
 impl BufferResponse {
+	pub fn into_mut_ptr(self) -> *mut Self {
+		Box::into_raw(Box::new(self))
+	}
+}
+
+impl BufferResponseArray {
 	pub fn into_mut_ptr(self) -> *mut Self {
 		Box::into_raw(Box::new(self))
 	}
@@ -38,6 +70,27 @@ impl From<Vec<u8>> for BufferResponse {
 
 		std::mem::forget(slice);
 		Self { data, length }
+	}
+}
+
+impl From<&[u8]> for BufferResponse {
+	fn from(bytes: &[u8]) -> Self {
+		let bytes = bytes.to_vec();
+		bytes.into()
+	}
+}
+
+impl From<Vec<Vec<u8>>> for BufferResponseArray {
+	fn from(byte_arrays: Vec<Vec<u8>>) -> Self {
+		let mut buffer_response_arrays = Vec::new();
+		for bytes in byte_arrays.iter() {
+			let buffer_response: BufferResponse = bytes.clone().into();
+			buffer_response_arrays.push(buffer_response);
+		}
+
+		let buffers = buffer_response_arrays.as_ptr();
+		let length = buffer_response_arrays.len();
+		Self { buffers, length }
 	}
 }
 

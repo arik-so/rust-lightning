@@ -28,6 +28,9 @@ def generate_struct_binding(struct_details):
 
 		type_wrapper = f"pub struct WireMessage{struct_details['name']}(Raw{struct_details['name']});"
 
+		raw_constructor_signature = f"wire_message_{struct_name}_from_raw(message: &Raw{struct_details['name']}) -> *const WireMessage{struct_details['name']}"
+		raw_constructor_body = f"\tBox::into_raw(Box::new(WireMessage{struct_details['name']}(message.clone())))"
+
 		method_body = ""
 		for field in struct_details['fields']:
 			type_handlers = handle_type(field['type'])
@@ -37,7 +40,7 @@ def generate_struct_binding(struct_details):
 				method_body += current_input_converter + "\n\n"
 
 		method_body += f"\tlet message = Raw{struct_details['name']} {{ \n\t\t{field_names}\n\t}};\n\tBox::into_raw(Box::new(WireMessage{struct_details['name']}(message)))"
-		return f'{type_wrapper}\n\n#[no_mangle]\npub extern "C" fn {method_signature} {{\n{method_body}\n}}'
+		return f'{type_wrapper}\n\n#[no_mangle]\npub extern "C" fn {raw_constructor_signature} {{\n{raw_constructor_body}\n}}\n\n#[no_mangle]\npub extern "C" fn {method_signature} {{\n{method_body}\n}}'
 
 	def generate_getters():
 		getters = []
@@ -54,11 +57,8 @@ def generate_struct_binding(struct_details):
 			if converter is not None:
 				getter_body = converter.replace('{field}', getter_body)
 			getter = f"#[no_mangle]\npub extern \"C\" fn {getter_signature} {{\n\t{getter_body}\n}}"
-			print(getter)
 			getters.append(getter)
 		return getters
-
-	print(generate_constructor())
 
 	return {
 		'constructor': generate_constructor(),
@@ -81,9 +81,6 @@ def generate_bindings(messages):
 
 		bindings_code += '\n\n'.join(binding['getters']) + '\n\n'
 
-		print(struct_details)
-		print(binding)
-
 	bindings_code = '\n'.join([f"use {current_import};" for current_import in imports]) + "\n\n" + bindings_code
 
 	f = open(bindings_file, "w")
@@ -101,7 +98,7 @@ def parse_struct(struct_code):
 		return group
 
 	def parse_fields():
-		regex = r"pub ([a-z_]+): ([^,\n]+)"
+		regex = r"pub ([a-z_][a-z_0-9]*): ([^,\n]+)"
 		matches = re.finditer(regex, struct_code, re.MULTILINE)
 
 		fields = []
@@ -122,24 +119,15 @@ def scan_wire_messages():
 	messages_file = os.path.dirname(__file__) + "/../../lightning/src/ln/msgs.rs"
 	with open(messages_file) as f:
 		messages_code = f.read()
-	# print(messages_code)
 
 	regex_filter = r"pub struct [a-zA-Z\-]+ {[^}]*}"
 	matches = re.finditer(regex_filter, messages_code, re.MULTILINE)
-	print(matches)
 
 	message_structs = []
 
 	for matchNum, match in enumerate(matches, start=1):
 		current_struct = match.group()
 		message_structs.append(current_struct)
-
-	# print ("Match {matchNum} was found at {start}-{end}: {match}".format(matchNum = matchNum, start = match.start(), end = match.end(), match = match.group()))
-	#
-	# for groupNum in range(0, len(match.groups())):
-	# 	groupNum = groupNum + 1
-	#
-	# 	print ("Group {groupNum} found at {start}-{end}: {group}".format(groupNum = groupNum, start = match.start(groupNum), end = match.end(groupNum), group = match.group(groupNum)))
 
 	return message_structs
 
@@ -169,8 +157,8 @@ def camel_to_snake_case(str):
 message_structs = scan_wire_messages()
 generate_bindings(message_structs)
 
-print(camel_to_snake_case('iOS'))
-print(camel_to_snake_case('addHTLCHere'))
-print(camel_to_snake_case('AddHTLC'))
-print(all_types)
-print(unhandled_types)
+# print(camel_to_snake_case('iOS'))
+# print(camel_to_snake_case('addHTLCHere'))
+# print(camel_to_snake_case('AddHTLC'))
+print("All seen types:", all_types)
+print("Unhandled types:", unhandled_types)

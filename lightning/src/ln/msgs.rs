@@ -69,6 +69,7 @@ pub struct ErrorMessage {
 }
 
 /// A ping message to be sent or received from a peer
+#[derive(Clone)]
 #[allow(missing_docs)]
 pub struct Ping {
 	pub ponglen: u16,
@@ -76,6 +77,7 @@ pub struct Ping {
 }
 
 /// A pong message to be sent or received from a peer
+#[derive(Clone)]
 #[allow(missing_docs)]
 pub struct Pong {
 	pub byteslen: u16,
@@ -183,10 +185,11 @@ pub struct UpdateAddHTLC {
 
 /// An update_fulfill_htlc message to be sent or received from a peer
 #[derive(Clone, PartialEq)]
+#[allow(missing_docs)]
 pub struct UpdateFulfillHTLC {
-	pub(crate) channel_id: [u8; 32],
-	pub(crate) htlc_id: u64,
-	pub(crate) payment_preimage: PaymentPreimage,
+	pub channel_id: [u8; 32],
+	pub htlc_id: u64,
+	pub payment_preimage: PaymentPreimage,
 }
 
 /// An update_fail_htlc message to be sent or received from a peer
@@ -199,19 +202,21 @@ pub struct UpdateFailHTLC {
 
 /// An update_fail_malformed_htlc message to be sent or received from a peer
 #[derive(Clone, PartialEq)]
+#[allow(missing_docs)]
 pub struct UpdateFailMalformedHTLC {
-	pub(crate) channel_id: [u8; 32],
-	pub(crate) htlc_id: u64,
-	pub(crate) sha256_of_onion: [u8; 32],
-	pub(crate) failure_code: u16,
+	pub channel_id: [u8; 32],
+	pub htlc_id: u64,
+	pub sha256_of_onion: [u8; 32],
+	pub failure_code: u16,
 }
 
 /// A commitment_signed message to be sent or received from a peer
 #[derive(Clone, PartialEq)]
+#[allow(missing_docs)]
 pub struct CommitmentSigned {
-	pub(crate) channel_id: [u8; 32],
-	pub(crate) signature: Signature,
-	pub(crate) htlc_signatures: Vec<Signature>,
+	pub channel_id: [u8; 32],
+	pub signature: Signature,
+	pub htlc_signatures: Vec<Signature>,
 }
 
 /// A revoke_and_ack message to be sent or received from a peer

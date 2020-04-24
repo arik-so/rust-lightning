@@ -16,6 +16,10 @@ def dynamic_length_byte_reader(extension=''):
 	template = '\tlet {extended_name} = unsafe { {name}.to_vec() };'
 	return template.replace('{extended_name}', '{name}' + extension)
 
+def dynamic_length_byte_array_reader(extension=''):
+	template = '\tlet {extended_name} = unsafe { {name}.to_vec() };'
+	return template.replace('{extended_name}', '{name}' + extension)
+
 
 def handle_type(rust_type):
 	# for debugging
@@ -30,7 +34,7 @@ def handle_type(rust_type):
 	if rust_type in ['u32', 'u16', 'u8', 'u64']:
 		return_type = rust_type
 		is_handled = True
-	elif rust_type in ['[u8; 32]', 'Signature', 'PublicKey', 'Sha256dHash']:
+	elif rust_type in ['[u8; 32]', 'Signature', 'PublicKey', 'Sha256dHash', 'PaymentHash', 'PaymentPreimage']:
 		argument = '*const u8'
 		is_handled = True
 
@@ -69,6 +73,28 @@ def handle_type(rust_type):
 			return_type = '*const u8'
 			output_converter = "{field}.serialize_der().as_ptr()"
 
+		elif rust_type == 'PaymentHash':
+			imports.add('lightning::ln::channelmanager::PaymentHash')
+
+			input_converter = fixed_length_byte_reader(32, '_slice')
+			input_converter += "\n\n\tlet mut {name} = [0u8; 32];"
+			input_converter += "\n\t{name}.copy_from_slice({name}_slice);"
+			input_converter += "\n\n\tlet {name} = PaymentHash({name});"
+
+			return_type = '*const u8'
+			output_converter = "{field}.0.as_ptr()"
+
+		elif rust_type == 'PaymentPreimage':
+			imports.add('lightning::ln::channelmanager::PaymentPreimage')
+
+			input_converter = fixed_length_byte_reader(32, '_slice')
+			input_converter += "\n\n\tlet mut {name} = [0u8; 32];"
+			input_converter += "\n\t{name}.copy_from_slice({name}_slice);"
+			input_converter += "\n\n\tlet {name} = PaymentPreimage({name});"
+
+			return_type = '*const u8'
+			output_converter = "{field}.0.as_ptr()"
+
 	elif rust_type == 'Script':
 		argument = '&BufferArgument'
 		imports.add('crate::buffer::BufferArgument')
@@ -79,9 +105,38 @@ def handle_type(rust_type):
 		input_converter += '\n\tlet {name} = Script::from({name});'
 
 		return_type = '*mut BufferResponse'
-		output_converter = '// Script objects need to be cloned to be returned'
-		output_converter += '\n\tlet buffer: BufferResponse = {field}.clone().into_bytes().into();'
+		output_converter = 'let buffer: BufferResponse = {field}.clone().as_bytes().into();'
 		output_converter += '\n\tbuffer.into_mut_ptr()'
+
+		is_handled = True
+
+	elif rust_type == 'Vec<Signature>':
+		argument = '&BufferArgumentArray'
+		imports.add('crate::buffer::BufferArgumentArray')
+		imports.add('crate::buffer::BufferResponseArray')
+		imports.add('secp256k1::Signature')
+
+		input_converter = '\t// For the sake of convenience, each element can be of variable length'
+		input_converter += '\n'+dynamic_length_byte_array_reader('_raw')
+		input_converter += '''\n\tlet mut {name} = vec![];
+\tfor current_signature in {name}_raw {
+\t\t{name}.push(Signature::from_der(&current_signature).unwrap());
+\t}'''
+
+		return_type = '*mut BufferResponseArray'
+
+		output_converter = '''let mut buffers = vec![];
+\tfor current_signature in {field}.iter() {
+\t\tbuffers.push(current_signature.serialize_der().to_vec());
+\t}
+\tlet buffer_response: BufferResponseArray = buffers.into();
+\tbuffer_response.into_mut_ptr()'''
+
+		# output_converter = '// Script objects need to be cloned to be returned'
+		# output_converter += '\n\tlet buffer: BufferResponse = {field}.clone().into_bytes().into();'
+		# output_converter += '\n\tbuffer.into_mut_ptr()'
+
+		is_handled = True
 
 	elif rust_type == 'OptionalField<Script>':
 		# argument = '&BufferArgument'
