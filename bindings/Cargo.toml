@@ -12,5 +12,6 @@ crate-type = ["staticlib", "cdylib"]
 [dependencies]
 lightning = {path = "../lightning"}
 bitcoin = "0.21"
+bitcoin_hashes = "0.7"
 secp256k1 = "0.15"
 wasm-bindgen = "0.2"

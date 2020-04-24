@@ -10,10 +10,8 @@ use crate::error::Error;
 use crate::peers::conduit::Conduit;
 use std::sync::Arc;
 
-#[wasm_bindgen]
 pub struct PeerHandshake(RawHandshake);
 
-// #[wasm_bindgen]
 impl PeerHandshake {
 
 	pub fn new_outbound(private_key_slice: &[u8], ephemeral_private_key_slice: &[u8], public_key_slice: &[u8]) -> Self {
@@ -34,44 +32,6 @@ impl PeerHandshake {
 		let peer_handshake = Self(handshake);
 		peer_handshake
 	}
-
-	// pub fn process_act(&mut self, input_data: &[u8]) -> WasmHandshakeResult {
-	// 	let response = self.0.process_act(input_data);
-	//
-	// 	/*if response.is_err() {
-	// 		// handle error
-	// 		let ffi_error: Error = response.err().unwrap().into();
-	// 		unsafe { std::ptr::write(error, ffi_error); }
-	// 		return std::ptr::null_mut();
-	// 	}*/
-	//
-	// 	let act_response = response.unwrap();
-	// 	let mut result = WasmHandshakeResult {
-	// 		next_act: None,
-	// 		conduit: None,
-	// 	};
-	//
-	// 	let next_act_option = act_response.0;
-	// 	if let Some(next_act) = next_act_option {
-	// 		let next_act_vector = next_act.serialize();
-	// 		println!("next_act_vector: {:?}", next_act_vector);
-	// 		result.next_act = Some(next_act_vector);
-	// 	}
-	//
-	// 	let conduit_option = act_response.1;
-	// 	if let Some(conduit) = conduit_option {
-	// 		let wrapped_conduit = Conduit(conduit);
-	// 		result.conduit = Some(wrapped_conduit);
-	// 	}
-	//
-	// 	result
-	// }
-}
-
-#[wasm_bindgen]
-pub struct WasmHandshakeResult {
-	pub next_act: Option<Vec<u8>>,
-	pub conduit: &'static Conduit,
 }
 
 #[repr(C)]

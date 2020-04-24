@@ -69,74 +69,80 @@ pub struct ErrorMessage {
 }
 
 /// A ping message to be sent or received from a peer
+#[allow(missing_docs)]
 pub struct Ping {
-	pub(crate) ponglen: u16,
-	pub(crate) byteslen: u16,
+	pub ponglen: u16,
+	pub byteslen: u16,
 }
 
 /// A pong message to be sent or received from a peer
+#[allow(missing_docs)]
 pub struct Pong {
-	pub(crate) byteslen: u16,
+	pub byteslen: u16,
 }
 
 /// An open_channel message to be sent or received from a peer
 #[derive(Clone)]
+#[allow(missing_docs)]
 pub struct OpenChannel {
-	pub(crate) chain_hash: Sha256dHash,
-	pub(crate) temporary_channel_id: [u8; 32],
-	pub(crate) funding_satoshis: u64,
-	pub(crate) push_msat: u64,
-	pub(crate) dust_limit_satoshis: u64,
-	pub(crate) max_htlc_value_in_flight_msat: u64,
-	pub(crate) channel_reserve_satoshis: u64,
-	pub(crate) htlc_minimum_msat: u64,
-	pub(crate) feerate_per_kw: u32,
-	pub(crate) to_self_delay: u16,
-	pub(crate) max_accepted_htlcs: u16,
-	pub(crate) funding_pubkey: PublicKey,
-	pub(crate) revocation_basepoint: PublicKey,
-	pub(crate) payment_basepoint: PublicKey,
-	pub(crate) delayed_payment_basepoint: PublicKey,
-	pub(crate) htlc_basepoint: PublicKey,
-	pub(crate) first_per_commitment_point: PublicKey,
-	pub(crate) channel_flags: u8,
-	pub(crate) shutdown_scriptpubkey: OptionalField<Script>,
+	pub chain_hash: Sha256dHash,
+	pub temporary_channel_id: [u8; 32],
+	pub funding_satoshis: u64,
+	pub push_msat: u64,
+	pub dust_limit_satoshis: u64,
+	pub max_htlc_value_in_flight_msat: u64,
+	pub channel_reserve_satoshis: u64,
+	pub htlc_minimum_msat: u64,
+	pub feerate_per_kw: u32,
+	pub to_self_delay: u16,
+	pub max_accepted_htlcs: u16,
+	pub funding_pubkey: PublicKey,
+	pub revocation_basepoint: PublicKey,
+	pub payment_basepoint: PublicKey,
+	pub delayed_payment_basepoint: PublicKey,
+	pub htlc_basepoint: PublicKey,
+	pub first_per_commitment_point: PublicKey,
+	pub channel_flags: u8,
+	pub shutdown_scriptpubkey: OptionalField<Script>,
 }
 
 /// An accept_channel message to be sent or received from a peer
 #[derive(Clone)]
+#[allow(missing_docs)]
 pub struct AcceptChannel {
-	pub(crate) temporary_channel_id: [u8; 32],
-	pub(crate) dust_limit_satoshis: u64,
-	pub(crate) max_htlc_value_in_flight_msat: u64,
-	pub(crate) channel_reserve_satoshis: u64,
-	pub(crate) htlc_minimum_msat: u64,
-	pub(crate) minimum_depth: u32,
-	pub(crate) to_self_delay: u16,
-	pub(crate) max_accepted_htlcs: u16,
-	pub(crate) funding_pubkey: PublicKey,
-	pub(crate) revocation_basepoint: PublicKey,
-	pub(crate) payment_basepoint: PublicKey,
-	pub(crate) delayed_payment_basepoint: PublicKey,
-	pub(crate) htlc_basepoint: PublicKey,
-	pub(crate) first_per_commitment_point: PublicKey,
-	pub(crate) shutdown_scriptpubkey: OptionalField<Script>
+	pub temporary_channel_id: [u8; 32],
+	pub dust_limit_satoshis: u64,
+	pub max_htlc_value_in_flight_msat: u64,
+	pub channel_reserve_satoshis: u64,
+	pub htlc_minimum_msat: u64,
+	pub minimum_depth: u32,
+	pub to_self_delay: u16,
+	pub max_accepted_htlcs: u16,
+	pub funding_pubkey: PublicKey,
+	pub revocation_basepoint: PublicKey,
+	pub payment_basepoint: PublicKey,
+	pub delayed_payment_basepoint: PublicKey,
+	pub htlc_basepoint: PublicKey,
+	pub first_per_commitment_point: PublicKey,
+	pub shutdown_scriptpubkey: OptionalField<Script>
 }
 
 /// A funding_created message to be sent or received from a peer
 #[derive(Clone)]
+#[allow(missing_docs)]
 pub struct FundingCreated {
-	pub(crate) temporary_channel_id: [u8; 32],
-	pub(crate) funding_txid: Sha256dHash,
-	pub(crate) funding_output_index: u16,
-	pub(crate) signature: Signature,
+	pub temporary_channel_id: [u8; 32],
+	pub funding_txid: Sha256dHash,
+	pub funding_output_index: u16,
+	pub signature: Signature,
 }
 
 /// A funding_signed message to be sent or received from a peer
 #[derive(Clone)]
+#[allow(missing_docs)]
 pub struct FundingSigned {
-	pub(crate) channel_id: [u8; 32],
-	pub(crate) signature: Signature,
+	pub channel_id: [u8; 32],
+	pub signature: Signature,
 }
 
 /// A funding_locked message to be sent or received from a peer
