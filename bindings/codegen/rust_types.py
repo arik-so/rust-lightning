@@ -72,10 +72,16 @@ def handle_type(rust_type):
 	elif rust_type == 'Script':
 		argument = '&BufferArgument'
 		imports.add('crate::buffer::BufferArgument')
+		imports.add('crate::buffer::BufferResponse')
 		imports.add('bitcoin::Script')
 
 		input_converter = dynamic_length_byte_reader()
 		input_converter += '\n\tlet {name} = Script::from({name});'
+
+		return_type = '*mut BufferResponse'
+		output_converter = '// Script objects need to be cloned to be returned'
+		output_converter += '\n\tlet buffer: BufferResponse = {field}.clone().into_bytes().into();'
+		output_converter += '\n\tbuffer.into_mut_ptr()'
 
 	elif rust_type == 'OptionalField<Script>':
 		# argument = '&BufferArgument'
