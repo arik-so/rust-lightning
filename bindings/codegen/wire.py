@@ -99,8 +99,10 @@ def generate_struct_binding(struct_details):
 		arguments = [generate_field_argument(field) for field in struct_details['fields']]
 		filtered_arguments = filter(None, arguments)
 		argument_string = ', '.join(filtered_arguments)
-		method_signature = f"wire_message_create_{struct_name}({argument_string}) -> *const {struct_details['name']}"
+		method_signature = f"wire_message_create_{struct_name}({argument_string}) -> *const WireMessage{struct_details['name']}"
 		field_names = ',\n\t\t'.join(field['name'] for field in struct_details['fields'])
+
+		type_wrapper = f"pub struct WireMessage{struct_details['name']}(Raw{struct_details['name']});"
 
 		method_body = ""
 		for field in struct_details['fields']:
@@ -110,8 +112,8 @@ def generate_struct_binding(struct_details):
 				current_input_converter = input_converter.replace('{name}', field['name'])
 				method_body += current_input_converter + "\n\n"
 
-		method_body += f"\tlet message = {struct_details['name']} {{ \n\t\t{field_names}\n\t}};\n\tBox::into_raw(Box::new(message))"
-		return f'#[no_mangle]\npub extern "C" fn {method_signature} {{\n{method_body}\n}}'
+		method_body += f"\tlet message = Raw{struct_details['name']} {{ \n\t\t{field_names}\n\t}};\n\tBox::into_raw(Box::new(WireMessage{struct_details['name']}(message)))"
+		return f'{type_wrapper}\n\n#[no_mangle]\npub extern "C" fn {method_signature} {{\n{method_body}\n}}'
 
 	def generate_getters():
 		getters = []
@@ -122,9 +124,9 @@ def generate_struct_binding(struct_details):
 			getter_type = type_handlers['return_type']
 			if getter_type is None:
 				continue
-			getter_signature = f"{getter_name}(message: &{struct_details['name']}) -> {getter_type}"
+			getter_signature = f"{getter_name}(message: &WireMessage{struct_details['name']}) -> {getter_type}"
 			converter = type_handlers['output_converter']
-			getter_body = f"message.{current_field['name']}"
+			getter_body = f"message.0.{current_field['name']}"
 			if converter is not None:
 				pass
 			getter = f"#[no_mangle]\npub extern \"C\" fn {getter_signature} {{\n\t{getter_body}\n}}"
@@ -147,7 +149,7 @@ def generate_bindings(messages):
 		if struct_details['name'] not in ['Ping', 'Pong', 'OpenChannel', 'AcceptChannel', 'FundingCreated', 'FundingSigned', 'FundingLocked']:
 			continue # let's get a few types working first
 
-		imports.add(f"lightning::ln::msgs::{struct_details['name']}")
+		imports.add(f"lightning::ln::msgs::{struct_details['name']} as Raw{struct_details['name']}")
 		binding = generate_struct_binding(struct_details)
 
 		bindings_code += f"\n{binding['constructor']}\n\n"

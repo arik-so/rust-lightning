@@ -12,28 +12,6 @@ use std::sync::Arc;
 
 pub struct PeerHandshake(RawHandshake);
 
-impl PeerHandshake {
-
-	pub fn new_outbound(private_key_slice: &[u8], ephemeral_private_key_slice: &[u8], public_key_slice: &[u8]) -> Self {
-		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
-		let ephemeral_private_key_object = SecretKey::from_slice(ephemeral_private_key_slice).unwrap();
-		let public_key_object = PublicKey::from_slice(public_key_slice).unwrap();
-
-		let handshake = RawHandshake::new_outbound(&private_key_object, &public_key_object, &ephemeral_private_key_object);
-		let peer_handshake = Self(handshake);
-		peer_handshake
-	}
-
-	pub fn new_inbound(private_key_slice: &[u8], ephemeral_private_key_slice: &[u8]) -> Self {
-		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
-		let ephemeral_private_key_object = SecretKey::from_slice(ephemeral_private_key_slice).unwrap();
-
-		let handshake = RawHandshake::new_inbound(&private_key_object, &ephemeral_private_key_object);
-		let peer_handshake = Self(handshake);
-		peer_handshake
-	}
-}
-
 #[repr(C)]
 pub struct HandshakeResult {
 	pub next_act: *mut BufferResponse,
