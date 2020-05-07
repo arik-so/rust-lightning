@@ -95,7 +95,7 @@ impl From<Vec<Vec<u8>>> for BufferResponseArray {
 }
 
 #[no_mangle]
-pub extern "C" fn free_buffer(raw_buffer: *mut BufferResponse) {
+pub extern "C" fn buffer_response_free(raw_buffer: *mut BufferResponse) {
 	unsafe {
 		if raw_buffer.is_null() { return; }
 		let buffer = Box::from_raw(raw_buffer);

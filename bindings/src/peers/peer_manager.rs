@@ -11,7 +11,9 @@ use crate::peers::socket_descriptor::SocketDescriptor;
 use std::ffi::c_void;
 use lightning::ln::peer_handler::SocketDescriptor as RawSocketDescriptor;
 
-pub struct PeerManager(RawPeerManager<SocketDescriptor, Arc<ChannelMessageHandler>>);
+pub struct PeerManager(RawPeerManager<SocketDescriptor, Arc<ChannelMessageHandler>>, u8);
+
+
 
 #[no_mangle]
 pub extern "C" fn peer_manager_create(node_private_key: *const u8, ephemeral_seed: *const u8) -> *mut PeerManager {
@@ -42,21 +44,24 @@ pub extern "C" fn peer_manager_create(node_private_key: *const u8, ephemeral_see
 
 	// should be refactored to not require ownership of MessageHandler
 	let peer_manager = RawPeerManager::new(message_handler, private_key_object, &ephemeral_seed, logger);
-	let wrapped_peer_manager = PeerManager(peer_manager);
+	let wrapped_peer_manager = PeerManager(peer_manager, 0);
 
 	Box::into_raw(Box::new(wrapped_peer_manager))
 }
 
 #[no_mangle]
-pub extern "C" fn peer_manager_new_outbound(peer_manager: &mut PeerManager, remote_public_key: *const u8, peer_instance_pointer: *const c_void, socket_callback: fn(*const c_void, BufferResponse) -> usize, error: *mut Error) -> *mut SocketDescriptor{
+pub extern "C" fn peer_manager_new_outbound(peer_manager: &mut PeerManager, remote_public_key: *const u8, peer_instance_pointer: *const c_void, socket_callback: fn(*const c_void, *mut BufferResponse) -> usize, error: *mut Error) -> *mut SocketDescriptor{
 	let public_key_slice = unsafe {
 		assert!(!remote_public_key.is_null());
 		slice::from_raw_parts(remote_public_key, 33)
 	};
 	let public_key_object = PublicKey::from_slice(public_key_slice).unwrap();
 
+	let socket_id = peer_manager.1;
+	peer_manager.1 += 1;
+
 	let mut socket_descriptor = SocketDescriptor {
-		socket_id: 4,
+		socket_id,
 		host_instance_pointer: peer_instance_pointer,
 		send_data_callback: socket_callback
 	}; // determined by dice-roll to be random
@@ -72,4 +77,10 @@ pub extern "C" fn peer_manager_new_outbound(peer_manager: &mut PeerManager, remo
 	let first_message = connection.unwrap();
 	socket_descriptor.send_data(&first_message, true);
 	Box::into_raw(Box::new(socket_descriptor))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn peer_manager_free(raw_peer_manager: *mut PeerManager){
+	if raw_peer_manager.is_null() { return; }
+	let _ = Box::from_raw(raw_peer_manager);
 }
