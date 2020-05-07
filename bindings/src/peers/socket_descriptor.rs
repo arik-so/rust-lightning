@@ -26,7 +26,7 @@ impl RawSocketDescriptor for SocketDescriptor{
 
 impl Hash for SocketDescriptor{
 	fn hash<H: Hasher>(&self, state: &mut H) {
-		unimplemented!()
+		self.socket_id.hash(state)
 	}
 }
 
