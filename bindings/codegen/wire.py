@@ -40,7 +40,8 @@ def generate_struct_binding(struct_details):
 				method_body += current_input_converter + "\n\n"
 
 		method_body += f"\tlet message = Raw{struct_details['name']} {{ \n\t\t{field_names}\n\t}};\n\tBox::into_raw(Box::new(WireMessage{struct_details['name']}(message)))"
-		return f'{type_wrapper}\n\n#[no_mangle]\npub extern "C" fn {raw_constructor_signature} {{\n{raw_constructor_body}\n}}\n\n#[no_mangle]\npub extern "C" fn {method_signature} {{\n{method_body}\n}}'
+		# return f'{type_wrapper}\n\n#[no_mangle]\npub extern "C" fn {raw_constructor_signature} {{\n{raw_constructor_body}\n}}\n\n#[no_mangle]\npub extern "C" fn {method_signature} {{\n{method_body}\n}}'
+		return f'{type_wrapper}\n\npub extern "C" fn {raw_constructor_signature} {{\n{raw_constructor_body}\n}}\n\n#[no_mangle]\npub extern "C" fn {method_signature} {{\n{method_body}\n}}'
 
 	def generate_getters():
 		getters = []

@@ -2,11 +2,21 @@
 
 use std::ffi::CString;
 use std::os::raw::c_char;
+use lightning::ln::peer_handler::PeerHandleError;
 
 #[repr(C)]
 pub struct Error {
 	message: *mut c_char,
 	length: usize,
+}
+
+impl From<PeerHandleError> for Error {
+	fn from(error: PeerHandleError) -> Self {
+		let message = error.to_string();
+		let length = message.len();
+		let message = CString::new(message).unwrap().into_raw();
+		Self { message, length }
+	}
 }
 
 impl From<String> for Error {

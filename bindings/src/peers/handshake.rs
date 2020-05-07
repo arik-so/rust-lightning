@@ -1,7 +1,6 @@
 use std::slice;
 
 use secp256k1::{PublicKey, SecretKey};
-use wasm_bindgen::prelude::*;
 
 use lightning::ln::peers::handshake::PeerHandshake as RawHandshake;
 
@@ -19,7 +18,6 @@ pub struct HandshakeResult {
 }
 
 #[no_mangle]
-#[wasm_bindgen]
 pub extern "C" fn peer_handshake_new_outbound(private_key: *const u8, ephemeral_private_key: *const u8, remote_public_key: *const u8) -> *mut PeerHandshake {
 	let private_key_slice = unsafe {
 		assert!(!private_key.is_null());
@@ -49,7 +47,6 @@ pub extern "C" fn peer_handshake_new_outbound(private_key: *const u8, ephemeral_
 }
 
 #[no_mangle]
-#[wasm_bindgen]
 pub extern "C" fn peer_handshake_new_inbound(private_key: *const u8, ephemeral_private_key: *const u8) -> *mut PeerHandshake {
 	let private_key_slice = unsafe {
 		assert!(!private_key.is_null());
