@@ -80,6 +80,12 @@ pub extern "C" fn peer_manager_new_outbound(peer_manager: &mut PeerManager, remo
 }
 
 #[no_mangle]
+pub extern "C" fn peer_manager_try_direct(peer_manager: &mut PeerManager) -> BufferResponse {
+	let vector = vec![0u8, 2, 3, 10];
+	vector.into()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn peer_manager_free(raw_peer_manager: *mut PeerManager){
 	if raw_peer_manager.is_null() { return; }
 	let _ = Box::from_raw(raw_peer_manager);

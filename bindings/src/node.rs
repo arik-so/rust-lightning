@@ -13,7 +13,7 @@ use crate::chain::broadcaster::Broadcaster;
 use crate::chain::fee_estimator::FeeEstimator;
 use crate::channels::channel_keys::ChannelKeys;
 use crate::channels::channel_message_handler::ChannelMessageHandler;
-use crate::channels::channel_monitor::ChannelMonitor;
+// use crate::channels::channel_monitor::ChannelMonitor;
 use crate::channels::routing_message_handler::RoutingMessageHandler;
 use crate::error::Error;
 use crate::util::logger::Logger;

@@ -516,7 +516,7 @@ pub(crate) fn sign_htlc_transaction<T: secp256k1::Signing>(tx: &mut Transaction,
 /// We use this to track local commitment transactions and put off signing them until we are ready
 /// to broadcast. Eventually this will require a signer which is possibly external, but for now we
 /// just pass in the SecretKeys required.
-pub(crate) struct LocalCommitmentTransaction {
+pub struct LocalCommitmentTransaction {
 	tx: Transaction
 }
 impl LocalCommitmentTransaction {
@@ -530,6 +530,7 @@ impl LocalCommitmentTransaction {
 		} }
 	}
 
+	/// TODO: replaceme
 	pub fn new_missing_local_sig(mut tx: Transaction, their_sig: &Signature, our_funding_key: &PublicKey, their_funding_key: &PublicKey) -> LocalCommitmentTransaction {
 		if tx.input.len() != 1 { panic!("Tried to store a commitment transaction that had input count != 1!"); }
 		if tx.input[0].witness.len() != 0 { panic!("Tried to store a signed commitment transaction?"); }
@@ -549,10 +550,12 @@ impl LocalCommitmentTransaction {
 		Self { tx }
 	}
 
+	/// Todo: replaceme
 	pub fn txid(&self) -> Sha256dHash {
 		self.tx.txid()
 	}
 
+	/// Todo: replaceme
 	pub fn has_local_sig(&self) -> bool {
 		if self.tx.input.len() != 1 { panic!("Commitment transactions must have input count == 1!"); }
 		if self.tx.input[0].witness.len() == 4 {
@@ -567,6 +570,7 @@ impl LocalCommitmentTransaction {
 		}
 	}
 
+	/// TODO: replaceme
 	pub fn add_local_sig<T: secp256k1::Signing>(&mut self, funding_key: &SecretKey, funding_redeemscript: &Script, channel_value_satoshis: u64, secp_ctx: &Secp256k1<T>) {
 		if self.has_local_sig() { return; }
 		let sighash = hash_to_message!(&bip143::SighashComponents::new(&self.tx)
@@ -584,7 +588,10 @@ impl LocalCommitmentTransaction {
 		self.tx.input[0].witness.push(funding_redeemscript.as_bytes().to_vec());
 	}
 
+	/// TODO: replaceme
 	pub fn without_valid_witness(&self) -> &Transaction { &self.tx }
+
+	/// TODO: replaceme
 	pub fn with_valid_witness(&self) -> &Transaction {
 		assert!(self.has_local_sig());
 		&self.tx
