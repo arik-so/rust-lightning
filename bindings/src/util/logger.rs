@@ -6,6 +6,6 @@ pub struct Logger {
 
 impl lightning::util::logger::Logger for Logger {
 	fn log<'a>(&self, record: &Record<'a>) {
-		unimplemented!()
+		println!("TODO: implement logger!");
 	}
 }

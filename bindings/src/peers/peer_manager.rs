@@ -6,7 +6,7 @@ use crate::util::logger::Logger;
 use wasm_bindgen::__rt::std::sync::Arc;
 use crate::channels::routing_message_handler::RoutingMessageHandler;
 use crate::error::Error;
-use crate::buffer::BufferResponse;
+use crate::buffer::{BufferResponse, BufferArgument};
 use crate::peers::socket_descriptor::SocketDescriptor;
 use std::ffi::c_void;
 use lightning::ln::peer_handler::SocketDescriptor as RawSocketDescriptor;
@@ -77,6 +77,14 @@ pub extern "C" fn peer_manager_new_outbound(peer_manager: &mut PeerManager, remo
 	let first_message = connection.unwrap();
 	socket_descriptor.send_data(&first_message, true);
 	Box::into_raw(Box::new(socket_descriptor))
+
+}
+
+#[no_mangle]
+pub extern "C" fn peer_read(peer_manager: &mut PeerManager, socket_descriptor: &SocketDescriptor, data: &BufferArgument) {
+	let mut descriptor_clone = socket_descriptor.clone();
+	let data = unsafe { data.to_vec() };
+	peer_manager.0.read_event(&mut descriptor_clone, &data);
 }
 
 #[no_mangle]
