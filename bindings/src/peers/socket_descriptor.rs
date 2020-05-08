@@ -36,3 +36,9 @@ impl PartialEq for SocketDescriptor{
 	}
 }
 impl Eq for SocketDescriptor{}
+
+#[no_mangle]
+pub unsafe extern "C" fn socket_descriptor_free(raw_socket_descriptor: *mut SocketDescriptor){
+	if raw_socket_descriptor.is_null() { return; }
+	let _ = Box::from_raw(raw_socket_descriptor);
+}
