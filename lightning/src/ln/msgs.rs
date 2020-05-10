@@ -443,6 +443,7 @@ pub struct ChannelUpdate {
 }
 
 /// Used to put an error message in a LightningError
+/// (C-not exported)
 #[derive(Clone)]
 pub enum ErrorAction {
 	/// The peer took some action which made us think they were useless. Disconnect them.
@@ -518,6 +519,7 @@ pub enum HTLCFailChannelUpdate {
 /// As we wish to serialize these differently from Option<T>s (Options get a tag byte, but
 /// OptionalFeild simply gets Present if there are enough bytes to read into it), we have a
 /// separate enum type for them.
+/// (C-not exported) due to generics
 #[derive(Clone, PartialEq)]
 pub enum OptionalField<T> {
 	/// Optional field is included in message
@@ -591,23 +593,29 @@ pub trait ChannelMessageHandler : events::MessageSendEventsProvider + Send + Syn
 pub trait RoutingMessageHandler : Send + Sync {
 	/// Handle an incoming node_announcement message, returning true if it should be forwarded on,
 	/// false or returning an Err otherwise.
+	/// (C-not exported) due to Result
 	fn handle_node_announcement(&self, msg: &NodeAnnouncement) -> Result<bool, LightningError>;
 	/// Handle a channel_announcement message, returning true if it should be forwarded on, false
 	/// or returning an Err otherwise.
+	/// (C-not exported) due to Result
 	fn handle_channel_announcement(&self, msg: &ChannelAnnouncement) -> Result<bool, LightningError>;
 	/// Handle an incoming channel_update message, returning true if it should be forwarded on,
 	/// false or returning an Err otherwise.
+	/// (C-not exported) due to Result
 	fn handle_channel_update(&self, msg: &ChannelUpdate) -> Result<bool, LightningError>;
 	/// Handle some updates to the route graph that we learned due to an outbound failed payment.
+	/// (C-not exported) due to non-unit enum
 	fn handle_htlc_fail_channel_update(&self, update: &HTLCFailChannelUpdate);
 	/// Gets a subset of the channel announcements and updates required to dump our routing table
 	/// to a remote node, starting at the short_channel_id indicated by starting_point and
 	/// including the batch_amount entries immediately higher in numerical value than starting_point.
+	/// (C-not exported) due to Vec
 	fn get_next_channel_announcements(&self, starting_point: u64, batch_amount: u8) -> Vec<(ChannelAnnouncement, Option<ChannelUpdate>, Option<ChannelUpdate>)>;
 	/// Gets a subset of the node announcements required to dump our routing table to a remote node,
 	/// starting at the node *after* the provided publickey and including batch_amount entries
 	/// immediately higher (as defined by <PublicKey as Ord>::cmp) than starting_point.
 	/// If None is provided for starting_point, we start at the first node.
+	/// (C-not exported) due to Option
 	fn get_next_node_announcements(&self, starting_point: Option<&PublicKey>, batch_amount: u8) -> Vec<NodeAnnouncement>;
 	/// Returns whether a full sync should be requested from a peer.
 	fn should_request_full_sync(&self, node_id: &PublicKey) -> bool;

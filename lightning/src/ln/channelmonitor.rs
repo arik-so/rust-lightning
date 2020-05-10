@@ -149,66 +149,6 @@ pub struct HTLCUpdate {
 }
 impl_writeable!(HTLCUpdate, 0, { payment_hash, payment_preimage, source });
 
-/// Simple trait indicating ability to track a set of ChannelMonitors and multiplex events between
-/// them. Generally should be implemented by keeping a local SimpleManyChannelMonitor and passing
-/// events to it, while also taking any add/update_monitor events and passing them to some remote
-/// server(s).
-///
-/// In general, you must always have at least one local copy in memory, which must never fail to
-/// update (as it is responsible for broadcasting the latest state in case the channel is closed),
-/// and then persist it to various on-disk locations. If, for some reason, the in-memory copy fails
-/// to update (eg out-of-memory or some other condition), you must immediately shut down without
-/// taking any further action such as writing the current state to disk. This should likely be
-/// accomplished via panic!() or abort().
-///
-/// Note that any updates to a channel's monitor *must* be applied to each instance of the
-/// channel's monitor everywhere (including remote watchtowers) *before* this function returns. If
-/// an update occurs and a remote watchtower is left with old state, it may broadcast transactions
-/// which we have revoked, allowing our counterparty to claim all funds in the channel!
-///
-/// User needs to notify implementors of ManyChannelMonitor when a new block is connected or
-/// disconnected using their `block_connected` and `block_disconnected` methods. However, rather
-/// than calling these methods directly, the user should register implementors as listeners to the
-/// BlockNotifier and call the BlockNotifier's `block_(dis)connected` methods, which will notify
-/// all registered listeners in one go.
-pub trait ManyChannelMonitor<ChanSigner: ChannelKeys>: Send + Sync {
-	/// Adds a monitor for the given `funding_txo`.
-	///
-	/// Implementer must also ensure that the funding_txo txid *and* outpoint are registered with
-	/// any relevant ChainWatchInterfaces such that the provided monitor receives block_connected
-	/// callbacks with the funding transaction, or any spends of it.
-	///
-	/// Further, the implementer must also ensure that each output returned in
-	/// monitor.get_outputs_to_watch() is registered to ensure that the provided monitor learns about
-	/// any spends of any of the outputs.
-	///
-	/// Any spends of outputs which should have been registered which aren't passed to
-	/// ChannelMonitors via block_connected may result in FUNDS LOSS.
-	fn add_monitor(&self, funding_txo: OutPoint, monitor: ChannelMonitor<ChanSigner>) -> Result<(), ChannelMonitorUpdateErr>;
-
-	/// Updates a monitor for the given `funding_txo`.
-	///
-	/// Implementer must also ensure that the funding_txo txid *and* outpoint are registered with
-	/// any relevant ChainWatchInterfaces such that the provided monitor receives block_connected
-	/// callbacks with the funding transaction, or any spends of it.
-	///
-	/// Further, the implementer must also ensure that each output returned in
-	/// monitor.get_watch_outputs() is registered to ensure that the provided monitor learns about
-	/// any spends of any of the outputs.
-	///
-	/// Any spends of outputs which should have been registered which aren't passed to
-	/// ChannelMonitors via block_connected may result in FUNDS LOSS.
-	fn update_monitor(&self, funding_txo: OutPoint, monitor: ChannelMonitorUpdate) -> Result<(), ChannelMonitorUpdateErr>;
-
-	/// Used by ChannelManager to get list of HTLC resolved onchain and which needed to be updated
-	/// with success or failure.
-	///
-	/// You should probably just call through to
-	/// ChannelMonitor::get_and_clear_pending_htlcs_updated() for each ChannelMonitor and return
-	/// the full list.
-	fn get_and_clear_pending_htlcs_updated(&self) -> Vec<HTLCUpdate>;
-}
-
 /// A simple implementation of a ManyChannelMonitor and ChainListener. Can be used to create a
 /// watchtower or watch our own channels.
 ///
@@ -220,6 +160,7 @@ pub trait ManyChannelMonitor<ChanSigner: ChannelKeys>: Send + Sync {
 ///
 /// If you're using this for local monitoring of your own channels, you probably want to use
 /// `OutPoint` as the key, which will give you a ManyChannelMonitor implementation.
+/// (C-not exported)
 pub struct SimpleManyChannelMonitor<Key, ChanSigner: ChannelKeys, T: Deref, F: Deref>
 	where T::Target: BroadcasterInterface,
         F::Target: FeeEstimator
@@ -314,10 +255,12 @@ impl<Key : Send + cmp::Eq + hash::Hash + 'static, ChanSigner: ChannelKeys, T: De
 	}
 }
 
-impl<ChanSigner: ChannelKeys, T: Deref + Sync + Send, F: Deref + Sync + Send> ManyChannelMonitor<ChanSigner> for SimpleManyChannelMonitor<OutPoint, ChanSigner, T, F>
+impl<ChanSigner: ChannelKeys, T: Deref + Sync + Send, F: Deref + Sync + Send> ManyChannelMonitor for SimpleManyChannelMonitor<OutPoint, ChanSigner, T, F>
 	where T::Target: BroadcasterInterface,
 	      F::Target: FeeEstimator
 {
+	type Keys = ChanSigner;
+
 	fn add_monitor(&self, funding_txo: OutPoint, monitor: ChannelMonitor<ChanSigner>) -> Result<(), ChannelMonitorUpdateErr> {
 		match self.add_monitor_by_key(funding_txo, monitor) {
 			Ok(_) => Ok(()),
@@ -794,6 +737,75 @@ pub struct ChannelMonitor<ChanSigner: ChannelKeys> {
 	logger: Arc<Logger>,
 }
 
+/// Simple trait indicating ability to track a set of ChannelMonitors and multiplex events between
+/// them. Generally should be implemented by keeping a local SimpleManyChannelMonitor and passing
+/// events to it, while also taking any add/update_monitor events and passing them to some remote
+/// server(s).
+///
+/// In general, you must always have at least one local copy in memory, which must never fail to
+/// update (as it is responsible for broadcasting the latest state in case the channel is closed),
+/// and then persist it to various on-disk locations. If, for some reason, the in-memory copy fails
+/// to update (eg out-of-memory or some other condition), you must immediately shut down without
+/// taking any further action such as writing the current state to disk. This should likely be
+/// accomplished via panic!() or abort().
+///
+/// Note that any updates to a channel's monitor *must* be applied to each instance of the
+/// channel's monitor everywhere (including remote watchtowers) *before* this function returns. If
+/// an update occurs and a remote watchtower is left with old state, it may broadcast transactions
+/// which we have revoked, allowing our counterparty to claim all funds in the channel!
+///
+/// User needs to notify implementors of ManyChannelMonitor when a new block is connected or
+/// disconnected using their `block_connected` and `block_disconnected` methods. However, rather
+/// than calling these methods directly, the user should register implementors as listeners to the
+/// BlockNotifier and call the BlockNotifier's `block_(dis)connected` methods, which will notify
+/// all registered listeners in one go.
+pub trait ManyChannelMonitor: Send + Sync {
+	/// The concrete type which signs for transactions and provides access to our channel public
+	/// keys.
+	type Keys: ChannelKeys;
+
+	/// Adds a monitor for the given `funding_txo`.
+	///
+	/// Implementer must also ensure that the funding_txo txid *and* outpoint are registered with
+	/// any relevant ChainWatchInterfaces such that the provided monitor receives block_connected
+	/// callbacks with the funding transaction, or any spends of it.
+	///
+	/// Further, the implementer must also ensure that each output returned in
+	/// monitor.get_outputs_to_watch() is registered to ensure that the provided monitor learns about
+	/// any spends of any of the outputs.
+	///
+	/// Any spends of outputs which should have been registered which aren't passed to
+	/// ChannelMonitors via block_connected may result in FUNDS LOSS.
+	/// (C-not exported) due to Result
+	fn add_monitor(&self, funding_txo: OutPoint, monitor: ChannelMonitor<Self::Keys>) -> Result<(), ChannelMonitorUpdateErr>;
+
+	/// Updates a monitor for the given `funding_txo`.
+	///
+	/// Implementer must also ensure that the funding_txo txid *and* outpoint are registered with
+	/// any relevant ChainWatchInterfaces such that the provided monitor receives block_connected
+	/// callbacks with the funding transaction, or any spends of it.
+	///
+	/// Further, the implementer must also ensure that each output returned in
+	/// monitor.get_watch_outputs() is registered to ensure that the provided monitor learns about
+	/// any spends of any of the outputs.
+	///
+	/// Any spends of outputs which should have been registered which aren't passed to
+	/// ChannelMonitors via block_connected may result in FUNDS LOSS.
+	/// (C-not exported) due to Result
+	fn update_monitor(&self, funding_txo: OutPoint, monitor: ChannelMonitorUpdate) -> Result<(), ChannelMonitorUpdateErr>;
+
+	/// Used by ChannelManager to get list of HTLC resolved onchain and which needed to be updated
+	/// with success or failure.
+	///
+	/// You should probably just call through to
+	/// ChannelMonitor::get_and_clear_pending_htlcs_updated() for each ChannelMonitor and return
+	/// the full list.
+	/// (C-not exported) due to Vec
+	fn get_and_clear_pending_htlcs_updated(&self) -> Vec<HTLCUpdate>;
+}
+
+
+
 #[cfg(any(test, feature = "fuzztarget"))]
 /// Used only in testing and fuzztarget to check serialization roundtrips don't change the
 /// underlying object
@@ -846,6 +858,7 @@ impl<ChanSigner: ChannelKeys + Writeable> ChannelMonitor<ChanSigner> {
 	/// the "reorg path" (ie disconnecting blocks until you find a common ancestor from both the
 	/// returned block hash and the the current chain and then reconnecting blocks to get to the
 	/// best chain) upon deserializing the object!
+	/// (C-not exported)
 	pub fn write_for_disk<W: Writer>(&self, writer: &mut W) -> Result<(), ::std::io::Error> {
 		//TODO: We still write out all the serialization here manually instead of using the fancy
 		//serialization framework we have, we should migrate things over to it.
@@ -1284,6 +1297,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	/// itself.
 	///
 	/// panics if the given update is not the next update by update_id.
+	/// (C-not exported) due to generics
 	pub fn update_monitor<B: Deref>(&mut self, mut updates: ChannelMonitorUpdate, broadcaster: &B) -> Result<(), MonitorUpdateError>
 		where B::Target: BroadcasterInterface,
 	{
@@ -1323,12 +1337,14 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	}
 
 	/// Gets the funding transaction outpoint of the channel this ChannelMonitor is monitoring for.
+	/// (C-not exported) due to OutPoint
 	pub fn get_funding_txo(&self) -> OutPoint {
 		self.funding_info.0
 	}
 
 	/// Gets a list of txids, with their output scripts (in the order they appear in the
 	/// transaction), which we must learn about spends of via block_connected().
+	/// (C-not exported) due to HashMap
 	pub fn get_outputs_to_watch(&self) -> &HashMap<Txid, Vec<Script>> {
 		&self.outputs_to_watch
 	}
@@ -1337,6 +1353,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	/// Generally useful when deserializing as during normal operation the return values of
 	/// block_connected are sufficient to ensure all relevant outpoints are being monitored (note
 	/// that the get_funding_txo outpoint and transaction must also be monitored for!).
+	/// (C-not exported) due to Vec
 	pub fn get_monitored_outpoints(&self) -> Vec<(Txid, u32, &Script)> {
 		let mut res = Vec::with_capacity(self.remote_commitment_txn_on_chain.len() * 2);
 		for (ref txid, &(_, ref outputs)) in self.remote_commitment_txn_on_chain.iter() {
@@ -1349,6 +1366,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 
 	/// Get the list of HTLCs who's status has been updated on chain. This should be called by
 	/// ChannelManager via ManyChannelMonitor::get_and_clear_pending_htlcs_updated().
+	/// (C-not exported) due to Vec
 	pub fn get_and_clear_pending_htlcs_updated(&mut self) -> Vec<HTLCUpdate> {
 		let mut ret = Vec::new();
 		mem::swap(&mut ret, &mut self.pending_htlcs_updated);
@@ -1361,6 +1379,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	/// This is called by ManyChannelMonitor::get_and_clear_pending_events() and is equivalent to
 	/// EventsProvider::get_and_clear_pending_events() except that it requires &mut self as we do
 	/// no internal locking in ChannelMonitors.
+	/// (C-not exported) due to Vec
 	pub fn get_and_clear_pending_events(&mut self) -> Vec<events::Event> {
 		let mut ret = Vec::new();
 		mem::swap(&mut ret, &mut self.pending_events);
@@ -1733,6 +1752,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	/// substantial amount of time (a month or even a year) to get back funds. Best may be to contact
 	/// out-of-band the other node operator to coordinate with him if option is available to you.
 	/// In any-case, choice is up to the user.
+	/// (C-not exported) due to Vec
 	pub fn get_latest_local_commitment_txn(&mut self) -> Vec<Transaction> {
 		log_trace!(self, "Getting signed latest local commitment transaction!");
 		self.local_tx_signed = true;
@@ -1763,6 +1783,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	/// Unsafe test-only version of get_latest_local_commitment_txn used by our test framework
 	/// to bypass LocalCommitmentTransaction state update lockdown after signature and generate
 	/// revoked commitment transaction.
+	/// (C-not exported) because its test-only
 	#[cfg(test)]
 	pub fn unsafe_get_latest_local_commitment_txn(&mut self) -> Vec<Transaction> {
 		log_trace!(self, "Getting signed copy of latest local commitment transaction!");

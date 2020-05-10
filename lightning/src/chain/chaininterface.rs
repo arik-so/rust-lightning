@@ -38,6 +38,7 @@ pub enum ChainError {
 /// Note that all of the functions implemented here *must* be reentrant-safe (obviously - they're
 /// called from inside the library in response to ChainListener events, P2P events, or timer
 /// events).
+/// (C-not exported) due to tuples and Result<>s
 pub trait ChainWatchInterface: Sync + Send {
 	/// Provides a txid/random-scriptPubKey-in-the-tx which much be watched for.
 	fn install_watch_tx(&self, txid: &Txid, script_pub_key: &Script);
@@ -72,6 +73,7 @@ pub trait BroadcasterInterface: Sync + Send {
 }
 
 /// A trait indicating a desire to listen for events from the chain
+/// (C-not exported)
 pub trait ChainListener: Sync + Send {
 	/// Notifies a listener that a block was connected.
 	///
@@ -128,6 +130,7 @@ pub trait FeeEstimator: Sync + Send {
 pub const MIN_RELAY_FEE_SAT_PER_1000_WEIGHT: u64 = 4000;
 
 /// Utility for tracking registered txn/outpoints and checking for matches
+/// (C-not exported)
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ChainWatchedUtil {
 	watch_all: bool,
@@ -169,6 +172,7 @@ impl ChainWatchedUtil {
 
 	/// Registers an outpoint for monitoring, returning true if it was a new outpoint and false if
 	/// we'd already been watching for it
+	/// (C-not exported) due to tuples
 	pub fn register_outpoint(&mut self, outpoint: (Txid, u32), _script_pub_key: &Script) -> bool {
 		if self.watch_all { return false; }
 		self.watched_outpoints.insert(outpoint)
@@ -238,6 +242,7 @@ pub type BlockNotifierRef<'a> = BlockNotifier<'a, &'a ChainListener>;
 /// or a BlockNotifierRef for conciseness. See their documentation for more details, but essentially
 /// you should default to using a BlockNotifierRef, and use a BlockNotifierArc instead when you
 /// require ChainListeners with static lifetimes, such as when you're using lightning-net-tokio.
+/// (C-not exported) due to ChainListener not being exported
 pub struct BlockNotifier<'a, CL: Deref<Target = ChainListener + 'a> + 'a> {
 	listeners: Mutex<Vec<CL>>,
 	chain_monitor: Arc<ChainWatchInterface>,
@@ -312,6 +317,7 @@ impl<'a, CL: Deref<Target = ChainListener + 'a> + 'a> BlockNotifier<'a, CL> {
 /// Utility to capture some common parts of ChainWatchInterface implementors.
 ///
 /// Keeping a local copy of this in a ChainWatchInterface implementor is likely useful.
+/// (C-not exported)
 pub struct ChainWatchInterfaceUtil {
 	network: Network,
 	watched: Mutex<ChainWatchedUtil>,
