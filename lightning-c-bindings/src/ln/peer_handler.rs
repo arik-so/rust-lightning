@@ -24,6 +24,10 @@ pub struct MessageHandler {
 }
 
 #[no_mangle]
+pub extern "C" fn MessageHandler_free(this_ptr: MessageHandler) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnMessageHandler) };
+}
+#[no_mangle]
 pub extern "C" fn MessageHandler_get_chan_handler(this_ptr: *const MessageHandler) -> *const crate::ln::msgs::ChannelMessageHandler {
 	&unsafe { &*(*this_ptr).inner }.chan_handler
 }
@@ -107,6 +111,10 @@ pub struct PeerHandleError {
 	pub(crate) inner: *const lnPeerHandleError,
 }
 
+#[no_mangle]
+pub extern "C" fn PeerHandleError_free(this_ptr: PeerHandleError) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnPeerHandleError) };
+}
 
 use lightning::ln::peer_handler::PeerManager as lnPeerManagerImport;
 type lnPeerManager = lnPeerManagerImport<crate::ln::peer_handler::SocketDescriptor, crate::ln::msgs::ChannelMessageHandler>;
@@ -124,6 +132,10 @@ pub struct PeerManager {
 	pub(crate) inner: *const lnPeerManager,
 }
 
+#[no_mangle]
+pub extern "C" fn PeerManager_free(this_ptr: PeerManager) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnPeerManager) };
+}
 /// " Constructs a new PeerManager with the given message handlers and node_id secret key"
 /// " ephemeral_random_data is used to derive per-connection ephemeral keys and must be"
 /// " cryptographically secure random bytes."

@@ -39,6 +39,10 @@ pub struct SpendableOutputDescriptor {
 	pub(crate) inner: *const lnSpendableOutputDescriptor,
 }
 
+#[no_mangle]
+pub extern "C" fn SpendableOutputDescriptor_free(this_ptr: SpendableOutputDescriptor) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnSpendableOutputDescriptor) };
+}
 /// " Set of lightning keys needed to operate a channel as described in BOLT 3."
 /// ""
 /// " Signing services could be implemented on a hardware wallet. In this case,"
@@ -193,6 +197,10 @@ pub struct InMemoryChannelKeys {
 	pub(crate) inner: *const lnInMemoryChannelKeys,
 }
 
+#[no_mangle]
+pub extern "C" fn InMemoryChannelKeys_free(this_ptr: InMemoryChannelKeys) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnInMemoryChannelKeys) };
+}
 
 use lightning::chain::keysinterface::KeysManager as lnKeysManagerImport;
 type lnKeysManager = lnKeysManagerImport;
@@ -209,6 +217,10 @@ pub struct KeysManager {
 	pub(crate) inner: *const lnKeysManager,
 }
 
+#[no_mangle]
+pub extern "C" fn KeysManager_free(this_ptr: KeysManager) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnKeysManager) };
+}
 /// " Constructs a KeysManager from a 32-byte seed. If the seed is in some way biased (eg your"
 /// " RNG is busted) this may panic (but more importantly, you will possibly lose funds)."
 /// " starting_time isn't strictly required to actually be a time, but it must absolutely,"

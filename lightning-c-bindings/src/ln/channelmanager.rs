@@ -72,6 +72,10 @@ pub struct ChannelManager {
 	pub(crate) inner: *const lnChannelManager,
 }
 
+#[no_mangle]
+pub extern "C" fn ChannelManager_free(this_ptr: ChannelManager) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelManager) };
+}
 
 use lightning::ln::channelmanager::ChannelDetails as lnChannelDetailsImport;
 type lnChannelDetails = lnChannelDetailsImport;
@@ -82,6 +86,10 @@ pub struct ChannelDetails {
 	pub(crate) inner: *const lnChannelDetails,
 }
 
+#[no_mangle]
+pub extern "C" fn ChannelDetails_free(this_ptr: ChannelDetails) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelDetails) };
+}
 #[no_mangle]
 pub extern "C" fn ChannelDetails_get_channel_id(this_ptr: *const ChannelDetails) -> *const [u8; 32] {
 	&unsafe { &*(*this_ptr).inner }.channel_id
@@ -138,6 +146,10 @@ pub struct PaymentSendFailure {
 	pub(crate) inner: *const lnPaymentSendFailure,
 }
 
+#[no_mangle]
+pub extern "C" fn PaymentSendFailure_free(this_ptr: PaymentSendFailure) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnPaymentSendFailure) };
+}
 /// " Constructs a new ChannelManager to hold several channels and route between them."
 /// ""
 /// " This is the main \"logic hub\" for all channel-related actions, and implements"

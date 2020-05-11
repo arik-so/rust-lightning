@@ -24,6 +24,10 @@ pub struct Event {
 	pub(crate) inner: *const lnEvent,
 }
 
+#[no_mangle]
+pub extern "C" fn Event_free(this_ptr: Event) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnEvent) };
+}
 
 use lightning::util::events::MessageSendEvent as lnMessageSendEventImport;
 type lnMessageSendEvent = lnMessageSendEventImport;
@@ -36,6 +40,10 @@ pub struct MessageSendEvent {
 	pub(crate) inner: *const lnMessageSendEvent,
 }
 
+#[no_mangle]
+pub extern "C" fn MessageSendEvent_free(this_ptr: MessageSendEvent) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnMessageSendEvent) };
+}
 /// " A trait indicating an object may generate message send events"
 #[repr(C)]
 pub struct MessageSendEventsProvider {

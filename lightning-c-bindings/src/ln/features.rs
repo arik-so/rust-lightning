@@ -29,6 +29,10 @@ pub struct InitFeatures {
 	pub(crate) inner: *const lnInitFeatures,
 }
 
+#[no_mangle]
+pub extern "C" fn InitFeatures_free(this_ptr: InitFeatures) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnInitFeatures) };
+}
 
 use lightning::ln::features::NodeFeatures as lnNodeFeaturesImport;
 type lnNodeFeatures = lnNodeFeaturesImport;
@@ -39,6 +43,10 @@ pub struct NodeFeatures {
 	pub(crate) inner: *const lnNodeFeatures,
 }
 
+#[no_mangle]
+pub extern "C" fn NodeFeatures_free(this_ptr: NodeFeatures) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnNodeFeatures) };
+}
 
 use lightning::ln::features::ChannelFeatures as lnChannelFeaturesImport;
 type lnChannelFeatures = lnChannelFeaturesImport;
@@ -49,3 +57,7 @@ pub struct ChannelFeatures {
 	pub(crate) inner: *const lnChannelFeatures,
 }
 
+#[no_mangle]
+pub extern "C" fn ChannelFeatures_free(this_ptr: ChannelFeatures) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelFeatures) };
+}

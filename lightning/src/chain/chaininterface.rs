@@ -224,6 +224,7 @@ impl ChainWatchedUtil {
 /// parameters with static lifetimes). Other times you can afford a reference, which is more
 /// efficient, in which case BlockNotifierRef is a more appropriate type. Defining these type
 /// aliases prevents issues such as overly long function definitions.
+/// (C-not exported)
 pub type BlockNotifierArc = Arc<BlockNotifier<'static, Arc<ChainListener>>>;
 
 /// BlockNotifierRef is useful when you want a BlockNotifier that points to ChainListeners

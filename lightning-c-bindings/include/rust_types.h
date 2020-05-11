@@ -1,6 +1,4 @@
 
-struct lnBlockNotifierArcOpaque;
-typedef struct lnBlockNotifierArcOpaque LDKlnBlockNotifierArc;
 struct lnSpendableOutputDescriptorOpaque;
 typedef struct lnSpendableOutputDescriptorOpaque LDKlnSpendableOutputDescriptor;
 struct lnInMemoryChannelKeysOpaque;

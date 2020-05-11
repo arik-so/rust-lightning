@@ -65,6 +65,24 @@ typedef enum {
 } LDKNetwork;
 
 /**
+ * " When on-chain outputs are created by rust-lightning (which our counterparty is not able to"
+ * " claim at any point in the future) an event is generated which you must track and be able to"
+ * " spend on-chain. The information needed to do this is provided in this enum, including the"
+ * " outpoint describing which txid and output index is available, the full output which exists at"
+ * " that txid/index, and any keys or other information required to sign."
+ */
+typedef struct {
+   const LDKlnSpendableOutputDescriptor *inner;
+} LDKSpendableOutputDescriptor;
+
+/**
+ * " A simple implementation of ChannelKeys that just keeps the private keys in memory."
+ */
+typedef struct {
+   const LDKlnInMemoryChannelKeys *inner;
+} LDKInMemoryChannelKeys;
+
+/**
  * " Simple KeysInterface implementor that takes a 32-byte seed for use as a BIP 32 extended key"
  * " and derives keys from that."
  * ""
@@ -87,28 +105,6 @@ typedef struct {
     */
    void (*log)(const void *this_arg, const char *record);
 } LDKLogger;
-
-/**
- * " Details of a channel, as returned by ChannelManager::list_channels and ChannelManager::list_usable_channels"
- */
-typedef struct {
-   const LDKlnChannelDetails *inner;
-} LDKChannelDetails;
-
-typedef struct {
-   uint8_t data[32];
-} LDKThirtyTwoBytes;
-
-typedef struct {
-   uint8_t compressed_form[33];
-} LDKPublicKey;
-
-/**
- * " Features used within an `init` message."
- */
-typedef struct {
-   const LDKlnInitFeatures *inner;
-} LDKInitFeatures;
 
 /**
  * " Manager which keeps track of a number of channels and sends messages to the appropriate"
@@ -151,6 +147,37 @@ typedef struct {
 typedef struct {
    const LDKlnChannelManager *inner;
 } LDKChannelManager;
+
+/**
+ * " Details of a channel, as returned by ChannelManager::list_channels and ChannelManager::list_usable_channels"
+ */
+typedef struct {
+   const LDKlnChannelDetails *inner;
+} LDKChannelDetails;
+
+typedef struct {
+   uint8_t data[32];
+} LDKThirtyTwoBytes;
+
+typedef struct {
+   uint8_t compressed_form[33];
+} LDKPublicKey;
+
+/**
+ * " Features used within an `init` message."
+ */
+typedef struct {
+   const LDKlnInitFeatures *inner;
+} LDKInitFeatures;
+
+/**
+ * " If a payment fails to send, it can be in one of several states. This enum is returned as the"
+ * " Err() type describing which state the payment is in, see the description of individual enum"
+ * " states for more."
+ */
+typedef struct {
+   const LDKlnPaymentSendFailure *inner;
+} LDKPaymentSendFailure;
 
 /**
  * " A trait which should be implemented to provide feerate information on a number of time"
@@ -272,6 +299,25 @@ typedef struct {
 } LDKChannelMonitorUpdate;
 
 /**
+ * " General Err type for ChannelMonitor actions. Generally, this implies that the data provided is"
+ * " inconsistent with the ChannelMonitor being called. eg for ChannelMonitor::update_monitor this"
+ * " means you tried to update a monitor for a different channel or the ChannelMonitorUpdate was"
+ * " corrupted."
+ * " Contains a human-readable error message."
+ */
+typedef struct {
+   const LDKlnMonitorUpdateError *inner;
+} LDKMonitorUpdateError;
+
+/**
+ * " Simple structure send back by ManyChannelMonitor in case of HTLC detected onchain from a"
+ * " forward channel and from which info are needed to update HTLC in a backward channel."
+ */
+typedef struct {
+   const LDKlnHTLCUpdate *inner;
+} LDKHTLCUpdate;
+
+/**
  * " A ChannelMonitor handles chain events (blocks connected and disconnected) and generates"
  * " on-chain transactions to ensure no loss of funds occurs."
  * ""
@@ -286,6 +332,27 @@ typedef struct {
 typedef struct {
    const LDKlnChannelMonitor *inner;
 } LDKChannelMonitor;
+
+/**
+ * " Features used within a `node_announcement` message."
+ */
+typedef struct {
+   const LDKlnNodeFeatures *inner;
+} LDKNodeFeatures;
+
+/**
+ * " Features used within a `channel_announcement` message."
+ */
+typedef struct {
+   const LDKlnChannelFeatures *inner;
+} LDKChannelFeatures;
+
+/**
+ * " Provides references to trait impls which handle different types of messages."
+ */
+typedef struct {
+   const LDKlnMessageHandler *inner;
+} LDKMessageHandler;
 
 /**
  * " An open_channel message to be sent or received from a peer"
@@ -511,11 +578,15 @@ typedef struct {
 } LDKChannelMessageHandler;
 
 /**
- * " Provides references to trait impls which handle different types of messages."
+ * " Error for PeerManager errors. If you get one of these, you must disconnect the socket and"
+ * " generate no further read_event/write_buffer_space_avail calls for the descriptor, only"
+ * " triggering a single socket_disconnected call (unless it was provided in response to a"
+ * " new_*_connection event, in which case no such socket_disconnected() must be called and the"
+ * " socket silently disconencted)."
  */
 typedef struct {
-   const LDKlnMessageHandler *inner;
-} LDKMessageHandler;
+   const LDKlnPeerHandleError *inner;
+} LDKPeerHandleError;
 
 /**
  * " A PeerManager manages a set of peers, described by their SocketDescriptor and marshalls socket"
@@ -581,11 +652,46 @@ typedef struct {
 } LDKSocketDescriptor;
 
 /**
+ * " An error in decoding a message or struct."
+ */
+typedef struct {
+   const LDKlnDecodeError *inner;
+} LDKDecodeError;
+
+/**
+ * " A ping message to be sent or received from a peer"
+ */
+typedef struct {
+   const LDKlnPing *inner;
+} LDKPing;
+
+/**
+ * " A pong message to be sent or received from a peer"
+ */
+typedef struct {
+   const LDKlnPong *inner;
+} LDKPong;
+
+/**
+ * " An address which can be used to connect to a remote peer"
+ */
+typedef struct {
+   const LDKlnNetAddress *inner;
+} LDKNetAddress;
+
+/**
  * " The unsigned part of a node_announcement"
  */
 typedef struct {
    const LDKlnUnsignedNodeAnnouncement *inner;
 } LDKUnsignedNodeAnnouncement;
+
+/**
+ * " A node_announcement message to be sent or received from a peer"
+ */
+typedef struct {
+   const LDKlnNodeAnnouncement *inner;
+} LDKNodeAnnouncement;
 
 /**
  * " The unsigned part of a channel_announcement"
@@ -595,12 +701,42 @@ typedef struct {
 } LDKUnsignedChannelAnnouncement;
 
 /**
+ * " A channel_announcement message to be sent or received from a peer"
+ */
+typedef struct {
+   const LDKlnChannelAnnouncement *inner;
+} LDKChannelAnnouncement;
+
+/**
+ * " A channel_update message to be sent or received from a peer"
+ */
+typedef struct {
+   const LDKlnChannelUpdate *inner;
+} LDKChannelUpdate;
+
+/**
+ * " An Err type for failure to process messages."
+ */
+typedef struct {
+   const LDKlnLightningError *inner;
+} LDKLightningError;
+
+/**
  * " Struct used to return values from revoke_and_ack messages, containing a bunch of commitment"
  * " transaction updates if they were pending."
  */
 typedef struct {
    const LDKlnCommitmentUpdate *inner;
 } LDKCommitmentUpdate;
+
+/**
+ * " The information we received from a peer along the route of a payment we originated. This is"
+ * " returned by ChannelMessageHandler::handle_update_fail_htlc to be passed into"
+ * " RoutingMessageHandler::handle_htlc_fail_channel_update to update our network map."
+ */
+typedef struct {
+   const LDKlnHTLCFailChannelUpdate *inner;
+} LDKHTLCFailChannelUpdate;
 
 /**
  * " Configuration we set when applicable."
@@ -637,6 +773,32 @@ typedef struct {
 } LDKChannelConfig;
 
 /**
+ * " An Event which you should probably take some action in response to."
+ * ""
+ * " Note that while Writeable and Readable are implemented for Event, you probably shouldn't use"
+ * " them directly as they don't round-trip exactly (for example FundingGenerationReady is never"
+ * " written as it makes no sense to respond to it after reconnecting to peers)."
+ */
+typedef struct {
+   const LDKlnEvent *inner;
+} LDKEvent;
+
+/**
+ * " An event generated by ChannelManager which indicates a message should be sent to a peer (or"
+ * " broadcast to most peers)."
+ * " These events are handled by PeerManager::process_events if you are using a PeerManager."
+ */
+typedef struct {
+   const LDKlnMessageSendEvent *inner;
+} LDKMessageSendEvent;
+
+void SpendableOutputDescriptor_free(LDKSpendableOutputDescriptor this_ptr);
+
+void InMemoryChannelKeys_free(LDKInMemoryChannelKeys this_ptr);
+
+void KeysManager_free(LDKKeysManager this_ptr);
+
+/**
  * " Constructs a KeysManager from a 32-byte seed. If the seed is in some way biased (eg your"
  * " RNG is busted) this may panic (but more importantly, you will possibly lose funds)."
  * " starting_time isn't strictly required to actually be a time, but it must absolutely,"
@@ -659,6 +821,10 @@ typedef struct {
  */
 LDKKeysManager KeysManager_new(const uint8_t (*seed)[32], LDKNetwork network, LDKLogger logger, uint64_t starting_time_secs, uint32_t starting_time_nanos);
 
+void ChannelManager_free(LDKChannelManager this_ptr);
+
+void ChannelDetails_free(LDKChannelDetails this_ptr);
+
 const uint8_t (*ChannelDetails_get_channel_id(const LDKChannelDetails *this_ptr))[32];
 
 void ChannelDetails_set_channel_id(LDKChannelDetails *this_ptr, LDKThirtyTwoBytes val);
@@ -680,6 +846,8 @@ void ChannelDetails_set_outbound_capacity_msat(LDKChannelDetails *this_ptr, uint
 void ChannelDetails_set_inbound_capacity_msat(LDKChannelDetails *this_ptr, uint64_t val);
 
 void ChannelDetails_set_is_live(LDKChannelDetails *this_ptr, bool val);
+
+void PaymentSendFailure_free(LDKPaymentSendFailure this_ptr);
 
 /**
  * " Constructs a new ChannelManager to hold several channels and route between them."
@@ -737,7 +905,15 @@ void ChannelManager_timer_chan_freshness_every_min(const LDKChannelManager *this
  */
 LDKPublicKey ChannelManager_get_our_node_id(const LDKChannelManager *this_arg);
 
+void ChannelMonitorUpdate_free(LDKChannelMonitorUpdate this_ptr);
+
 void ChannelMonitorUpdate_set_update_id(LDKChannelMonitorUpdate *this_ptr, uint64_t val);
+
+void MonitorUpdateError_free(LDKMonitorUpdateError this_ptr);
+
+void HTLCUpdate_free(LDKHTLCUpdate this_ptr);
+
+void ChannelMonitor_free(LDKChannelMonitor this_ptr);
 
 /**
  * " Gets the update_id from the latest ChannelMonitorUpdate which was applied to this"
@@ -745,7 +921,19 @@ void ChannelMonitorUpdate_set_update_id(LDKChannelMonitorUpdate *this_ptr, uint6
  */
 uint64_t ChannelMonitor_get_latest_update_id(const LDKChannelMonitor *this_arg);
 
+void InitFeatures_free(LDKInitFeatures this_ptr);
+
+void NodeFeatures_free(LDKNodeFeatures this_ptr);
+
+void ChannelFeatures_free(LDKChannelFeatures this_ptr);
+
+void MessageHandler_free(LDKMessageHandler this_ptr);
+
 const LDKChannelMessageHandler *MessageHandler_get_chan_handler(const LDKMessageHandler *this_ptr);
+
+void PeerHandleError_free(LDKPeerHandleError this_ptr);
+
+void PeerManager_free(LDKPeerManager this_ptr);
 
 /**
  * " Constructs a new PeerManager with the given message handlers and node_id secret key"
@@ -780,6 +968,26 @@ void PeerManager_socket_disconnected(const LDKPeerManager *this_arg, const LDKSo
  */
 void PeerManager_timer_tick_occured(const LDKPeerManager *this_arg);
 
+void DecodeError_free(LDKDecodeError this_ptr);
+
+void Init_free(LDKInit this_ptr);
+
+void ErrorMessage_free(LDKErrorMessage this_ptr);
+
+void Ping_free(LDKPing this_ptr);
+
+void Pong_free(LDKPong this_ptr);
+
+void OpenChannel_free(LDKOpenChannel this_ptr);
+
+void AcceptChannel_free(LDKAcceptChannel this_ptr);
+
+void FundingCreated_free(LDKFundingCreated this_ptr);
+
+void FundingSigned_free(LDKFundingSigned this_ptr);
+
+void FundingLocked_free(LDKFundingLocked this_ptr);
+
 const uint8_t (*FundingLocked_get_channel_id(const LDKFundingLocked *this_ptr))[32];
 
 void FundingLocked_set_channel_id(LDKFundingLocked *this_ptr, LDKThirtyTwoBytes val);
@@ -788,9 +996,41 @@ LDKPublicKey FundingLocked_get_next_per_commitment_point(const LDKFundingLocked 
 
 void FundingLocked_set_next_per_commitment_point(LDKFundingLocked *this_ptr, LDKPublicKey val);
 
+LDKFundingLocked FundingLocked_new(LDKThirtyTwoBytes channel_id_arg, LDKPublicKey next_per_commitment_point_arg);
+
+void Shutdown_free(LDKShutdown this_ptr);
+
+void ClosingSigned_free(LDKClosingSigned this_ptr);
+
+void UpdateAddHTLC_free(LDKUpdateAddHTLC this_ptr);
+
+void UpdateFulfillHTLC_free(LDKUpdateFulfillHTLC this_ptr);
+
+void UpdateFailHTLC_free(LDKUpdateFailHTLC this_ptr);
+
+void UpdateFailMalformedHTLC_free(LDKUpdateFailMalformedHTLC this_ptr);
+
+void CommitmentSigned_free(LDKCommitmentSigned this_ptr);
+
+void RevokeAndACK_free(LDKRevokeAndACK this_ptr);
+
+void UpdateFee_free(LDKUpdateFee this_ptr);
+
+void ChannelReestablish_free(LDKChannelReestablish this_ptr);
+
+void AnnouncementSignatures_free(LDKAnnouncementSignatures this_ptr);
+
+void NetAddress_free(LDKNetAddress this_ptr);
+
+void UnsignedNodeAnnouncement_free(LDKUnsignedNodeAnnouncement this_ptr);
+
 LDKPublicKey UnsignedNodeAnnouncement_get_node_id(const LDKUnsignedNodeAnnouncement *this_ptr);
 
 void UnsignedNodeAnnouncement_set_node_id(LDKUnsignedNodeAnnouncement *this_ptr, LDKPublicKey val);
+
+void NodeAnnouncement_free(LDKNodeAnnouncement this_ptr);
+
+void UnsignedChannelAnnouncement_free(LDKUnsignedChannelAnnouncement this_ptr);
 
 LDKPublicKey UnsignedChannelAnnouncement_get_node_id_1(const LDKUnsignedChannelAnnouncement *this_ptr);
 
@@ -800,15 +1040,33 @@ LDKPublicKey UnsignedChannelAnnouncement_get_node_id_2(const LDKUnsignedChannelA
 
 void UnsignedChannelAnnouncement_set_node_id_2(LDKUnsignedChannelAnnouncement *this_ptr, LDKPublicKey val);
 
+void ChannelAnnouncement_free(LDKChannelAnnouncement this_ptr);
+
+void ChannelUpdate_free(LDKChannelUpdate this_ptr);
+
+void LightningError_free(LDKLightningError this_ptr);
+
+void CommitmentUpdate_free(LDKCommitmentUpdate this_ptr);
+
 const LDKCommitmentSigned *CommitmentUpdate_get_commitment_signed(const LDKCommitmentUpdate *this_ptr);
 
 void CommitmentUpdate_set_commitment_signed(LDKCommitmentUpdate *this_ptr, LDKCommitmentSigned val);
+
+void HTLCFailChannelUpdate_free(LDKHTLCFailChannelUpdate this_ptr);
+
+void UserConfig_free(LDKUserConfig this_ptr);
+
+void ChannelHandshakeConfig_free(LDKChannelHandshakeConfig this_ptr);
 
 void ChannelHandshakeConfig_set_minimum_depth(LDKChannelHandshakeConfig *this_ptr, uint32_t val);
 
 void ChannelHandshakeConfig_set_our_to_self_delay(LDKChannelHandshakeConfig *this_ptr, uint16_t val);
 
 void ChannelHandshakeConfig_set_our_htlc_minimum_msat(LDKChannelHandshakeConfig *this_ptr, uint64_t val);
+
+LDKChannelHandshakeConfig ChannelHandshakeConfig_new(uint32_t minimum_depth_arg, uint16_t our_to_self_delay_arg, uint64_t our_htlc_minimum_msat_arg);
+
+void ChannelHandshakeLimits_free(LDKChannelHandshakeLimits this_ptr);
 
 void ChannelHandshakeLimits_set_min_funding_satoshis(LDKChannelHandshakeLimits *this_ptr, uint64_t val);
 
@@ -830,11 +1088,21 @@ void ChannelHandshakeLimits_set_force_announced_channel_preference(LDKChannelHan
 
 void ChannelHandshakeLimits_set_their_to_self_delay(LDKChannelHandshakeLimits *this_ptr, uint16_t val);
 
+LDKChannelHandshakeLimits ChannelHandshakeLimits_new(uint64_t min_funding_satoshis_arg, uint64_t max_htlc_minimum_msat_arg, uint64_t min_max_htlc_value_in_flight_msat_arg, uint64_t max_channel_reserve_satoshis_arg, uint16_t min_max_accepted_htlcs_arg, uint64_t min_dust_limit_satoshis_arg, uint64_t max_dust_limit_satoshis_arg, uint32_t max_minimum_depth_arg, bool force_announced_channel_preference_arg, uint16_t their_to_self_delay_arg);
+
+void ChannelConfig_free(LDKChannelConfig this_ptr);
+
 void ChannelConfig_set_fee_proportional_millionths(LDKChannelConfig *this_ptr, uint32_t val);
 
 void ChannelConfig_set_announced_channel(LDKChannelConfig *this_ptr, bool val);
 
 void ChannelConfig_set_commit_upfront_shutdown_pubkey(LDKChannelConfig *this_ptr, bool val);
+
+LDKChannelConfig ChannelConfig_new(uint32_t fee_proportional_millionths_arg, bool announced_channel_arg, bool commit_upfront_shutdown_pubkey_arg);
+
+void Event_free(LDKEvent this_ptr);
+
+void MessageSendEvent_free(LDKMessageSendEvent this_ptr);
 
 /**
  * " Returns the most verbose logging level."

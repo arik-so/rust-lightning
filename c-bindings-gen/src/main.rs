@@ -453,6 +453,8 @@ fn println_opaque(ident: &syn::Ident, struct_name: &str, generics: &syn::Generic
 	write!(extra_headers, "struct ln{}Opaque;\ntypedef struct ln{}Opaque LDKln{};\n", ident, ident, ident).unwrap();
 	println_docs(&attrs, "");
 	println!("#[repr(C)]\npub struct {} {{\n\tpub(crate) inner: *const ln{},\n}}\n", struct_name, ident);
+	println!("#[no_mangle]\npub extern \"C\" fn {}_free(this_ptr: {}) {{", struct_name, struct_name);
+	println!("\tlet _ = unsafe {{ Box::from_raw(this_ptr.inner as *mut ln{}) }};\n}}", struct_name);
 }
 
 fn println_struct(s: &syn::ItemStruct, module_path: &str, types: &mut TypeResolver, extra_headers: &mut File) {
@@ -475,16 +477,18 @@ fn println_struct(s: &syn::ItemStruct, module_path: &str, types: &mut TypeResolv
 	eprintln!("exporting fields for {}", struct_name);
 	if let syn::Fields::Named(fields) = &s.fields {
 		let mut gen_types = GenericTypes::new();
-		if !gen_types.learn_generics(&s.generics, types) {
-			eprintln!("Not implementing anything for struct {} due to not understood generics", struct_name);
-		}
+		assert!(gen_types.learn_generics(&s.generics, types));
 
+		let mut all_fields_settable = true;
 		for field in fields.named.iter() {
 			if let syn::Visibility::Public(_) = field.vis {
 				let export = export_status(&field.attrs);
 				match export {
 					ExportStatus::Export => {},
-					ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+					ExportStatus::NoExport|ExportStatus::TestOnly => {
+						all_fields_settable = false;
+						continue
+					},
 					ExportStatus::Rename(_) => { unimplemented!(); },
 				}
 
@@ -507,17 +511,45 @@ fn println_struct(s: &syn::ItemStruct, module_path: &str, types: &mut TypeResolv
 						print!("#[no_mangle]\npub extern \"C\" fn {}_set_{}(this_ptr: *mut {}, val: ", struct_name, ident, struct_name);
 						types.print_c_type(&field.ty, Some(&gen_types));
 						print!(") {{\n\t");
-						types.print_from_c_conversion_new_var(&ident, &field.ty, Some(&gen_types));
+						if types.print_from_c_conversion_new_var(&ident, &field.ty, Some(&gen_types)) {
+							print!("\n\t");
+						}
 						print!("unsafe {{ &mut *((*this_ptr).inner as *mut ln{}) }}.{} = ", s.ident, ident);
 						types.print_from_c_conversion_prefix(&field.ty, Some(&gen_types));
 						print!("val");
 						types.print_from_c_conversion_suffix(&field.ty, Some(&gen_types));
 						println!(";\n}}");
-					}
+					} else { all_fields_settable = false; }
+				} else { all_fields_settable = false; }
+			} else { all_fields_settable = false; }
+		}
+
+		if all_fields_settable {
+			// Build a constructor!
+			print!("#[no_mangle]\npub extern \"C\" fn {}_new(", struct_name);
+			for (idx, field) in fields.named.iter().enumerate() {
+				if idx != 0 { print!(", "); }
+				print!("{}_arg: ", field.ident.as_ref().unwrap());
+				types.print_c_type(&field.ty, Some(&gen_types));
+			}
+			print!(") -> {} {{\n\t", struct_name);
+			for field in fields.named.iter() {
+				if types.print_from_c_conversion_new_var(&field.ident.as_ref().unwrap(), &field.ty, Some(&gen_types)) {
+					print!("\n\t");
 				}
 			}
+			println!("{} {{ inner: Box::into_raw(Box::new(ln{} {{", struct_name, s.ident);
+			for field in fields.named.iter() {
+				print!("\t\t{}: ", field.ident.as_ref().unwrap());
+				types.print_from_c_conversion_prefix(&field.ty, Some(&gen_types));
+				print!("{}_arg", field.ident.as_ref().unwrap());
+				types.print_from_c_conversion_suffix(&field.ty, Some(&gen_types));
+				println!(",");
+			}
+			println!("\t}}))}}\n}}");
 		}
 	}
+
 
 	types.struct_imported(&s.ident, struct_name.clone());
 }

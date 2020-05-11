@@ -38,6 +38,10 @@ pub struct TxCreationKeys {
 }
 
 #[no_mangle]
+pub extern "C" fn TxCreationKeys_free(this_ptr: TxCreationKeys) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnTxCreationKeys) };
+}
+#[no_mangle]
 pub extern "C" fn TxCreationKeys_get_per_commitment_point(this_ptr: *const TxCreationKeys) -> crate::c_types::PublicKey {
 	crate::c_types::PublicKey::from_rust(&&unsafe { &*(*this_ptr).inner }.per_commitment_point)
 }
@@ -55,6 +59,10 @@ pub struct ChannelPublicKeys {
 	pub(crate) inner: *const lnChannelPublicKeys,
 }
 
+#[no_mangle]
+pub extern "C" fn ChannelPublicKeys_free(this_ptr: ChannelPublicKeys) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelPublicKeys) };
+}
 #[no_mangle]
 pub extern "C" fn ChannelPublicKeys_get_funding_pubkey(this_ptr: *const ChannelPublicKeys) -> crate::c_types::PublicKey {
 	crate::c_types::PublicKey::from_rust(&&unsafe { &*(*this_ptr).inner }.funding_pubkey)
@@ -95,6 +103,16 @@ pub extern "C" fn ChannelPublicKeys_get_htlc_basepoint(this_ptr: *const ChannelP
 pub extern "C" fn ChannelPublicKeys_set_htlc_basepoint(this_ptr: *mut ChannelPublicKeys, val: crate::c_types::PublicKey) {
 	unsafe { &mut *((*this_ptr).inner as *mut lnChannelPublicKeys) }.htlc_basepoint = val.into_rust();
 }
+#[no_mangle]
+pub extern "C" fn ChannelPublicKeys_new(funding_pubkey_arg: crate::c_types::PublicKey, revocation_basepoint_arg: crate::c_types::PublicKey, payment_point_arg: crate::c_types::PublicKey, delayed_payment_basepoint_arg: crate::c_types::PublicKey, htlc_basepoint_arg: crate::c_types::PublicKey) -> ChannelPublicKeys {
+	ChannelPublicKeys { inner: Box::into_raw(Box::new(lnChannelPublicKeys {
+		funding_pubkey: funding_pubkey_arg.into_rust(),
+		revocation_basepoint: revocation_basepoint_arg.into_rust(),
+		payment_point: payment_point_arg.into_rust(),
+		delayed_payment_basepoint: delayed_payment_basepoint_arg.into_rust(),
+		htlc_basepoint: htlc_basepoint_arg.into_rust(),
+	}))}
+}
 
 use lightning::ln::chan_utils::HTLCOutputInCommitment as lnHTLCOutputInCommitmentImport;
 type lnHTLCOutputInCommitment = lnHTLCOutputInCommitmentImport;
@@ -105,6 +123,10 @@ pub struct HTLCOutputInCommitment {
 	pub(crate) inner: *const lnHTLCOutputInCommitment,
 }
 
+#[no_mangle]
+pub extern "C" fn HTLCOutputInCommitment_free(this_ptr: HTLCOutputInCommitment) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnHTLCOutputInCommitment) };
+}
 #[no_mangle]
 pub extern "C" fn HTLCOutputInCommitment_set_offered(this_ptr: *mut HTLCOutputInCommitment, val: bool) {
 	unsafe { &mut *((*this_ptr).inner as *mut lnHTLCOutputInCommitment) }.offered = val;

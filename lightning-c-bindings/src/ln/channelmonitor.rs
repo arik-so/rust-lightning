@@ -43,6 +43,10 @@ pub struct ChannelMonitorUpdate {
 }
 
 #[no_mangle]
+pub extern "C" fn ChannelMonitorUpdate_free(this_ptr: ChannelMonitorUpdate) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelMonitorUpdate) };
+}
+#[no_mangle]
 pub extern "C" fn ChannelMonitorUpdate_set_update_id(this_ptr: *mut ChannelMonitorUpdate, val: u64) {
 	unsafe { &mut *((*this_ptr).inner as *mut lnChannelMonitorUpdate) }.update_id = val;
 }
@@ -125,6 +129,10 @@ pub struct MonitorUpdateError {
 	pub(crate) inner: *const lnMonitorUpdateError,
 }
 
+#[no_mangle]
+pub extern "C" fn MonitorUpdateError_free(this_ptr: MonitorUpdateError) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnMonitorUpdateError) };
+}
 
 use lightning::ln::channelmonitor::HTLCUpdate as lnHTLCUpdateImport;
 type lnHTLCUpdate = lnHTLCUpdateImport;
@@ -136,6 +144,10 @@ pub struct HTLCUpdate {
 	pub(crate) inner: *const lnHTLCUpdate,
 }
 
+#[no_mangle]
+pub extern "C" fn HTLCUpdate_free(this_ptr: HTLCUpdate) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnHTLCUpdate) };
+}
 
 use lightning::ln::channelmonitor::ChannelMonitor as lnChannelMonitorImport;
 type lnChannelMonitor = lnChannelMonitorImport<crate::chain::keysinterface::ChannelKeys>;
@@ -155,6 +167,10 @@ pub struct ChannelMonitor {
 	pub(crate) inner: *const lnChannelMonitor,
 }
 
+#[no_mangle]
+pub extern "C" fn ChannelMonitor_free(this_ptr: ChannelMonitor) {
+	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelMonitor) };
+}
 /// " Simple trait indicating ability to track a set of ChannelMonitors and multiplex events between"
 /// " them. Generally should be implemented by keeping a local SimpleManyChannelMonitor and passing"
 /// " events to it, while also taking any add/update_monitor events and passing them to some remote"

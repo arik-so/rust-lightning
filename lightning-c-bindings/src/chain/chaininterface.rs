@@ -140,17 +140,3 @@ impl std::ops::Deref for FeeEstimator {
 		self
 	}
 }
-
-use lightning::chain::chaininterface::BlockNotifierArc as lnBlockNotifierArcImport;
-type lnBlockNotifierArc = lnBlockNotifierArcImport;
-
-/// " BlockNotifierArc is useful when you need a BlockNotifier that points to ChainListeners with"
-/// " static lifetimes, e.g. when you're using lightning-net-tokio (since tokio::spawn requires"
-/// " parameters with static lifetimes). Other times you can afford a reference, which is more"
-/// " efficient, in which case BlockNotifierRef is a more appropriate type. Defining these type"
-/// " aliases prevents issues such as overly long function definitions."
-#[repr(C)]
-pub struct BlockNotifierArc {
-	pub(crate) inner: *const lnBlockNotifierArc,
-}
-
