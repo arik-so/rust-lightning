@@ -137,7 +137,7 @@ impl<'a> std::hash::Hash for Peer<'a> {
 struct MoneyLossDetector<'a> {
 	manager: Arc<ChannelManager<EnforcingChannelKeys, Arc<channelmonitor::SimpleManyChannelMonitor<OutPoint, EnforcingChannelKeys, Arc<TestBroadcaster>, Arc<FuzzEstimator>>>, Arc<TestBroadcaster>, Arc<KeyProvider>, Arc<FuzzEstimator>>>,
 	monitor: Arc<channelmonitor::SimpleManyChannelMonitor<OutPoint, EnforcingChannelKeys, Arc<TestBroadcaster>, Arc<FuzzEstimator>>>,
-	handler: PeerManager<Peer<'a>, Arc<ChannelManager<EnforcingChannelKeys, Arc<channelmonitor::SimpleManyChannelMonitor<OutPoint, EnforcingChannelKeys, Arc<TestBroadcaster>, Arc<FuzzEstimator>>>, Arc<TestBroadcaster>, Arc<KeyProvider>, Arc<FuzzEstimator>>>>,
+	handler: PeerManager<Peer<'a>, Arc<ChannelManager<EnforcingChannelKeys, Arc<channelmonitor::SimpleManyChannelMonitor<OutPoint, EnforcingChannelKeys, Arc<TestBroadcaster>, Arc<FuzzEstimator>>>, Arc<TestBroadcaster>, Arc<KeyProvider>, Arc<FuzzEstimator>>>, Arc<NetGraphMsgHandler>>,
 
 	peers: &'a RefCell<[bool; 256]>,
 	funding_txn: Vec<Transaction>,
@@ -151,7 +151,7 @@ impl<'a> MoneyLossDetector<'a> {
 	pub fn new(peers: &'a RefCell<[bool; 256]>,
 	           manager: Arc<ChannelManager<EnforcingChannelKeys, Arc<channelmonitor::SimpleManyChannelMonitor<OutPoint, EnforcingChannelKeys, Arc<TestBroadcaster>, Arc<FuzzEstimator>>>, Arc<TestBroadcaster>, Arc<KeyProvider>, Arc<FuzzEstimator>>>,
 	           monitor: Arc<channelmonitor::SimpleManyChannelMonitor<OutPoint, EnforcingChannelKeys, Arc<TestBroadcaster>, Arc<FuzzEstimator>>>,
-	           handler: PeerManager<Peer<'a>, Arc<ChannelManager<EnforcingChannelKeys, Arc<channelmonitor::SimpleManyChannelMonitor<OutPoint, EnforcingChannelKeys, Arc<TestBroadcaster>, Arc<FuzzEstimator>>>, Arc<TestBroadcaster>, Arc<KeyProvider>, Arc<FuzzEstimator>>>>) -> Self {
+	           handler: PeerManager<Peer<'a>, Arc<ChannelManager<EnforcingChannelKeys, Arc<channelmonitor::SimpleManyChannelMonitor<OutPoint, EnforcingChannelKeys, Arc<TestBroadcaster>, Arc<FuzzEstimator>>>, Arc<TestBroadcaster>, Arc<KeyProvider>, Arc<FuzzEstimator>>>, Arc<NetGraphMsgHandler>>) -> Self {
 		MoneyLossDetector {
 			manager,
 			monitor,
