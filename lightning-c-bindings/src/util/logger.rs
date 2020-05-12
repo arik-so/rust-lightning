@@ -49,7 +49,6 @@ impl Level {
 		}
 	}
 }
-
 /// " Returns the most verbose logging level."
 #[no_mangle]
 pub extern "C" fn Level_max() -> Level {
@@ -61,7 +60,7 @@ pub extern "C" fn Level_max() -> Level {
 pub struct Logger {
 	pub this_arg: *mut c_void,
 	/// " Logs the `Record`"
-	pub log: extern "C" fn (this_arg: *const c_void, record: *const std::os::raw::c_char),
+	pub log: extern "C" fn (this_arg: *const  c_void, record: *const std::os::raw::c_char),
 }
 unsafe impl Sync for Logger {}
 unsafe impl Send for Logger {}

@@ -45,13 +45,12 @@ impl ChainError {
 		}
 	}
 }
-
 /// " An interface to send a transaction to the Bitcoin network."
 #[repr(C)]
 pub struct BroadcasterInterface {
 	pub this_arg: *mut c_void,
 	/// " Sends a transaction out to (hopefully) be mined."
-	pub broadcast_transaction: extern "C" fn (this_arg: *const c_void, tx: crate::c_types::Transaction),
+	pub broadcast_transaction: extern "C" fn (this_arg: *const  c_void, tx: crate::c_types::Transaction),
 }
 unsafe impl Sync for BroadcasterInterface {}
 unsafe impl Send for BroadcasterInterface {}
@@ -102,7 +101,6 @@ impl ConfirmationTarget {
 		}
 	}
 }
-
 /// " A trait which should be implemented to provide feerate information on a number of time"
 /// " horizons."
 /// ""
@@ -120,7 +118,7 @@ pub struct FeeEstimator {
 	/// " This translates to:"
 	/// "  * satoshis-per-byte * 250"
 	/// "  * ceil(satoshis-per-kbyte / 4)"
-	pub get_est_sat_per_1000_weight: extern "C" fn (this_arg: *const c_void, confirmation_target: ConfirmationTarget) -> u64,
+	pub get_est_sat_per_1000_weight: extern "C" fn (this_arg: *const  c_void, confirmation_target: ConfirmationTarget) -> u64,
 }
 unsafe impl Sync for FeeEstimator {}
 unsafe impl Send for FeeEstimator {}

@@ -16,11 +16,6 @@ pub struct OutPoint {
 }
 
 impl OutPoint {
-	/// Creates a new `OutPoint` from the txid and the index.
-	pub fn new(txid: Txid, index: u16) -> OutPoint {
-		OutPoint { txid, index }
-	}
-
 	/// Convert an `OutPoint` to a lightning channel id.
 	pub fn to_channel_id(&self) -> [u8; 32] {
 		let mut res = [0; 32];
@@ -31,6 +26,7 @@ impl OutPoint {
 	}
 
 	/// Converts this OutPoint into the OutPoint field as used by rust-bitcoin
+	/// (C-not exported)
 	pub fn into_bitcoin_outpoint(self) -> BitcoinOutPoint {
 		BitcoinOutPoint {
 			txid: self.txid,

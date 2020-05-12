@@ -34,12 +34,6 @@ pub struct Script {
 	pub datalen: usize
 }
 impl Script {
-	pub(crate) fn from_slice(s: &[u8]) -> Self {
-		Self {
-			data: s.as_ptr(),
-			datalen: s.len(),
-		}
-	}
 	pub(crate) fn into_bitcoin(&self) -> BitcoinScript {
 		BitcoinScript::from(unsafe { std::slice::from_raw_parts(self.data, self.datalen) }.to_vec())
 	}

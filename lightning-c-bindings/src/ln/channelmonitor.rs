@@ -47,8 +47,8 @@ pub extern "C" fn ChannelMonitorUpdate_free(this_ptr: ChannelMonitorUpdate) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelMonitorUpdate) };
 }
 #[no_mangle]
-pub extern "C" fn ChannelMonitorUpdate_set_update_id(this_ptr: *mut ChannelMonitorUpdate, val: u64) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelMonitorUpdate) }.update_id = val;
+pub extern "C" fn ChannelMonitorUpdate_set_update_id(this_ptr: &mut ChannelMonitorUpdate, val: u64) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelMonitorUpdate) }.update_id = val;
 }
 /// " An error enum representing a failure to persist a channel monitor update."
 #[repr(C)]
@@ -114,7 +114,6 @@ impl ChannelMonitorUpdateErr {
 		}
 	}
 }
-
 
 use lightning::ln::channelmonitor::MonitorUpdateError as lnMonitorUpdateErrorImport;
 type lnMonitorUpdateError = lnMonitorUpdateErrorImport;
@@ -228,7 +227,7 @@ impl std::ops::Deref for ManyChannelMonitor {
 /// " Gets the update_id from the latest ChannelMonitorUpdate which was applied to this"
 /// " ChannelMonitor."
 #[no_mangle]
-pub extern "C" fn ChannelMonitor_get_latest_update_id(this_arg: *const ChannelMonitor) -> u64 {
-	unsafe { &*(*this_arg).inner }.get_latest_update_id()
+pub extern "C" fn ChannelMonitor_get_latest_update_id(this_arg: & ChannelMonitor) -> u64 {
+	unsafe { &*this_arg.inner }.get_latest_update_id()
 }
 

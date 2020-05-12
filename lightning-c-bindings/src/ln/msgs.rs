@@ -165,20 +165,20 @@ pub extern "C" fn FundingLocked_free(this_ptr: FundingLocked) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnFundingLocked) };
 }
 #[no_mangle]
-pub extern "C" fn FundingLocked_get_channel_id(this_ptr: *const FundingLocked) -> *const [u8; 32] {
-	&unsafe { &*(*this_ptr).inner }.channel_id
+pub extern "C" fn FundingLocked_get_channel_id(this_ptr: &FundingLocked) -> *const [u8; 32] {
+	&unsafe { &*this_ptr.inner }.channel_id
 }
 #[no_mangle]
-pub extern "C" fn FundingLocked_set_channel_id(this_ptr: *mut FundingLocked, val: crate::c_types::ThirtyTwoBytes) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnFundingLocked) }.channel_id = val.data;
+pub extern "C" fn FundingLocked_set_channel_id(this_ptr: &mut FundingLocked, val: crate::c_types::ThirtyTwoBytes) {
+	unsafe { &mut *(this_ptr.inner as *mut lnFundingLocked) }.channel_id = val.data;
 }
 #[no_mangle]
-pub extern "C" fn FundingLocked_get_next_per_commitment_point(this_ptr: *const FundingLocked) -> crate::c_types::PublicKey {
-	crate::c_types::PublicKey::from_rust(&&unsafe { &*(*this_ptr).inner }.next_per_commitment_point)
+pub extern "C" fn FundingLocked_get_next_per_commitment_point(this_ptr: &FundingLocked) -> crate::c_types::PublicKey {
+	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.next_per_commitment_point)
 }
 #[no_mangle]
-pub extern "C" fn FundingLocked_set_next_per_commitment_point(this_ptr: *mut FundingLocked, val: crate::c_types::PublicKey) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnFundingLocked) }.next_per_commitment_point = val.into_rust();
+pub extern "C" fn FundingLocked_set_next_per_commitment_point(this_ptr: &mut FundingLocked, val: crate::c_types::PublicKey) {
+	unsafe { &mut *(this_ptr.inner as *mut lnFundingLocked) }.next_per_commitment_point = val.into_rust();
 }
 #[no_mangle]
 pub extern "C" fn FundingLocked_new(channel_id_arg: crate::c_types::ThirtyTwoBytes, next_per_commitment_point_arg: crate::c_types::PublicKey) -> FundingLocked {
@@ -370,12 +370,12 @@ pub extern "C" fn UnsignedNodeAnnouncement_free(this_ptr: UnsignedNodeAnnounceme
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnUnsignedNodeAnnouncement) };
 }
 #[no_mangle]
-pub extern "C" fn UnsignedNodeAnnouncement_get_node_id(this_ptr: *const UnsignedNodeAnnouncement) -> crate::c_types::PublicKey {
-	crate::c_types::PublicKey::from_rust(&&unsafe { &*(*this_ptr).inner }.node_id)
+pub extern "C" fn UnsignedNodeAnnouncement_get_node_id(this_ptr: &UnsignedNodeAnnouncement) -> crate::c_types::PublicKey {
+	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.node_id)
 }
 #[no_mangle]
-pub extern "C" fn UnsignedNodeAnnouncement_set_node_id(this_ptr: *mut UnsignedNodeAnnouncement, val: crate::c_types::PublicKey) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnUnsignedNodeAnnouncement) }.node_id = val.into_rust();
+pub extern "C" fn UnsignedNodeAnnouncement_set_node_id(this_ptr: &mut UnsignedNodeAnnouncement, val: crate::c_types::PublicKey) {
+	unsafe { &mut *(this_ptr.inner as *mut lnUnsignedNodeAnnouncement) }.node_id = val.into_rust();
 }
 
 use lightning::ln::msgs::NodeAnnouncement as lnNodeAnnouncementImport;
@@ -406,20 +406,20 @@ pub extern "C" fn UnsignedChannelAnnouncement_free(this_ptr: UnsignedChannelAnno
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnUnsignedChannelAnnouncement) };
 }
 #[no_mangle]
-pub extern "C" fn UnsignedChannelAnnouncement_get_node_id_1(this_ptr: *const UnsignedChannelAnnouncement) -> crate::c_types::PublicKey {
-	crate::c_types::PublicKey::from_rust(&&unsafe { &*(*this_ptr).inner }.node_id_1)
+pub extern "C" fn UnsignedChannelAnnouncement_get_node_id_1(this_ptr: &UnsignedChannelAnnouncement) -> crate::c_types::PublicKey {
+	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.node_id_1)
 }
 #[no_mangle]
-pub extern "C" fn UnsignedChannelAnnouncement_set_node_id_1(this_ptr: *mut UnsignedChannelAnnouncement, val: crate::c_types::PublicKey) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnUnsignedChannelAnnouncement) }.node_id_1 = val.into_rust();
+pub extern "C" fn UnsignedChannelAnnouncement_set_node_id_1(this_ptr: &mut UnsignedChannelAnnouncement, val: crate::c_types::PublicKey) {
+	unsafe { &mut *(this_ptr.inner as *mut lnUnsignedChannelAnnouncement) }.node_id_1 = val.into_rust();
 }
 #[no_mangle]
-pub extern "C" fn UnsignedChannelAnnouncement_get_node_id_2(this_ptr: *const UnsignedChannelAnnouncement) -> crate::c_types::PublicKey {
-	crate::c_types::PublicKey::from_rust(&&unsafe { &*(*this_ptr).inner }.node_id_2)
+pub extern "C" fn UnsignedChannelAnnouncement_get_node_id_2(this_ptr: &UnsignedChannelAnnouncement) -> crate::c_types::PublicKey {
+	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.node_id_2)
 }
 #[no_mangle]
-pub extern "C" fn UnsignedChannelAnnouncement_set_node_id_2(this_ptr: *mut UnsignedChannelAnnouncement, val: crate::c_types::PublicKey) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnUnsignedChannelAnnouncement) }.node_id_2 = val.into_rust();
+pub extern "C" fn UnsignedChannelAnnouncement_set_node_id_2(this_ptr: &mut UnsignedChannelAnnouncement, val: crate::c_types::PublicKey) {
+	unsafe { &mut *(this_ptr.inner as *mut lnUnsignedChannelAnnouncement) }.node_id_2 = val.into_rust();
 }
 
 use lightning::ln::msgs::ChannelAnnouncement as lnChannelAnnouncementImport;
@@ -479,12 +479,12 @@ pub extern "C" fn CommitmentUpdate_free(this_ptr: CommitmentUpdate) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnCommitmentUpdate) };
 }
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_get_commitment_signed(this_ptr: *const CommitmentUpdate) -> *const CommitmentSigned {
-	Box::into_raw(Box::new(CommitmentSigned { inner: &unsafe { &*(*this_ptr).inner }.commitment_signed }))
+pub extern "C" fn CommitmentUpdate_get_commitment_signed(this_ptr: &CommitmentUpdate) -> *const CommitmentSigned {
+	Box::into_raw(Box::new(CommitmentSigned { inner: &unsafe { &*this_ptr.inner }.commitment_signed } ))
 }
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_set_commitment_signed(this_ptr: *mut CommitmentUpdate, val: CommitmentSigned) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnCommitmentUpdate) }.commitment_signed = *unsafe { Box::from_raw(val.inner as *mut _) };
+pub extern "C" fn CommitmentUpdate_set_commitment_signed(this_ptr: &mut CommitmentUpdate, val: CommitmentSigned) {
+	unsafe { &mut *(this_ptr.inner as *mut lnCommitmentUpdate) }.commitment_signed = *unsafe { Box::from_raw(val.inner as *mut _) };
 }
 
 use lightning::ln::msgs::HTLCFailChannelUpdate as lnHTLCFailChannelUpdateImport;
@@ -510,46 +510,46 @@ pub extern "C" fn HTLCFailChannelUpdate_free(this_ptr: HTLCFailChannelUpdate) {
 pub struct ChannelMessageHandler {
 	pub this_arg: *mut c_void,
 	/// " Handle an incoming open_channel message from the given peer."
-	pub handle_open_channel: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: *const OpenChannel),
+	pub handle_open_channel: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: &OpenChannel),
 	/// " Handle an incoming accept_channel message from the given peer."
-	pub handle_accept_channel: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: *const AcceptChannel),
+	pub handle_accept_channel: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: &AcceptChannel),
 	/// " Handle an incoming funding_created message from the given peer."
-	pub handle_funding_created: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const FundingCreated),
+	pub handle_funding_created: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &FundingCreated),
 	/// " Handle an incoming funding_signed message from the given peer."
-	pub handle_funding_signed: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const FundingSigned),
+	pub handle_funding_signed: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &FundingSigned),
 	/// " Handle an incoming funding_locked message from the given peer."
-	pub handle_funding_locked: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const FundingLocked),
+	pub handle_funding_locked: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &FundingLocked),
 	/// " Handle an incoming shutdown message from the given peer."
-	pub handle_shutdown: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const Shutdown),
+	pub handle_shutdown: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &Shutdown),
 	/// " Handle an incoming closing_signed message from the given peer."
-	pub handle_closing_signed: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const ClosingSigned),
+	pub handle_closing_signed: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &ClosingSigned),
 	/// " Handle an incoming update_add_htlc message from the given peer."
-	pub handle_update_add_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const UpdateAddHTLC),
+	pub handle_update_add_htlc: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateAddHTLC),
 	/// " Handle an incoming update_fulfill_htlc message from the given peer."
-	pub handle_update_fulfill_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const UpdateFulfillHTLC),
+	pub handle_update_fulfill_htlc: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFulfillHTLC),
 	/// " Handle an incoming update_fail_htlc message from the given peer."
-	pub handle_update_fail_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const UpdateFailHTLC),
+	pub handle_update_fail_htlc: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFailHTLC),
 	/// " Handle an incoming update_fail_malformed_htlc message from the given peer."
-	pub handle_update_fail_malformed_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const UpdateFailMalformedHTLC),
+	pub handle_update_fail_malformed_htlc: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFailMalformedHTLC),
 	/// " Handle an incoming commitment_signed message from the given peer."
-	pub handle_commitment_signed: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const CommitmentSigned),
+	pub handle_commitment_signed: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &CommitmentSigned),
 	/// " Handle an incoming revoke_and_ack message from the given peer."
-	pub handle_revoke_and_ack: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const RevokeAndACK),
+	pub handle_revoke_and_ack: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &RevokeAndACK),
 	/// " Handle an incoming update_fee message from the given peer."
-	pub handle_update_fee: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const UpdateFee),
+	pub handle_update_fee: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFee),
 	/// " Handle an incoming announcement_signatures message from the given peer."
-	pub handle_announcement_signatures: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const AnnouncementSignatures),
+	pub handle_announcement_signatures: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &AnnouncementSignatures),
 	/// " Indicates a connection to the peer failed/an existing connection was lost. If no connection"
 	/// " is believed to be possible in the future (eg they're sending us messages we don't"
 	/// " understand or indicate they require unknown feature bits), no_connection_possible is set"
 	/// " and any outstanding channels should be failed."
-	pub peer_disconnected: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, no_connection_possible: bool),
+	pub peer_disconnected: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, no_connection_possible: bool),
 	/// " Handle a peer reconnecting, possibly generating channel_reestablish message(s)."
-	pub peer_connected: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const Init),
+	pub peer_connected: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &Init),
 	/// " Handle an incoming channel_reestablish message from the given peer."
-	pub handle_channel_reestablish: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const ChannelReestablish),
+	pub handle_channel_reestablish: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &ChannelReestablish),
 	/// " Handle an incoming error message from the given peer."
-	pub handle_error: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: *const ErrorMessage),
+	pub handle_error: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &ErrorMessage),
 	pub MessageSendEventsProvider: crate::util::events::MessageSendEventsProvider,
 }
 impl lightning::util::events::MessageSendEventsProvider for ChannelMessageHandler {
@@ -563,61 +563,61 @@ unsafe impl Sync for ChannelMessageHandler {}
 use lightning::ln::msgs::ChannelMessageHandler as lnChannelMessageHandler;
 impl lnChannelMessageHandler for ChannelMessageHandler {
 	fn handle_open_channel(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, their_features: lightning::ln::features::InitFeatures, msg: &lightning::ln::msgs::OpenChannel) {
-		(self.handle_open_channel)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), crate::ln::features::InitFeatures { inner: Box::into_raw(Box::new(their_features)) }, Box::into_raw(Box::new(OpenChannel { inner: msg })))
+		(self.handle_open_channel)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), crate::ln::features::InitFeatures { inner: Box::into_raw(Box::new(their_features)) }, &OpenChannel { inner: msg })
 	}
 	fn handle_accept_channel(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, their_features: lightning::ln::features::InitFeatures, msg: &lightning::ln::msgs::AcceptChannel) {
-		(self.handle_accept_channel)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), crate::ln::features::InitFeatures { inner: Box::into_raw(Box::new(their_features)) }, Box::into_raw(Box::new(AcceptChannel { inner: msg })))
+		(self.handle_accept_channel)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), crate::ln::features::InitFeatures { inner: Box::into_raw(Box::new(their_features)) }, &AcceptChannel { inner: msg })
 	}
 	fn handle_funding_created(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::FundingCreated) {
-		(self.handle_funding_created)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(FundingCreated { inner: msg })))
+		(self.handle_funding_created)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &FundingCreated { inner: msg })
 	}
 	fn handle_funding_signed(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::FundingSigned) {
-		(self.handle_funding_signed)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(FundingSigned { inner: msg })))
+		(self.handle_funding_signed)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &FundingSigned { inner: msg })
 	}
 	fn handle_funding_locked(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::FundingLocked) {
-		(self.handle_funding_locked)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(FundingLocked { inner: msg })))
+		(self.handle_funding_locked)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &FundingLocked { inner: msg })
 	}
 	fn handle_shutdown(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::Shutdown) {
-		(self.handle_shutdown)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(Shutdown { inner: msg })))
+		(self.handle_shutdown)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &Shutdown { inner: msg })
 	}
 	fn handle_closing_signed(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::ClosingSigned) {
-		(self.handle_closing_signed)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(ClosingSigned { inner: msg })))
+		(self.handle_closing_signed)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &ClosingSigned { inner: msg })
 	}
 	fn handle_update_add_htlc(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::UpdateAddHTLC) {
-		(self.handle_update_add_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(UpdateAddHTLC { inner: msg })))
+		(self.handle_update_add_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &UpdateAddHTLC { inner: msg })
 	}
 	fn handle_update_fulfill_htlc(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::UpdateFulfillHTLC) {
-		(self.handle_update_fulfill_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(UpdateFulfillHTLC { inner: msg })))
+		(self.handle_update_fulfill_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &UpdateFulfillHTLC { inner: msg })
 	}
 	fn handle_update_fail_htlc(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::UpdateFailHTLC) {
-		(self.handle_update_fail_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(UpdateFailHTLC { inner: msg })))
+		(self.handle_update_fail_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &UpdateFailHTLC { inner: msg })
 	}
 	fn handle_update_fail_malformed_htlc(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::UpdateFailMalformedHTLC) {
-		(self.handle_update_fail_malformed_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(UpdateFailMalformedHTLC { inner: msg })))
+		(self.handle_update_fail_malformed_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &UpdateFailMalformedHTLC { inner: msg })
 	}
 	fn handle_commitment_signed(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::CommitmentSigned) {
-		(self.handle_commitment_signed)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(CommitmentSigned { inner: msg })))
+		(self.handle_commitment_signed)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &CommitmentSigned { inner: msg })
 	}
 	fn handle_revoke_and_ack(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::RevokeAndACK) {
-		(self.handle_revoke_and_ack)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(RevokeAndACK { inner: msg })))
+		(self.handle_revoke_and_ack)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &RevokeAndACK { inner: msg })
 	}
 	fn handle_update_fee(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::UpdateFee) {
-		(self.handle_update_fee)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(UpdateFee { inner: msg })))
+		(self.handle_update_fee)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &UpdateFee { inner: msg })
 	}
 	fn handle_announcement_signatures(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::AnnouncementSignatures) {
-		(self.handle_announcement_signatures)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(AnnouncementSignatures { inner: msg })))
+		(self.handle_announcement_signatures)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &AnnouncementSignatures { inner: msg })
 	}
 	fn peer_disconnected(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, no_connection_possible: bool) {
-		(self.peer_disconnected)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), no_connection_possible)
+		(self.peer_disconnected)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), no_connection_possible)
 	}
 	fn peer_connected(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::Init) {
-		(self.peer_connected)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(Init { inner: msg })))
+		(self.peer_connected)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &Init { inner: msg })
 	}
 	fn handle_channel_reestablish(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::ChannelReestablish) {
-		(self.handle_channel_reestablish)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(ChannelReestablish { inner: msg })))
+		(self.handle_channel_reestablish)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &ChannelReestablish { inner: msg })
 	}
 	fn handle_error(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::ErrorMessage) {
-		(self.handle_error)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), Box::into_raw(Box::new(ErrorMessage { inner: msg })))
+		(self.handle_error)(self.this_arg, crate::c_types::PublicKey::from_rust(their_node_id), &ErrorMessage { inner: msg })
 	}
 }
 
@@ -640,7 +640,7 @@ pub struct RoutingMessageHandler {
 	//XXX: Need to export get_next_channel_announcements
 	//XXX: Need to export get_next_node_announcements
 	/// " Returns whether a full sync should be requested from a peer."
-	pub should_request_full_sync: extern "C" fn (this_arg: *const c_void, node_id: crate::c_types::PublicKey) -> bool,
+	pub should_request_full_sync: extern "C" fn (this_arg: *const  c_void, node_id: crate::c_types::PublicKey) -> bool,
 }
 unsafe impl Send for RoutingMessageHandler {}
 unsafe impl Sync for RoutingMessageHandler {}
@@ -666,7 +666,7 @@ impl lnRoutingMessageHandler for RoutingMessageHandler {
 		unimplemented!();
 	}
 	fn should_request_full_sync(&self, node_id: &bitcoin::secp256k1::key::PublicKey) -> bool {
-		(self.should_request_full_sync)(self.this_arg, crate::c_types::PublicKey::from_rust(&node_id))
+		(self.should_request_full_sync)(self.this_arg, crate::c_types::PublicKey::from_rust(node_id))
 	}
 }
 

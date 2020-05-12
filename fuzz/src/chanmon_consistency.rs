@@ -27,7 +27,6 @@ use lightning::chain::keysinterface::{KeysInterface, InMemoryChannelKeys};
 use lightning::ln::channelmonitor;
 use lightning::ln::channelmonitor::{ChannelMonitor, ChannelMonitorUpdateErr, HTLCUpdate};
 use lightning::ln::channelmanager::{ChannelManager, PaymentHash, PaymentPreimage, PaymentSecret, ChannelManagerReadArgs};
-use lightning::ln::router::{Route, RouteHop};
 use lightning::ln::features::{ChannelFeatures, InitFeatures, NodeFeatures};
 use lightning::ln::msgs::{CommitmentUpdate, ChannelMessageHandler, ErrorAction, UpdateAddHTLC, Init};
 use lightning::util::enforcing_trait_impls::EnforcingChannelKeys;
@@ -36,6 +35,8 @@ use lightning::util::logger::Logger;
 use lightning::util::config::UserConfig;
 use lightning::util::events::{EventsProvider, MessageSendEventsProvider};
 use lightning::util::ser::{Readable, ReadableArgs, Writeable, Writer};
+use lightning::routing::router::{Route, RouteHop};
+
 
 use utils::test_logger;
 
@@ -268,7 +269,7 @@ pub fn do_test<Out: test_logger::Output>(data: &[u8], out: Out) {
 					let tx = Transaction { version: $chan_id, lock_time: 0, input: Vec::new(), output: vec![TxOut {
 						value: *channel_value_satoshis, script_pubkey: output_script.clone(),
 					}]};
-					funding_output = OutPoint::new(tx.txid(), 0);
+					funding_output = OutPoint { txid: tx.txid(), index: 0 };
 					$source.funding_transaction_generated(&temporary_channel_id, funding_output);
 					channel_txn.push(tx);
 				} else { panic!("Wrong event type"); }
