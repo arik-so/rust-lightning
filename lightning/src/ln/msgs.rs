@@ -442,6 +442,7 @@ pub struct ChannelUpdate {
 }
 
 /// Used to put an error message in a LightningError
+/// (C-not exported)
 #[derive(Clone)]
 pub enum ErrorAction {
 	/// The peer took some action which made us think they were useless. Disconnect them.
@@ -517,6 +518,7 @@ pub enum HTLCFailChannelUpdate {
 /// As we wish to serialize these differently from Option<T>s (Options get a tag byte, but
 /// OptionalFeild simply gets Present if there are enough bytes to read into it), we have a
 /// separate enum type for them.
+/// (C-not exported) due to generics
 #[derive(Clone, PartialEq)]
 pub enum OptionalField<T> {
 	/// Optional field is included in message
