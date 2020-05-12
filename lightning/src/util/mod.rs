@@ -5,6 +5,7 @@ pub(crate) mod fuzz_wrappers;
 
 pub mod events;
 pub mod errors;
+/// (C-not exported)
 pub mod ser;
 
 pub(crate) mod byte_utils;

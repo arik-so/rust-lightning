@@ -42,6 +42,7 @@ pub trait ChainWatchInterface: Sync + Send {
 
 	/// Provides an outpoint which must be watched for, providing any transactions which spend the
 	/// given outpoint.
+	/// (C-not exported) due to tuples
 	fn install_watch_outpoint(&self, outpoint: (Txid, u32), out_script: &Script);
 
 	/// Indicates that a listener needs to see all transactions.
@@ -51,10 +52,12 @@ pub trait ChainWatchInterface: Sync + Send {
 	/// short_channel_id (aka unspent_tx_output_identier). For BTC/tBTC channels the top three
 	/// bytes are the block height, the next 3 the transaction index within the block, and the
 	/// final two the output within the transaction.
+	/// (C-not exported) due to tuples
 	fn get_chain_utxo(&self, genesis_hash: BlockHash, unspent_tx_output_identifier: u64) -> Result<(Script, u64), ChainError>;
 
 	/// Gets the list of transactions and transaction indices that the ChainWatchInterface is
 	/// watching for.
+	/// (C-not exported) due to tuples
 	fn filter_block<'a>(&self, block: &'a Block) -> (Vec<&'a Transaction>, Vec<u32>);
 
 	/// Returns a usize that changes when the ChainWatchInterface's watched data is modified.
@@ -70,6 +73,7 @@ pub trait BroadcasterInterface: Sync + Send {
 }
 
 /// A trait indicating a desire to listen for events from the chain
+/// (C-not exported)
 pub trait ChainListener: Sync + Send {
 	/// Notifies a listener that a block was connected.
 	///
@@ -126,6 +130,7 @@ pub trait FeeEstimator: Sync + Send {
 pub const MIN_RELAY_FEE_SAT_PER_1000_WEIGHT: u64 = 4000;
 
 /// Utility for tracking registered txn/outpoints and checking for matches
+/// (C-not exported)
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ChainWatchedUtil {
 	watch_all: bool,
@@ -167,6 +172,7 @@ impl ChainWatchedUtil {
 
 	/// Registers an outpoint for monitoring, returning true if it was a new outpoint and false if
 	/// we'd already been watching for it
+	/// (C-not exported) due to tuples
 	pub fn register_outpoint(&mut self, outpoint: (Txid, u32), _script_pub_key: &Script) -> bool {
 		if self.watch_all { return false; }
 		self.watched_outpoints.insert(outpoint)
@@ -218,6 +224,7 @@ impl ChainWatchedUtil {
 /// parameters with static lifetimes). Other times you can afford a reference, which is more
 /// efficient, in which case BlockNotifierRef is a more appropriate type. Defining these type
 /// aliases prevents issues such as overly long function definitions.
+/// (C-not exported)
 pub type BlockNotifierArc<C> = Arc<BlockNotifier<'static, Arc<ChainListener>, C>>;
 
 /// BlockNotifierRef is useful when you want a BlockNotifier that points to ChainListeners
@@ -236,6 +243,7 @@ pub type BlockNotifierRef<'a, C> = BlockNotifier<'a, &'a ChainListener, C>;
 /// or a BlockNotifierRef for conciseness. See their documentation for more details, but essentially
 /// you should default to using a BlockNotifierRef, and use a BlockNotifierArc instead when you
 /// require ChainListeners with static lifetimes, such as when you're using lightning-net-tokio.
+/// (C-not exported) due to ChainListener not being exported
 pub struct BlockNotifier<'a, CL: Deref<Target = ChainListener + 'a> + 'a, C: Deref> where C::Target: ChainWatchInterface {
 	listeners: Mutex<Vec<CL>>,
 	chain_monitor: C,

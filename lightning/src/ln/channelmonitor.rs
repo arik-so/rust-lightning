@@ -160,6 +160,7 @@ impl_writeable!(HTLCUpdate, 0, { payment_hash, payment_preimage, source });
 ///
 /// If you're using this for local monitoring of your own channels, you probably want to use
 /// `OutPoint` as the key, which will give you a ManyChannelMonitor implementation.
+/// (C-not exported)
 pub struct SimpleManyChannelMonitor<Key, ChanSigner: ChannelKeys, T: Deref, F: Deref, L: Deref, C: Deref>
 	where T::Target: BroadcasterInterface,
         F::Target: FeeEstimator,
@@ -784,6 +785,7 @@ pub trait ManyChannelMonitor: Send + Sync {
 	///
 	/// Any spends of outputs which should have been registered which aren't passed to
 	/// ChannelMonitors via block_connected may result in FUNDS LOSS.
+	/// (C-not exported) due to Result
 	fn add_monitor(&self, funding_txo: OutPoint, monitor: ChannelMonitor<Self::Keys>) -> Result<(), ChannelMonitorUpdateErr>;
 
 	/// Updates a monitor for the given `funding_txo`.
@@ -798,6 +800,7 @@ pub trait ManyChannelMonitor: Send + Sync {
 	///
 	/// Any spends of outputs which should have been registered which aren't passed to
 	/// ChannelMonitors via block_connected may result in FUNDS LOSS.
+	/// (C-not exported) due to Result
 	fn update_monitor(&self, funding_txo: OutPoint, monitor: ChannelMonitorUpdate) -> Result<(), ChannelMonitorUpdateErr>;
 
 	/// Used by ChannelManager to get list of HTLC resolved onchain and which needed to be updated
@@ -861,6 +864,7 @@ impl<ChanSigner: ChannelKeys + Writeable> ChannelMonitor<ChanSigner> {
 	/// the "reorg path" (ie disconnecting blocks until you find a common ancestor from both the
 	/// returned block hash and the the current chain and then reconnecting blocks to get to the
 	/// best chain) upon deserializing the object!
+	/// (C-not exported)
 	pub fn write_for_disk<W: Writer>(&self, writer: &mut W) -> Result<(), ::std::io::Error> {
 		//TODO: We still write out all the serialization here manually instead of using the fancy
 		//serialization framework we have, we should migrate things over to it.
@@ -1298,6 +1302,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	/// itself.
 	///
 	/// panics if the given update is not the next update by update_id.
+	/// (C-not exported) due to generics
 	pub fn update_monitor<B: Deref, L: Deref>(&mut self, mut updates: ChannelMonitorUpdate, broadcaster: &B, logger: &L) -> Result<(), MonitorUpdateError>
 		where B::Target: BroadcasterInterface,
 					L::Target: Logger,
@@ -1344,6 +1349,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 
 	/// Gets a list of txids, with their output scripts (in the order they appear in the
 	/// transaction), which we must learn about spends of via block_connected().
+	/// (C-not exported) due to HashMap
 	pub fn get_outputs_to_watch(&self) -> &HashMap<Txid, Vec<Script>> {
 		&self.outputs_to_watch
 	}
@@ -1352,6 +1358,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	/// Generally useful when deserializing as during normal operation the return values of
 	/// block_connected are sufficient to ensure all relevant outpoints are being monitored (note
 	/// that the get_funding_txo outpoint and transaction must also be monitored for!).
+	/// (C-not exported) due to Vec
 	pub fn get_monitored_outpoints(&self) -> Vec<(Txid, u32, &Script)> {
 		let mut res = Vec::with_capacity(self.remote_commitment_txn_on_chain.len() * 2);
 		for (ref txid, &(_, ref outputs)) in self.remote_commitment_txn_on_chain.iter() {
@@ -1376,6 +1383,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	/// This is called by ManyChannelMonitor::get_and_clear_pending_events() and is equivalent to
 	/// EventsProvider::get_and_clear_pending_events() except that it requires &mut self as we do
 	/// no internal locking in ChannelMonitors.
+	/// (C-not exported) due to Vec
 	pub fn get_and_clear_pending_events(&mut self) -> Vec<events::Event> {
 		let mut ret = Vec::new();
 		mem::swap(&mut ret, &mut self.pending_events);
@@ -1748,6 +1756,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	/// substantial amount of time (a month or even a year) to get back funds. Best may be to contact
 	/// out-of-band the other node operator to coordinate with him if option is available to you.
 	/// In any-case, choice is up to the user.
+	/// (C-not exported) due to Vec
 	pub fn get_latest_local_commitment_txn<L: Deref>(&mut self, logger: &L) -> Vec<Transaction> where L::Target: Logger {
 		log_trace!(logger, "Getting signed latest local commitment transaction!");
 		self.local_tx_signed = true;
@@ -1778,6 +1787,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	/// Unsafe test-only version of get_latest_local_commitment_txn used by our test framework
 	/// to bypass LocalCommitmentTransaction state update lockdown after signature and generate
 	/// revoked commitment transaction.
+	/// (C-not exported) because its test-only
 	#[cfg(test)]
 	pub fn unsafe_get_latest_local_commitment_txn<L: Deref>(&mut self, logger: &L) -> Vec<Transaction> where L::Target: Logger {
 		log_trace!(logger, "Getting signed copy of latest local commitment transaction!");
