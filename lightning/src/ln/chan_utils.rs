@@ -177,6 +177,7 @@ impl Readable for CounterpartyCommitmentSecrets {
 ///
 /// Note that this is infallible iff we trust that at least one of the two input keys are randomly
 /// generated (ie our own).
+/// (C-not exported)
 pub fn derive_private_key<T: secp256k1::Signing>(secp_ctx: &Secp256k1<T>, per_commitment_point: &PublicKey, base_secret: &SecretKey) -> Result<SecretKey, secp256k1::Error> {
 	let mut sha = Sha256::engine();
 	sha.input(&per_commitment_point.serialize());
@@ -194,6 +195,7 @@ pub fn derive_private_key<T: secp256k1::Signing>(secp_ctx: &Secp256k1<T>, per_co
 ///
 /// Note that this is infallible iff we trust that at least one of the two input keys are randomly
 /// generated (ie our own).
+/// (C-not exported)
 pub fn derive_public_key<T: secp256k1::Signing>(secp_ctx: &Secp256k1<T>, per_commitment_point: &PublicKey, base_point: &PublicKey) -> Result<PublicKey, secp256k1::Error> {
 	let mut sha = Sha256::engine();
 	sha.input(&per_commitment_point.serialize());
@@ -208,6 +210,7 @@ pub fn derive_public_key<T: secp256k1::Signing>(secp_ctx: &Secp256k1<T>, per_com
 ///
 /// Note that this is infallible iff we trust that at least one of the two input keys are randomly
 /// generated (ie our own).
+/// (C-not exported)
 pub fn derive_private_revocation_key<T: secp256k1::Signing>(secp_ctx: &Secp256k1<T>, per_commitment_secret: &SecretKey, revocation_base_secret: &SecretKey) -> Result<SecretKey, secp256k1::Error> {
 	let revocation_base_point = PublicKey::from_secret_key(&secp_ctx, &revocation_base_secret);
 	let per_commitment_point = PublicKey::from_secret_key(&secp_ctx, &per_commitment_secret);
@@ -241,6 +244,7 @@ pub fn derive_private_revocation_key<T: secp256k1::Signing>(secp_ctx: &Secp256k1
 ///
 /// Note that this is infallible iff we trust that at least one of the two input keys are randomly
 /// generated (ie our own).
+/// (C-not exported)
 pub fn derive_public_revocation_key<T: secp256k1::Verification>(secp_ctx: &Secp256k1<T>, per_commitment_point: &PublicKey, revocation_base_point: &PublicKey) -> Result<PublicKey, secp256k1::Error> {
 	let rev_append_commit_hash_key = {
 		let mut sha = Sha256::engine();
@@ -522,6 +526,7 @@ pub struct LocalCommitmentTransaction {
 	///
 	/// The remote HTLC signatures in the second element will always be set for non-dust HTLCs, ie
 	/// those for which transaction_output_index.is_some().
+    /// (C-not exported)
 	pub per_htlc: Vec<(HTLCOutputInCommitment, Option<Signature>)>,
 }
 impl LocalCommitmentTransaction {
@@ -620,6 +625,7 @@ impl LocalCommitmentTransaction {
 	/// The returned Vec has one entry for each HTLC, and in the same order. For HTLCs which were
 	/// considered dust and not included, a None entry exists, for all others a signature is
 	/// included.
+	/// (C-not exported) due to Option in a Vec in a Result
 	pub fn get_htlc_sigs<T: secp256k1::Signing + secp256k1::Verification>(&self, htlc_base_key: &SecretKey, local_csv: u16, secp_ctx: &Secp256k1<T>) -> Result<Vec<Option<Signature>>, ()> {
 		let txid = self.txid();
 		let mut ret = Vec::with_capacity(self.per_htlc.len());
