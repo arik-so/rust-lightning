@@ -103,6 +103,7 @@ pub struct Record<'a> {
 
 impl<'a> Record<'a> {
 	/// Returns a new Record.
+	/// (C-not exported) as fmt can't be used in C
 	#[inline]
 	pub fn new(level: Level, args: fmt::Arguments<'a>, module_path: &'a str, file: &'a str, line: u32) -> Record<'a> {
 		Record {

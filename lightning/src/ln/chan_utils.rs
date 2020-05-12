@@ -481,6 +481,7 @@ pub fn build_htlc_transaction(prev_hash: &Txid, feerate_per_kw: u64, to_self_del
 /// We use this to track local commitment transactions and put off signing them until we are ready
 /// to broadcast. Eventually this will require a signer which is possibly external, but for now we
 /// just pass in the SecretKeys required.
+/// (C-not exported)
 pub struct LocalCommitmentTransaction {
 	// TODO: We should migrate away from providing the transaction, instead providing enough to
 	// allow the ChannelKeys to construct it from scratch. Luckily we already have HTLC data here,

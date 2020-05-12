@@ -248,6 +248,7 @@ impl<Descriptor: SocketDescriptor, CM: Deref, RM: Deref> PeerManager<Descriptor,
 	/// For outbound connections, this will be the same as the their_node_id parameter passed in to
 	/// new_outbound_connection, however entries will only appear once the initial handshake has
 	/// completed and we are sure the remote peer has the private key for the given node_id.
+	/// (C-not exported) due to Vec
 	pub fn get_peer_node_ids(&self) -> Vec<PublicKey> {
 		let peers = self.peers.lock().unwrap();
 		peers.peers.values().filter_map(|p| {
@@ -279,6 +280,7 @@ impl<Descriptor: SocketDescriptor, CM: Deref, RM: Deref> PeerManager<Descriptor,
 	///
 	/// Panics if descriptor is duplicative with some other descriptor which has not yet had a
 	/// socket_disconnected().
+	/// (C-not exported) due to Result + Vec
 	pub fn new_outbound_connection(&self, their_node_id: PublicKey, descriptor: Descriptor) -> Result<Vec<u8>, PeerHandleError> {
 		let mut peer_encryptor = PeerChannelEncryptor::new_outbound(their_node_id.clone(), self.get_ephemeral_key());
 		let res = peer_encryptor.get_act_one().to_vec();
@@ -317,6 +319,7 @@ impl<Descriptor: SocketDescriptor, CM: Deref, RM: Deref> PeerManager<Descriptor,
 	///
 	/// Panics if descriptor is duplicative with some other descriptor which has not yet had
 	/// socket_disconnected called.
+	/// (C-not exported) due to Result
 	pub fn new_inbound_connection(&self, descriptor: Descriptor) -> Result<(), PeerHandleError> {
 		let peer_encryptor = PeerChannelEncryptor::new_inbound(&self.our_node_secret);
 		let pending_read_buffer = [0; 50].to_vec(); // Noise act one is 50 bytes
@@ -432,6 +435,7 @@ impl<Descriptor: SocketDescriptor, CM: Deref, RM: Deref> PeerManager<Descriptor,
 	/// must still hold - be ready to call write_buffer_space_avail again if a write call generated
 	/// here isn't sufficient! Panics if the descriptor was not previously registered in a
 	/// new_\*_connection event.
+	/// (C-not exported) due to Result
 	pub fn write_buffer_space_avail(&self, descriptor: &mut Descriptor) -> Result<(), PeerHandleError> {
 		let mut peers = self.peers.lock().unwrap();
 		match peers.peers.get_mut(descriptor) {
@@ -456,6 +460,7 @@ impl<Descriptor: SocketDescriptor, CM: Deref, RM: Deref> PeerManager<Descriptor,
 	/// on this file descriptor has resume_read set (preventing DoS issues in the send buffer).
 	///
 	/// Panics if the descriptor was not previously registered in a new_*_connection event.
+	/// (C-not exported) due to Result
 	pub fn read_event(&self, peer_descriptor: &mut Descriptor, data: &[u8]) -> Result<bool, PeerHandleError> {
 		match self.do_read_event(peer_descriptor, data) {
 			Ok(res) => Ok(res),

@@ -169,12 +169,15 @@ pub(super) enum HTLCFailReason {
 }
 
 /// payment_hash type, use to cross-lock hop
+/// (C-not exported) as we just use [u8; 32] directly
 #[derive(Hash, Copy, Clone, PartialEq, Eq, Debug)]
 pub struct PaymentHash(pub [u8;32]);
 /// payment_preimage type, use to route payment between hop
+/// (C-not exported) as we just use [u8; 32] directly
 #[derive(Hash, Copy, Clone, PartialEq, Eq, Debug)]
 pub struct PaymentPreimage(pub [u8;32]);
 /// payment_secret type, use to authenticate sender to the receiver and tie MPP HTLCs together
+/// (C-not exported) as we just use [u8; 32] directly
 #[derive(Hash, Copy, Clone, PartialEq, Eq, Debug)]
 pub struct PaymentSecret(pub [u8;32]);
 
@@ -753,6 +756,7 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref> ChannelMan
 	///
 	/// Raises APIError::APIMisuseError when channel_value_satoshis > 2**24 or push_msat is
 	/// greater than channel_value_satoshis * 1k or channel_value_satoshis is < 1000.
+	/// (C-not exported) due to Result
 	pub fn create_channel(&self, their_network_key: PublicKey, channel_value_satoshis: u64, push_msat: u64, user_id: u64, override_config: Option<UserConfig>) -> Result<(), APIError> {
 		if channel_value_satoshis < 1000 {
 			return Err(APIError::APIMisuseError { err: "channel_value must be at least 1000 satoshis" });
@@ -812,6 +816,7 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref> ChannelMan
 
 	/// Gets the list of open channels, in random order. See ChannelDetail field documentation for
 	/// more information.
+	/// (C-not exported) due to Vec
 	pub fn list_channels(&self) -> Vec<ChannelDetails> {
 		self.list_channels_with_filter(|_| true)
 	}
@@ -821,6 +826,7 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref> ChannelMan
 	///
 	/// These are guaranteed to have their is_live value set to true, see the documentation for
 	/// ChannelDetails::is_live for more info on exactly what the criteria are.
+	/// (C-not exported) due to Vec
 	pub fn list_usable_channels(&self) -> Vec<ChannelDetails> {
 		// Note we use is_live here instead of usable which leads to somewhat confused
 		// internal/external nomenclature, but that's ok cause that's probably what the user
@@ -833,6 +839,7 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref> ChannelMan
 	/// pending HTLCs, the channel will be closed on chain.
 	///
 	/// May generate a SendShutdown message event on success, which should be relayed.
+	/// (C-not exported) due to Result
 	pub fn close_channel(&self, channel_id: &[u8; 32]) -> Result<(), APIError> {
 		let _ = self.total_consistency_lock.read().unwrap();
 
@@ -1339,6 +1346,7 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref> ChannelMan
 	/// If a payment_secret *is* provided, we assume that the invoice had the payment_secret feature
 	/// bit set (either as required or as available). If multiple paths are present in the Route,
 	/// we assume the invoice had the basic_mpp feature set.
+	/// (C-not exported) due to Option + Result
 	pub fn send_payment(&self, route: &Route, payment_hash: PaymentHash, payment_secret: &Option<PaymentSecret>) -> Result<(), PaymentSendFailure> {
 		if route.paths.len() < 1 {
 			return Err(PaymentSendFailure::ParameterError(APIError::RouteError{err: "There must be at least one path to send over"}));
@@ -1406,6 +1414,7 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref> ChannelMan
 	///
 	/// May panic if the funding_txo is duplicative with some other channel (note that this should
 	/// be trivially prevented by using unique funding transaction keys per-channel).
+	/// (C-not exported) due to OutPoint
 	pub fn funding_transaction_generated(&self, temporary_channel_id: &[u8; 32], funding_txo: OutPoint) {
 		let _ = self.total_consistency_lock.read().unwrap();
 
@@ -1489,6 +1498,7 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref> ChannelMan
 	/// only Tor Onion addresses.
 	///
 	/// Panics if addresses is absurdly large (more than 500).
+	/// (C-not exported) due to Vec
 	pub fn broadcast_node_announcement(&self, rgb: [u8; 3], alias: [u8; 32], addresses: Vec<msgs::NetAddress>) {
 		let _ = self.total_consistency_lock.read().unwrap();
 
@@ -1797,6 +1807,7 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref> ChannelMan
 	/// along the path (including in our own channel on which we received it).
 	/// Returns false if no payment was found to fail backwards, true if the process of failing the
 	/// HTLC backwards has been started.
+	/// (C-not exported) due to Option
 	pub fn fail_htlc_backwards(&self, payment_hash: &PaymentHash, payment_secret: &Option<PaymentSecret>) -> bool {
 		let _ = self.total_consistency_lock.read().unwrap();
 
@@ -1936,6 +1947,7 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref> ChannelMan
 	/// set. Thus, for such payments we will claim any payments which do not under-pay.
 	///
 	/// May panic if called except in response to a PaymentReceived event.
+	/// (C-not exported) due to Option
 	pub fn claim_funds(&self, payment_preimage: PaymentPreimage, payment_secret: &Option<PaymentSecret>, expected_amount: u64) -> bool {
 		let payment_hash = PaymentHash(Sha256::hash(&payment_preimage.0).into_inner());
 
@@ -2123,6 +2135,7 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref> ChannelMan
 	///  3) update(s) are applied to each remote copy of a ChannelMonitor,
 	///  4) once all remote copies are updated, you call this function with the update_id that
 	///     completed, and once it is the latest the Channel will be re-enabled.
+	/// (C-not exported) due to OutPoint
 	pub fn channel_monitor_updated(&self, funding_txo: &OutPoint, highest_applied_update_id: u64) {
 		let _ = self.total_consistency_lock.read().unwrap();
 
@@ -2833,6 +2846,7 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref> ChannelMan
 	/// If successful, will generate a UpdateHTLCs event, so you should probably poll
 	/// PeerManager::process_events afterwards.
 	/// Note: This API is likely to change!
+	/// (C-not exported) Cause its doc(hidden) anyway
 	#[doc(hidden)]
 	pub fn update_fee(&self, channel_id: [u8;32], feerate_per_kw: u64) -> Result<(), APIError> {
 		let _ = self.total_consistency_lock.read().unwrap();
@@ -3627,6 +3641,7 @@ impl<ChanSigner: ChannelKeys + Writeable, M: Deref, T: Deref, K: Deref, F: Deref
 /// 5) Move the ChannelMonitors into your local ManyChannelMonitor.
 /// 6) Disconnect/connect blocks on the ChannelManager.
 /// 7) Register the new ChannelManager with your ChainWatchInterface.
+/// (C-not exported) due to references
 pub struct ChannelManagerReadArgs<'a, ChanSigner: 'a + ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref>
 	where M::Target: ManyChannelMonitor<Keys=ChanSigner>,
         T::Target: BroadcasterInterface,
