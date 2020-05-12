@@ -86,6 +86,7 @@ pub trait ChainListener: Sync + Send {
 	///
 	/// This also means those counting confirmations using block_connected callbacks should watch
 	/// for duplicate headers and not count them towards confirmations!
+	/// (C-not exported) due to slice
 	fn block_connected(&self, header: &BlockHeader, height: u32, txn_matched: &[&Transaction], indexes_of_txn_matched: &[u32]);
 	/// Notifies a listener that a block was disconnected.
 	/// Unlike block_connected, this *must* never be called twice for the same disconnect event.
@@ -218,6 +219,7 @@ impl ChainWatchedUtil {
 /// parameters with static lifetimes). Other times you can afford a reference, which is more
 /// efficient, in which case BlockNotifierRef is a more appropriate type. Defining these type
 /// aliases prevents issues such as overly long function definitions.
+/// (C-not exported)
 pub type BlockNotifierArc<C> = Arc<BlockNotifier<'static, Arc<ChainListener>, C>>;
 
 /// BlockNotifierRef is useful when you want a BlockNotifier that points to ChainListeners
@@ -265,6 +267,7 @@ impl<'a, CL: Deref + 'a, C: Deref> BlockNotifier<'a, CL, C>
 	/// If the same listener is registered multiple times, unregistering
 	/// will remove ALL occurrences of that listener. Comparison is done using
 	/// the pointer returned by the Deref trait implementation.
+	/// (C-not exported) because the equality check would always fail
 	pub fn unregister_listener(&self, listener: CL) {
 		let mut vec = self.listeners.lock().unwrap();
 		// item is a ref to an abstract thing that dereferences to a ChainListener,
@@ -294,6 +297,7 @@ impl<'a, CL: Deref + 'a, C: Deref> BlockNotifier<'a, CL, C>
 	/// Returns true if notified listeners registered additional watch data (implying that the
 	/// block must be re-scanned and this function called again prior to further block_connected
 	/// calls, see ChainListener::block_connected for more info).
+	/// (C-not exported) due to slice
 	pub fn block_connected_checked(&self, header: &BlockHeader, height: u32, txn_matched: &[&Transaction], indexes_of_txn_matched: &[u32]) -> bool {
 		let last_seen = self.chain_monitor.reentered();
 

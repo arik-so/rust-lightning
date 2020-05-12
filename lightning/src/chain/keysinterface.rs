@@ -241,6 +241,7 @@ pub trait ChannelKeys : Send+Clone {
 	/// (implying they were considered dust at the time the commitment transaction was negotiated),
 	/// a corresponding None should be included in the return value. All other positions in the
 	/// return value must contain a signature.
+	/// (C-not exported) due to references
 	fn sign_local_commitment_htlc_transactions<T: secp256k1::Signing + secp256k1::Verification>(&self, local_commitment_tx: &LocalCommitmentTransaction, local_csv: u16, secp_ctx: &Secp256k1<T>) -> Result<Vec<Option<Signature>>, ()>;
 
 	/// Create a signature for the given input in a transaction spending an HTLC or commitment
