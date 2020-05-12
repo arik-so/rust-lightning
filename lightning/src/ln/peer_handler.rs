@@ -281,6 +281,7 @@ impl<Descriptor: SocketDescriptor, CM: Deref, RM: Deref, L: Deref> PeerManager<D
 	///
 	/// Panics if descriptor is duplicative with some other descriptor which has not yet had a
 	/// socket_disconnected().
+	/// (C-not exported) due to Result + Vec
 	pub fn new_outbound_connection(&self, their_node_id: PublicKey, descriptor: Descriptor) -> Result<Vec<u8>, PeerHandleError> {
 		let mut peer_encryptor = PeerChannelEncryptor::new_outbound(their_node_id.clone(), self.get_ephemeral_key());
 		let res = peer_encryptor.get_act_one().to_vec();

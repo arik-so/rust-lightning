@@ -168,26 +168,34 @@ impl Readable for SpendableOutputDescriptor {
 // TODO: We should remove Clone by instead requesting a new ChannelKeys copy when we create
 // ChannelMonitors instead of expecting to clone the one out of the Channel into the monitors.
 pub trait ChannelKeys : Send+Clone {
+	/// (C-not exported) due to references
 	/// Gets the private key for the anchor tx
 	fn funding_key<'a>(&'a self) -> &'a SecretKey;
 	/// Gets the local secret key for blinded revocation pubkey
+	/// (C-not exported) due to references
 	fn revocation_base_key<'a>(&'a self) -> &'a SecretKey;
 	/// Gets the local secret key used in the to_remote output of remote commitment tx (ie the
 	/// output to us in transactions our counterparty broadcasts).
 	/// Also as part of obscured commitment number.
+	/// (C-not exported) due to references
 	fn payment_key<'a>(&'a self) -> &'a SecretKey;
 	/// Gets the local secret key used in HTLC-Success/HTLC-Timeout txn and to_local output
+	/// (C-not exported) due to references
 	fn delayed_payment_base_key<'a>(&'a self) -> &'a SecretKey;
 	/// Gets the local htlc secret key used in commitment tx htlc outputs
+	/// (C-not exported) due to references
 	fn htlc_base_key<'a>(&'a self) -> &'a SecretKey;
 	/// Gets the commitment seed
+	/// (C-not exported) due to references
 	fn commitment_seed<'a>(&'a self) -> &'a [u8; 32];
 	/// Gets the local channel public keys and basepoints
+	/// (C-not exported) due to references
 	fn pubkeys<'a>(&'a self) -> &'a ChannelPublicKeys;
 
 	/// Create a signature for a remote commitment transaction and associated HTLC transactions.
 	///
 	/// Note that if signing fails or is rejected, the channel will be force-closed.
+	/// (C-not exported) due to references
 	//
 	// TODO: Document the things someone using this interface should enforce before signing.
 	// TODO: Add more input vars to enable better checking (preferably removing commitment_tx and
@@ -197,6 +205,7 @@ pub trait ChannelKeys : Send+Clone {
 	/// Create a signature for a local commitment transaction. This will only ever be called with
 	/// the same local_commitment_tx (or a copy thereof), though there are currently no guarantees
 	/// that it will not be called multiple times.
+	/// (C-not exported) due to references
 	//
 	// TODO: Document the things someone using this interface should enforce before signing.
 	// TODO: Add more input vars to enable better checking (preferably removing commitment_tx and
@@ -222,6 +231,7 @@ pub trait ChannelKeys : Send+Clone {
 	/// (implying they were considered dust at the time the commitment transaction was negotiated),
 	/// a corresponding None should be included in the return value. All other positions in the
 	/// return value must contain a signature.
+	/// (C-not exported) due to references
 	fn sign_local_commitment_htlc_transactions<T: secp256k1::Signing + secp256k1::Verification>(&self, local_commitment_tx: &LocalCommitmentTransaction, local_csv: u16, secp_ctx: &Secp256k1<T>) -> Result<Vec<Option<Signature>>, ()>;
 
 	/// Create a signature for a (proposed) closing transaction.
@@ -236,12 +246,14 @@ pub trait ChannelKeys : Send+Clone {
 	/// Note that if this fails or is rejected, the channel will not be publicly announced and
 	/// our counterparty may (though likely will not) close the channel on us for violating the
 	/// protocol.
+	/// (C-not exported) due to references
 	fn sign_channel_announcement<T: secp256k1::Signing>(&self, msg: &msgs::UnsignedChannelAnnouncement, secp_ctx: &Secp256k1<T>) -> Result<Signature, ()>;
 
 	/// Set the remote channel basepoints.  This is done immediately on incoming channels
 	/// and as soon as the channel is accepted on outgoing channels.
 	///
 	/// Will be called before any signatures are applied.
+	/// (C-not exported) due to references
 	fn set_remote_channel_pubkeys(&mut self, channel_points: &ChannelPublicKeys);
 }
 
@@ -253,13 +265,16 @@ pub trait KeysInterface: Send + Sync {
 	/// Get node secret key (aka node_id or network_key)
 	fn get_node_secret(&self) -> SecretKey;
 	/// Get destination redeemScript to encumber static protocol exit points.
+	/// (C-not exported) due to underlying Vec
 	fn get_destination_script(&self) -> Script;
 	/// Get shutdown_pubkey to use as PublicKey at channel closure
 	fn get_shutdown_pubkey(&self) -> PublicKey;
 	/// Get a new set of ChannelKeys for per-channel secrets. These MUST be unique even if you
 	/// restarted with some stale data!
+	/// (C-not exported) due to Self (though it *should* work...)
 	fn get_channel_keys(&self, inbound: bool, channel_value_satoshis: u64) -> Self::ChanKeySigner;
 	/// Get a secret and PRNG seed for constructing an onion packet
+	/// (C-not exported) due to tuple
 	fn get_onion_rand(&self) -> (SecretKey, [u8; 32]);
 	/// Get a unique temporary channel id. Channels will be referred to by this until the funding
 	/// transaction is created, at which point they will use the outpoint in the funding
