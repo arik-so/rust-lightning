@@ -87,6 +87,7 @@ pub enum SpendableOutputDescriptor {
 		/// the witness_script.
 		to_self_delay: u16,
 		/// The output which is referenced by the given outpoint
+		/// (C-not exported)
 		output: TxOut,
 		/// The channel keys state used to proceed to derivation of signing key. Must
 		/// be pass to KeysInterface::derive_channel_keys.
@@ -241,6 +242,7 @@ pub trait ChannelKeys : Send+Clone {
 	/// (implying they were considered dust at the time the commitment transaction was negotiated),
 	/// a corresponding None should be included in the return value. All other positions in the
 	/// return value must contain a signature.
+	/// (C-not exported) due to references
 	fn sign_local_commitment_htlc_transactions<T: secp256k1::Signing + secp256k1::Verification>(&self, local_commitment_tx: &LocalCommitmentTransaction, local_csv: u16, secp_ctx: &Secp256k1<T>) -> Result<Vec<Option<Signature>>, ()>;
 
 	/// Create a signature for the given input in a transaction spending an HTLC or commitment

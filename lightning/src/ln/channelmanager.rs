@@ -171,12 +171,15 @@ pub(super) enum HTLCFailReason {
 }
 
 /// payment_hash type, use to cross-lock hop
+/// (C-not exported) as we just use [u8; 32] directly
 #[derive(Hash, Copy, Clone, PartialEq, Eq, Debug)]
 pub struct PaymentHash(pub [u8;32]);
 /// payment_preimage type, use to route payment between hop
+/// (C-not exported) as we just use [u8; 32] directly
 #[derive(Hash, Copy, Clone, PartialEq, Eq, Debug)]
 pub struct PaymentPreimage(pub [u8;32]);
 /// payment_secret type, use to authenticate sender to the receiver and tie MPP HTLCs together
+/// (C-not exported) as we just use [u8; 32] directly
 #[derive(Hash, Copy, Clone, PartialEq, Eq, Debug)]
 pub struct PaymentSecret(pub [u8;32]);
 
@@ -2837,6 +2840,7 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref, L: Deref> 
 	/// If successful, will generate a UpdateHTLCs event, so you should probably poll
 	/// PeerManager::process_events afterwards.
 	/// Note: This API is likely to change!
+	/// (C-not exported) Cause its doc(hidden) anyway
 	#[doc(hidden)]
 	pub fn update_fee(&self, channel_id: [u8;32], feerate_per_kw: u64) -> Result<(), APIError> {
 		let _ = self.total_consistency_lock.read().unwrap();
@@ -3642,6 +3646,7 @@ impl<ChanSigner: ChannelKeys + Writeable, M: Deref, T: Deref, K: Deref, F: Deref
 /// 5) Move the ChannelMonitors into your local ManyChannelMonitor.
 /// 6) Disconnect/connect blocks on the ChannelManager.
 /// 7) Register the new ChannelManager with your ChainWatchInterface.
+/// (C-not exported) due to references
 pub struct ChannelManagerReadArgs<'a, ChanSigner: 'a + ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref, L: Deref>
 	where M::Target: ManyChannelMonitor<Keys=ChanSigner>,
         T::Target: BroadcasterInterface,
