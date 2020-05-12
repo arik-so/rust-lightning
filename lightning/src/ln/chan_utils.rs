@@ -560,6 +560,7 @@ impl LocalCommitmentTransaction {
 
 	/// Get the txid of the local commitment transaction contained in this
 	/// LocalCommitmentTransaction
+	/// (C-not exported)
 	pub fn txid(&self) -> Txid {
 		self.unsigned_tx.txid()
 	}
@@ -603,6 +604,7 @@ impl LocalCommitmentTransaction {
 	/// The returned Vec has one entry for each HTLC, and in the same order. For HTLCs which were
 	/// considered dust and not included, a None entry exists, for all others a signature is
 	/// included.
+	/// (C-not exported) due to Option in a Vec in a Result
 	pub fn get_htlc_sigs<T: secp256k1::Signing + secp256k1::Verification>(&self, htlc_base_key: &SecretKey, local_csv: u16, secp_ctx: &Secp256k1<T>) -> Result<Vec<Option<Signature>>, ()> {
 		let txid = self.txid();
 		let mut ret = Vec::with_capacity(self.per_htlc.len());

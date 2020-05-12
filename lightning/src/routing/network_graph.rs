@@ -58,6 +58,7 @@ impl<C: Deref, L: Deref> NetGraphMsgHandler<C, L> where C::Target: ChainWatchInt
 
 	/// Creates a new tracker of the actual state of the network of channels and nodes,
 	/// assuming an existing Network Graph.
+	/// (C-not exported) due to RwLock
 	pub fn from_net_graph(chain_monitor: C, logger: L, network_graph: RwLock<NetworkGraph>) -> Self {
 		NetGraphMsgHandler {
 			secp_ctx: Secp256k1::verification_only(),
@@ -220,6 +221,7 @@ pub struct DirectionalChannelInfo {
 	/// Mostly redundant with the data we store in fields explicitly.
 	/// Everything else is useful only for sending out for initial routing sync.
 	/// Not stored if contains excess data to prevent DoS.
+	/// (C-not exported) due to bugz
 	pub last_update_message: Option<msgs::ChannelUpdate>,
 }
 
@@ -257,6 +259,7 @@ pub struct ChannelInfo {
 	/// Mostly redundant with the data we store in fields explicitly.
 	/// Everything else is useful only for sending out for initial routing sync.
 	/// Not stored if contains excess data to prevent DoS.
+	/// (C-not exported) due to bugz
 	pub announcement_message: Option<msgs::ChannelAnnouncement>,
 }
 
@@ -327,6 +330,7 @@ pub struct NodeAnnouncementInfo {
 	/// Mostly redundant with the data we store in fields explicitly.
 	/// Everything else is useful only for sending out for initial routing sync.
 	/// Not stored if contains excess data to prevent DoS.
+	/// (C-not exported) due to bugz
 	pub announcement_message: Option<msgs::NodeAnnouncement>
 }
 
@@ -489,13 +493,16 @@ impl std::fmt::Display for NetworkGraph {
 
 impl NetworkGraph {
 	/// Returns all known valid channels' short ids along with announced channel info.
+	/// (C-not exported) due to BTreeMap
 	pub fn get_channels<'a>(&'a self) -> &'a BTreeMap<u64, ChannelInfo> { &self.channels }
 	/// Returns all known nodes' public keys along with announced node info.
+	/// (C-not exported) due to BTreeMap
 	pub fn get_nodes<'a>(&'a self) -> &'a BTreeMap<PublicKey, NodeInfo> { &self.nodes }
 
 	/// Get network addresses by node id.
 	/// Returns None if the requested node is completely unknown,
 	/// or if node announcement for the node was never received.
+	/// (C-not exported) due to Vec in Option
 	pub fn get_addresses<'a>(&'a self, pubkey: &PublicKey) -> Option<&'a Vec<NetAddress>> {
 		if let Some(node) = self.nodes.get(pubkey) {
 			if let Some(node_info) = node.announcement_info.as_ref() {

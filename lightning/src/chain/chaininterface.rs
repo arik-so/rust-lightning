@@ -42,6 +42,7 @@ pub trait ChainWatchInterface: Sync + Send {
 
 	/// Provides an outpoint which must be watched for, providing any transactions which spend the
 	/// given outpoint.
+	/// (C-not exported) due to tuples
 	fn install_watch_outpoint(&self, outpoint: (Txid, u32), out_script: &Script);
 
 	/// Indicates that a listener needs to see all transactions.
@@ -55,6 +56,7 @@ pub trait ChainWatchInterface: Sync + Send {
 
 	/// Gets the list of transactions and transaction indices that the ChainWatchInterface is
 	/// watching for.
+	/// (C-not exported) due to tuples
 	fn filter_block<'a>(&self, block: &'a Block) -> (Vec<&'a Transaction>, Vec<u32>);
 
 	/// Returns a usize that changes when the ChainWatchInterface's watched data is modified.
@@ -86,6 +88,7 @@ pub trait ChainListener: Sync + Send {
 	///
 	/// This also means those counting confirmations using block_connected callbacks should watch
 	/// for duplicate headers and not count them towards confirmations!
+	/// (C-not exported) due to slice
 	fn block_connected(&self, header: &BlockHeader, height: u32, txn_matched: &[&Transaction], indexes_of_txn_matched: &[u32]);
 	/// Notifies a listener that a block was disconnected.
 	/// Unlike block_connected, this *must* never be called twice for the same disconnect event.
@@ -167,6 +170,7 @@ impl ChainWatchedUtil {
 
 	/// Registers an outpoint for monitoring, returning true if it was a new outpoint and false if
 	/// we'd already been watching for it
+	/// (C-not exported) due to tuples
 	pub fn register_outpoint(&mut self, outpoint: (Txid, u32), _script_pub_key: &Script) -> bool {
 		if self.watch_all { return false; }
 		self.watched_outpoints.insert(outpoint)
@@ -218,6 +222,7 @@ impl ChainWatchedUtil {
 /// parameters with static lifetimes). Other times you can afford a reference, which is more
 /// efficient, in which case BlockNotifierRef is a more appropriate type. Defining these type
 /// aliases prevents issues such as overly long function definitions.
+/// (C-not exported)
 pub type BlockNotifierArc<C> = Arc<BlockNotifier<'static, Arc<ChainListener>, C>>;
 
 /// BlockNotifierRef is useful when you want a BlockNotifier that points to ChainListeners
@@ -265,6 +270,7 @@ impl<'a, CL: Deref + 'a, C: Deref> BlockNotifier<'a, CL, C>
 	/// If the same listener is registered multiple times, unregistering
 	/// will remove ALL occurrences of that listener. Comparison is done using
 	/// the pointer returned by the Deref trait implementation.
+	/// (C-not exported) because the equality check would always fail
 	pub fn unregister_listener(&self, listener: CL) {
 		let mut vec = self.listeners.lock().unwrap();
 		// item is a ref to an abstract thing that dereferences to a ChainListener,
@@ -276,6 +282,7 @@ impl<'a, CL: Deref + 'a, C: Deref> BlockNotifier<'a, CL, C>
 	///
 	/// Handles re-scanning the block and calling block_connected again if listeners register new
 	/// watch data during the callbacks for you (see ChainListener::block_connected for more info).
+	/// (C-not exported) due to Block
 	pub fn block_connected<'b>(&self, block: &'b Block, height: u32) {
 		let mut reentered = true;
 		while reentered {
@@ -290,6 +297,7 @@ impl<'a, CL: Deref + 'a, C: Deref> BlockNotifier<'a, CL, C>
 	/// Returns true if notified listeners registered additional watch data (implying that the
 	/// block must be re-scanned and this function called again prior to further block_connected
 	/// calls, see ChainListener::block_connected for more info).
+	/// (C-not exported) due to slice
 	pub fn block_connected_checked(&self, header: &BlockHeader, height: u32, txn_matched: &[&Transaction], indexes_of_txn_matched: &[u32]) -> bool {
 		let last_seen = self.chain_monitor.reentered();
 
