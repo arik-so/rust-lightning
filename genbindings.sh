@@ -1,5 +1,6 @@
 #!/bin/bash
 
+rm lightning-c-bindings/src/{ln,util,chain,routing}/*
 set -e
 cd c-bindings-gen && cargo build && cd ..
 GEN="$(pwd)/c-bindings-gen/target/debug/c-bindings-gen"
@@ -8,7 +9,6 @@ OUT="$(pwd)/lightning-c-bindings/src"
 OUT_F="$(pwd)/lightning-c-bindings/include/rust_types.h"
 echo > $OUT_F
 
-rm lightning-c-bindings/src/{ln,util,chain,routing}/*
 RUST_BACKTRACE=1 $GEN $SRC/ $OUT/ lightning "" $OUT_F
 
 cd lightning-c-bindings

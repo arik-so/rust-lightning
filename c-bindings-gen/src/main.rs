@@ -48,7 +48,7 @@ fn println_docs<W: std::io::Write>(w: &mut W, attrs: &[syn::Attribute], prefix: 
 	}
 }
 
-fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, associated_types: &HashMap<&syn::Ident, &syn::Ident>, this_param: &str, types: &TypeResolver, generics: Option<&GenericTypes>) {
+fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, associated_types: &HashMap<&syn::Ident, &syn::Ident>, this_param: &str, types: &TypeResolver, generics: Option<&GenericTypes>, self_ptr: bool) {
 	if sig.constness.is_some() || sig.asyncness.is_some() || sig.unsafety.is_some() ||
 			sig.abi.is_some() || sig.variadic.is_some() || sig.generics.where_clause.is_some() {
 		unimplemented!();
@@ -71,7 +71,9 @@ fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, assoc
 			syn::FnArg::Receiver(recv) => {
 				if !recv.attrs.is_empty() || recv.reference.is_none() { unimplemented!(); }
 				if recv.reference.as_ref().unwrap().1.is_some() { unimplemented!(); }
-				write!(w, "this_arg: *{} {}", if recv.mutability.is_some() { "mut" } else { "const" }, this_param).unwrap();
+				write!(w, "this_arg: {}{} {}",
+					if self_ptr && recv.mutability.is_some() { "*" } else if self_ptr { "*const " } else { "&" },
+					if recv.mutability.is_some() { "mut " } else { "" }, this_param).unwrap();
 				assert!(first_arg);
 				first_arg = false;
 			},
@@ -89,7 +91,7 @@ fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, assoc
 					}
 					_ => unimplemented!(),
 				}
-				types.print_c_type(w, &*arg.ty, generics);
+				types.print_c_type(w, &*arg.ty, generics, false);
 			}
 		}
 	}
@@ -105,12 +107,12 @@ fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, assoc
 							ident: (*real_type).clone(),
 							arguments: syn::PathArguments::None
 						}.into()
-					}), generics);
+					}), generics, true);
 				} else {
 					write!(w, "{}", this_param).unwrap();
 				}
 			} else {
-				types.print_c_type(w, &*rtype, generics);
+				types.print_c_type(w, &*rtype, generics, true);
 			}
 		},
 		_ => {},
@@ -153,7 +155,7 @@ fn print_method_var_decl_body<W: std::io::Write>(w: &mut W, sig: &syn::Signature
 				if first_seg_self(&*rtype).is_some() {
 					write!(w, "let ret = ").unwrap();
 				} else {
-					types.print_to_c_conversion_inline_prefix(w, &*rtype, generics);
+					types.print_to_c_conversion_inline_prefix(w, &*rtype, generics, true);
 				}
 			}
 		},
@@ -187,9 +189,9 @@ fn print_method_call_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, 
 						}
 						first_arg = false;
 						if to_c {
-							types.print_to_c_conversion_inline_prefix(w, &*arg.ty, generics);
+							types.print_to_c_conversion_inline_prefix(w, &*arg.ty, generics, false);
 							write!(w, "{}", ident.ident).unwrap();
-							types.print_to_c_conversion_inline_suffix(w, &*arg.ty, generics);
+							types.print_to_c_conversion_inline_suffix(w, &*arg.ty, generics, false);
 						} else {
 							types.print_from_c_conversion_prefix(w, &*arg.ty, generics);
 							write!(w, "{}", ident.ident).unwrap();
@@ -210,7 +212,7 @@ fn print_method_call_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, 
 				if first_seg_self(&*rtype).is_some() {
 					write!(w, ";\n\t{} {{ inner: Box::into_raw(Box::new(ret)) }}", this_type).unwrap();
 				} else {
-					types.print_to_c_conversion_inline_suffix(w, &*rtype, generics);
+					types.print_to_c_conversion_inline_suffix(w, &*rtype, generics, true);
 				}
 			}
 		}
@@ -303,7 +305,7 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, module
 				if m.default.is_some() { unimplemented!(); }
 				println_docs(w, &m.attrs, "\t");
 				write!(w, "\tpub {}: extern \"C\" fn (", m.sig.ident).unwrap();
-				print_method_params(w, &m.sig, &associated_types, "c_void", types, None);
+				print_method_params(w, &m.sig, &associated_types, "c_void", types, None, true);
 				write!(w, ",\n").unwrap();
 			},
 			&syn::TraitItem::Type(ref t) => {
@@ -498,24 +500,24 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, module_path
 						and_token: syn::Token!(&)(Span::call_site()), lifetime: None, mutability: None,
 						elem: Box::new(field.ty.clone()) });
 					if types.understood_c_type(&ref_type, Some(&gen_types)) {
-						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_get_{}(this_ptr: *const {}) -> ", struct_name, ident, struct_name).unwrap();
-						types.print_c_type(w, &ref_type, Some(&gen_types));
+						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_get_{}(this_ptr: &{}) -> ", struct_name, ident, struct_name).unwrap();
+						types.print_c_type(w, &ref_type, Some(&gen_types), true);
 						write!(w, " {{\n\t").unwrap();
 						types.print_to_c_conversion_new_var(w, &ident, &ref_type, Some(&gen_types));
-						types.print_to_c_conversion_inline_prefix(w, &ref_type, Some(&gen_types));
-						write!(w, "&unsafe {{ &*(*this_ptr).inner }}.{}", ident).unwrap();
-						types.print_to_c_conversion_inline_suffix(w, &ref_type, Some(&gen_types));
+						types.print_to_c_conversion_inline_prefix(w, &ref_type, Some(&gen_types), true);
+						write!(w, "&unsafe {{ &*this_ptr.inner }}.{}", ident).unwrap();
+						types.print_to_c_conversion_inline_suffix(w, &ref_type, Some(&gen_types), true);
 						write!(w, "\n}}\n").unwrap();
 					}
 
 					if types.understood_c_type(&field.ty, Some(&gen_types)) {
-						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_set_{}(this_ptr: *mut {}, val: ", struct_name, ident, struct_name).unwrap();
-						types.print_c_type(w, &field.ty, Some(&gen_types));
+						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_set_{}(this_ptr: &mut {}, val: ", struct_name, ident, struct_name).unwrap();
+						types.print_c_type(w, &field.ty, Some(&gen_types), false);
 						write!(w, ") {{\n\t").unwrap();
 						if types.print_from_c_conversion_new_var(w, &ident, &field.ty, Some(&gen_types)) {
 							write!(w, "\n\t").unwrap();
 						}
-						write!(w, "unsafe {{ &mut *((*this_ptr).inner as *mut ln{}) }}.{} = ", s.ident, ident).unwrap();
+						write!(w, "unsafe {{ &mut *(this_ptr.inner as *mut ln{}) }}.{} = ", s.ident, ident).unwrap();
 						types.print_from_c_conversion_prefix(w, &field.ty, Some(&gen_types));
 						write!(w, "val").unwrap();
 						types.print_from_c_conversion_suffix(w, &field.ty, Some(&gen_types));
@@ -531,7 +533,7 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, module_path
 			for (idx, field) in fields.named.iter().enumerate() {
 				if idx != 0 { write!(w, ", ").unwrap(); }
 				write!(w, "{}_arg: ", field.ident.as_ref().unwrap()).unwrap();
-				types.print_c_type(w, &field.ty, Some(&gen_types));
+				types.print_c_type(w, &field.ty, Some(&gen_types), false);
 			}
 			write!(w, ") -> {} {{\n\t", struct_name).unwrap();
 			for field in fields.named.iter() {
@@ -591,7 +593,7 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 										DeclType::StructImported(newname) => format!("{}", newname),
 										_ => unimplemented!(),
 									};
-									print_method_params(w, &m.sig, &HashMap::new(), &ret_type, types, Some(&gen_types));
+									print_method_params(w, &m.sig, &HashMap::new(), &ret_type, types, Some(&gen_types), false);
 									write!(w, " {{\n\t").unwrap();
 									print_method_var_decl_body(w, &m.sig, "", types, Some(&gen_types), false);
 									let mut takes_self = false;
@@ -601,7 +603,7 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 										}
 									}
 									if takes_self {
-										write!(w, "unsafe {{ &*(*this_arg).inner }}.{}(", m.sig.ident).unwrap();
+										write!(w, "unsafe {{ &*this_arg.inner }}.{}(", m.sig.ident).unwrap();
 									} else {
 										write!(w, "lightning::{}::{}(", resolved_path, m.sig.ident).unwrap();
 									}

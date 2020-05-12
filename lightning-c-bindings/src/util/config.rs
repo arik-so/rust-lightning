@@ -38,16 +38,16 @@ pub extern "C" fn ChannelHandshakeConfig_free(this_ptr: ChannelHandshakeConfig) 
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelHandshakeConfig) };
 }
 #[no_mangle]
-pub extern "C" fn ChannelHandshakeConfig_set_minimum_depth(this_ptr: *mut ChannelHandshakeConfig, val: u32) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelHandshakeConfig) }.minimum_depth = val;
+pub extern "C" fn ChannelHandshakeConfig_set_minimum_depth(this_ptr: &mut ChannelHandshakeConfig, val: u32) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeConfig) }.minimum_depth = val;
 }
 #[no_mangle]
-pub extern "C" fn ChannelHandshakeConfig_set_our_to_self_delay(this_ptr: *mut ChannelHandshakeConfig, val: u16) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelHandshakeConfig) }.our_to_self_delay = val;
+pub extern "C" fn ChannelHandshakeConfig_set_our_to_self_delay(this_ptr: &mut ChannelHandshakeConfig, val: u16) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeConfig) }.our_to_self_delay = val;
 }
 #[no_mangle]
-pub extern "C" fn ChannelHandshakeConfig_set_our_htlc_minimum_msat(this_ptr: *mut ChannelHandshakeConfig, val: u64) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelHandshakeConfig) }.our_htlc_minimum_msat = val;
+pub extern "C" fn ChannelHandshakeConfig_set_our_htlc_minimum_msat(this_ptr: &mut ChannelHandshakeConfig, val: u64) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeConfig) }.our_htlc_minimum_msat = val;
 }
 #[no_mangle]
 pub extern "C" fn ChannelHandshakeConfig_new(minimum_depth_arg: u32, our_to_self_delay_arg: u16, our_htlc_minimum_msat_arg: u64) -> ChannelHandshakeConfig {
@@ -82,44 +82,44 @@ pub extern "C" fn ChannelHandshakeLimits_free(this_ptr: ChannelHandshakeLimits) 
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelHandshakeLimits) };
 }
 #[no_mangle]
-pub extern "C" fn ChannelHandshakeLimits_set_min_funding_satoshis(this_ptr: *mut ChannelHandshakeLimits, val: u64) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelHandshakeLimits) }.min_funding_satoshis = val;
+pub extern "C" fn ChannelHandshakeLimits_set_min_funding_satoshis(this_ptr: &mut ChannelHandshakeLimits, val: u64) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeLimits) }.min_funding_satoshis = val;
 }
 #[no_mangle]
-pub extern "C" fn ChannelHandshakeLimits_set_max_htlc_minimum_msat(this_ptr: *mut ChannelHandshakeLimits, val: u64) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelHandshakeLimits) }.max_htlc_minimum_msat = val;
+pub extern "C" fn ChannelHandshakeLimits_set_max_htlc_minimum_msat(this_ptr: &mut ChannelHandshakeLimits, val: u64) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeLimits) }.max_htlc_minimum_msat = val;
 }
 #[no_mangle]
-pub extern "C" fn ChannelHandshakeLimits_set_min_max_htlc_value_in_flight_msat(this_ptr: *mut ChannelHandshakeLimits, val: u64) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelHandshakeLimits) }.min_max_htlc_value_in_flight_msat = val;
+pub extern "C" fn ChannelHandshakeLimits_set_min_max_htlc_value_in_flight_msat(this_ptr: &mut ChannelHandshakeLimits, val: u64) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeLimits) }.min_max_htlc_value_in_flight_msat = val;
 }
 #[no_mangle]
-pub extern "C" fn ChannelHandshakeLimits_set_max_channel_reserve_satoshis(this_ptr: *mut ChannelHandshakeLimits, val: u64) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelHandshakeLimits) }.max_channel_reserve_satoshis = val;
+pub extern "C" fn ChannelHandshakeLimits_set_max_channel_reserve_satoshis(this_ptr: &mut ChannelHandshakeLimits, val: u64) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeLimits) }.max_channel_reserve_satoshis = val;
 }
 #[no_mangle]
-pub extern "C" fn ChannelHandshakeLimits_set_min_max_accepted_htlcs(this_ptr: *mut ChannelHandshakeLimits, val: u16) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelHandshakeLimits) }.min_max_accepted_htlcs = val;
+pub extern "C" fn ChannelHandshakeLimits_set_min_max_accepted_htlcs(this_ptr: &mut ChannelHandshakeLimits, val: u16) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeLimits) }.min_max_accepted_htlcs = val;
 }
 #[no_mangle]
-pub extern "C" fn ChannelHandshakeLimits_set_min_dust_limit_satoshis(this_ptr: *mut ChannelHandshakeLimits, val: u64) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelHandshakeLimits) }.min_dust_limit_satoshis = val;
+pub extern "C" fn ChannelHandshakeLimits_set_min_dust_limit_satoshis(this_ptr: &mut ChannelHandshakeLimits, val: u64) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeLimits) }.min_dust_limit_satoshis = val;
 }
 #[no_mangle]
-pub extern "C" fn ChannelHandshakeLimits_set_max_dust_limit_satoshis(this_ptr: *mut ChannelHandshakeLimits, val: u64) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelHandshakeLimits) }.max_dust_limit_satoshis = val;
+pub extern "C" fn ChannelHandshakeLimits_set_max_dust_limit_satoshis(this_ptr: &mut ChannelHandshakeLimits, val: u64) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeLimits) }.max_dust_limit_satoshis = val;
 }
 #[no_mangle]
-pub extern "C" fn ChannelHandshakeLimits_set_max_minimum_depth(this_ptr: *mut ChannelHandshakeLimits, val: u32) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelHandshakeLimits) }.max_minimum_depth = val;
+pub extern "C" fn ChannelHandshakeLimits_set_max_minimum_depth(this_ptr: &mut ChannelHandshakeLimits, val: u32) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeLimits) }.max_minimum_depth = val;
 }
 #[no_mangle]
-pub extern "C" fn ChannelHandshakeLimits_set_force_announced_channel_preference(this_ptr: *mut ChannelHandshakeLimits, val: bool) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelHandshakeLimits) }.force_announced_channel_preference = val;
+pub extern "C" fn ChannelHandshakeLimits_set_force_announced_channel_preference(this_ptr: &mut ChannelHandshakeLimits, val: bool) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeLimits) }.force_announced_channel_preference = val;
 }
 #[no_mangle]
-pub extern "C" fn ChannelHandshakeLimits_set_their_to_self_delay(this_ptr: *mut ChannelHandshakeLimits, val: u16) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelHandshakeLimits) }.their_to_self_delay = val;
+pub extern "C" fn ChannelHandshakeLimits_set_their_to_self_delay(this_ptr: &mut ChannelHandshakeLimits, val: u16) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeLimits) }.their_to_self_delay = val;
 }
 #[no_mangle]
 pub extern "C" fn ChannelHandshakeLimits_new(min_funding_satoshis_arg: u64, max_htlc_minimum_msat_arg: u64, min_max_htlc_value_in_flight_msat_arg: u64, max_channel_reserve_satoshis_arg: u64, min_max_accepted_htlcs_arg: u16, min_dust_limit_satoshis_arg: u64, max_dust_limit_satoshis_arg: u64, max_minimum_depth_arg: u32, force_announced_channel_preference_arg: bool, their_to_self_delay_arg: u16) -> ChannelHandshakeLimits {
@@ -152,16 +152,16 @@ pub extern "C" fn ChannelConfig_free(this_ptr: ChannelConfig) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelConfig) };
 }
 #[no_mangle]
-pub extern "C" fn ChannelConfig_set_fee_proportional_millionths(this_ptr: *mut ChannelConfig, val: u32) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelConfig) }.fee_proportional_millionths = val;
+pub extern "C" fn ChannelConfig_set_fee_proportional_millionths(this_ptr: &mut ChannelConfig, val: u32) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelConfig) }.fee_proportional_millionths = val;
 }
 #[no_mangle]
-pub extern "C" fn ChannelConfig_set_announced_channel(this_ptr: *mut ChannelConfig, val: bool) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelConfig) }.announced_channel = val;
+pub extern "C" fn ChannelConfig_set_announced_channel(this_ptr: &mut ChannelConfig, val: bool) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelConfig) }.announced_channel = val;
 }
 #[no_mangle]
-pub extern "C" fn ChannelConfig_set_commit_upfront_shutdown_pubkey(this_ptr: *mut ChannelConfig, val: bool) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelConfig) }.commit_upfront_shutdown_pubkey = val;
+pub extern "C" fn ChannelConfig_set_commit_upfront_shutdown_pubkey(this_ptr: &mut ChannelConfig, val: bool) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelConfig) }.commit_upfront_shutdown_pubkey = val;
 }
 #[no_mangle]
 pub extern "C" fn ChannelConfig_new(fee_proportional_millionths_arg: u32, announced_channel_arg: bool, commit_upfront_shutdown_pubkey_arg: bool) -> ChannelConfig {

@@ -22,16 +22,16 @@ pub extern "C" fn OutPoint_free(this_ptr: OutPoint) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnOutPoint) };
 }
 #[no_mangle]
-pub extern "C" fn OutPoint_get_txid(this_ptr: *const OutPoint) -> *const [u8; 32] {
-	&unsafe { &*(*this_ptr).inner }.txid.into_inner()
+pub extern "C" fn OutPoint_get_txid(this_ptr: &OutPoint) -> *const [u8; 32] {
+	&unsafe { &*this_ptr.inner }.txid.into_inner()
 }
 #[no_mangle]
-pub extern "C" fn OutPoint_set_txid(this_ptr: *mut OutPoint, val: [u8; 32]) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnOutPoint) }.txid = ::bitcoin::hash_types::Txid::from_slice(&val[..]).unwrap();
+pub extern "C" fn OutPoint_set_txid(this_ptr: &mut OutPoint, val: [u8; 32]) {
+	unsafe { &mut *(this_ptr.inner as *mut lnOutPoint) }.txid = ::bitcoin::hash_types::Txid::from_slice(&val[..]).unwrap();
 }
 #[no_mangle]
-pub extern "C" fn OutPoint_set_index(this_ptr: *mut OutPoint, val: u16) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnOutPoint) }.index = val;
+pub extern "C" fn OutPoint_set_index(this_ptr: &mut OutPoint, val: u16) {
+	unsafe { &mut *(this_ptr.inner as *mut lnOutPoint) }.index = val;
 }
 #[no_mangle]
 pub extern "C" fn OutPoint_new(txid_arg: [u8; 32], index_arg: u16) -> OutPoint {
@@ -42,7 +42,7 @@ pub extern "C" fn OutPoint_new(txid_arg: [u8; 32], index_arg: u16) -> OutPoint {
 }
 /// " Convert an `OutPoint` to a lightning channel id."
 #[no_mangle]
-pub extern "C" fn OutPoint_to_channel_id(this_arg: *const OutPoint) -> crate::c_types::ThirtyTwoBytes {
-	crate::c_types::ThirtyTwoBytes { data: unsafe { &*(*this_arg).inner }.to_channel_id() }
+pub extern "C" fn OutPoint_to_channel_id(this_arg: & OutPoint) -> crate::c_types::ThirtyTwoBytes {
+	crate::c_types::ThirtyTwoBytes { data: unsafe { &*this_arg.inner }.to_channel_id() }
 }
 

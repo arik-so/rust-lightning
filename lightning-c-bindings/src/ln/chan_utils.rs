@@ -42,12 +42,12 @@ pub extern "C" fn TxCreationKeys_free(this_ptr: TxCreationKeys) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnTxCreationKeys) };
 }
 #[no_mangle]
-pub extern "C" fn TxCreationKeys_get_per_commitment_point(this_ptr: *const TxCreationKeys) -> crate::c_types::PublicKey {
-	crate::c_types::PublicKey::from_rust(&&unsafe { &*(*this_ptr).inner }.per_commitment_point)
+pub extern "C" fn TxCreationKeys_get_per_commitment_point(this_ptr: &TxCreationKeys) -> crate::c_types::PublicKey {
+	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.per_commitment_point)
 }
 #[no_mangle]
-pub extern "C" fn TxCreationKeys_set_per_commitment_point(this_ptr: *mut TxCreationKeys, val: crate::c_types::PublicKey) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnTxCreationKeys) }.per_commitment_point = val.into_rust();
+pub extern "C" fn TxCreationKeys_set_per_commitment_point(this_ptr: &mut TxCreationKeys, val: crate::c_types::PublicKey) {
+	unsafe { &mut *(this_ptr.inner as *mut lnTxCreationKeys) }.per_commitment_point = val.into_rust();
 }
 
 use lightning::ln::chan_utils::ChannelPublicKeys as lnChannelPublicKeysImport;
@@ -64,44 +64,44 @@ pub extern "C" fn ChannelPublicKeys_free(this_ptr: ChannelPublicKeys) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelPublicKeys) };
 }
 #[no_mangle]
-pub extern "C" fn ChannelPublicKeys_get_funding_pubkey(this_ptr: *const ChannelPublicKeys) -> crate::c_types::PublicKey {
-	crate::c_types::PublicKey::from_rust(&&unsafe { &*(*this_ptr).inner }.funding_pubkey)
+pub extern "C" fn ChannelPublicKeys_get_funding_pubkey(this_ptr: &ChannelPublicKeys) -> crate::c_types::PublicKey {
+	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.funding_pubkey)
 }
 #[no_mangle]
-pub extern "C" fn ChannelPublicKeys_set_funding_pubkey(this_ptr: *mut ChannelPublicKeys, val: crate::c_types::PublicKey) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelPublicKeys) }.funding_pubkey = val.into_rust();
+pub extern "C" fn ChannelPublicKeys_set_funding_pubkey(this_ptr: &mut ChannelPublicKeys, val: crate::c_types::PublicKey) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelPublicKeys) }.funding_pubkey = val.into_rust();
 }
 #[no_mangle]
-pub extern "C" fn ChannelPublicKeys_get_revocation_basepoint(this_ptr: *const ChannelPublicKeys) -> crate::c_types::PublicKey {
-	crate::c_types::PublicKey::from_rust(&&unsafe { &*(*this_ptr).inner }.revocation_basepoint)
+pub extern "C" fn ChannelPublicKeys_get_revocation_basepoint(this_ptr: &ChannelPublicKeys) -> crate::c_types::PublicKey {
+	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.revocation_basepoint)
 }
 #[no_mangle]
-pub extern "C" fn ChannelPublicKeys_set_revocation_basepoint(this_ptr: *mut ChannelPublicKeys, val: crate::c_types::PublicKey) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelPublicKeys) }.revocation_basepoint = val.into_rust();
+pub extern "C" fn ChannelPublicKeys_set_revocation_basepoint(this_ptr: &mut ChannelPublicKeys, val: crate::c_types::PublicKey) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelPublicKeys) }.revocation_basepoint = val.into_rust();
 }
 #[no_mangle]
-pub extern "C" fn ChannelPublicKeys_get_payment_point(this_ptr: *const ChannelPublicKeys) -> crate::c_types::PublicKey {
-	crate::c_types::PublicKey::from_rust(&&unsafe { &*(*this_ptr).inner }.payment_point)
+pub extern "C" fn ChannelPublicKeys_get_payment_point(this_ptr: &ChannelPublicKeys) -> crate::c_types::PublicKey {
+	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.payment_point)
 }
 #[no_mangle]
-pub extern "C" fn ChannelPublicKeys_set_payment_point(this_ptr: *mut ChannelPublicKeys, val: crate::c_types::PublicKey) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelPublicKeys) }.payment_point = val.into_rust();
+pub extern "C" fn ChannelPublicKeys_set_payment_point(this_ptr: &mut ChannelPublicKeys, val: crate::c_types::PublicKey) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelPublicKeys) }.payment_point = val.into_rust();
 }
 #[no_mangle]
-pub extern "C" fn ChannelPublicKeys_get_delayed_payment_basepoint(this_ptr: *const ChannelPublicKeys) -> crate::c_types::PublicKey {
-	crate::c_types::PublicKey::from_rust(&&unsafe { &*(*this_ptr).inner }.delayed_payment_basepoint)
+pub extern "C" fn ChannelPublicKeys_get_delayed_payment_basepoint(this_ptr: &ChannelPublicKeys) -> crate::c_types::PublicKey {
+	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.delayed_payment_basepoint)
 }
 #[no_mangle]
-pub extern "C" fn ChannelPublicKeys_set_delayed_payment_basepoint(this_ptr: *mut ChannelPublicKeys, val: crate::c_types::PublicKey) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelPublicKeys) }.delayed_payment_basepoint = val.into_rust();
+pub extern "C" fn ChannelPublicKeys_set_delayed_payment_basepoint(this_ptr: &mut ChannelPublicKeys, val: crate::c_types::PublicKey) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelPublicKeys) }.delayed_payment_basepoint = val.into_rust();
 }
 #[no_mangle]
-pub extern "C" fn ChannelPublicKeys_get_htlc_basepoint(this_ptr: *const ChannelPublicKeys) -> crate::c_types::PublicKey {
-	crate::c_types::PublicKey::from_rust(&&unsafe { &*(*this_ptr).inner }.htlc_basepoint)
+pub extern "C" fn ChannelPublicKeys_get_htlc_basepoint(this_ptr: &ChannelPublicKeys) -> crate::c_types::PublicKey {
+	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.htlc_basepoint)
 }
 #[no_mangle]
-pub extern "C" fn ChannelPublicKeys_set_htlc_basepoint(this_ptr: *mut ChannelPublicKeys, val: crate::c_types::PublicKey) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnChannelPublicKeys) }.htlc_basepoint = val.into_rust();
+pub extern "C" fn ChannelPublicKeys_set_htlc_basepoint(this_ptr: &mut ChannelPublicKeys, val: crate::c_types::PublicKey) {
+	unsafe { &mut *(this_ptr.inner as *mut lnChannelPublicKeys) }.htlc_basepoint = val.into_rust();
 }
 #[no_mangle]
 pub extern "C" fn ChannelPublicKeys_new(funding_pubkey_arg: crate::c_types::PublicKey, revocation_basepoint_arg: crate::c_types::PublicKey, payment_point_arg: crate::c_types::PublicKey, delayed_payment_basepoint_arg: crate::c_types::PublicKey, htlc_basepoint_arg: crate::c_types::PublicKey) -> ChannelPublicKeys {
@@ -128,14 +128,14 @@ pub extern "C" fn HTLCOutputInCommitment_free(this_ptr: HTLCOutputInCommitment) 
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnHTLCOutputInCommitment) };
 }
 #[no_mangle]
-pub extern "C" fn HTLCOutputInCommitment_set_offered(this_ptr: *mut HTLCOutputInCommitment, val: bool) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnHTLCOutputInCommitment) }.offered = val;
+pub extern "C" fn HTLCOutputInCommitment_set_offered(this_ptr: &mut HTLCOutputInCommitment, val: bool) {
+	unsafe { &mut *(this_ptr.inner as *mut lnHTLCOutputInCommitment) }.offered = val;
 }
 #[no_mangle]
-pub extern "C" fn HTLCOutputInCommitment_set_amount_msat(this_ptr: *mut HTLCOutputInCommitment, val: u64) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnHTLCOutputInCommitment) }.amount_msat = val;
+pub extern "C" fn HTLCOutputInCommitment_set_amount_msat(this_ptr: &mut HTLCOutputInCommitment, val: u64) {
+	unsafe { &mut *(this_ptr.inner as *mut lnHTLCOutputInCommitment) }.amount_msat = val;
 }
 #[no_mangle]
-pub extern "C" fn HTLCOutputInCommitment_set_cltv_expiry(this_ptr: *mut HTLCOutputInCommitment, val: u32) {
-	unsafe { &mut *((*this_ptr).inner as *mut lnHTLCOutputInCommitment) }.cltv_expiry = val;
+pub extern "C" fn HTLCOutputInCommitment_set_cltv_expiry(this_ptr: &mut HTLCOutputInCommitment, val: u32) {
+	unsafe { &mut *(this_ptr.inner as *mut lnHTLCOutputInCommitment) }.cltv_expiry = val;
 }
