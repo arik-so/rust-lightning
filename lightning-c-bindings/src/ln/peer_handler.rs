@@ -18,9 +18,8 @@ use lightning::ln::peer_handler::MessageHandler as lnMessageHandlerImport;
 type lnMessageHandler = lnMessageHandlerImport<crate::ln::msgs::ChannelMessageHandler, crate::ln::msgs::RoutingMessageHandler>;
 
 /// " Provides references to trait impls which handle different types of messages."
-#[repr(C)]
 pub struct MessageHandler {
-	pub(crate) inner: *const lnMessageHandler,
+	pub(crate) inner: lnMessageHandler,
 }
 
 #[no_mangle]
@@ -33,7 +32,7 @@ pub extern "C" fn MessageHandler_get_chan_handler(this_ptr: &MessageHandler) -> 
 }
 #[no_mangle]
 pub extern "C" fn MessageHandler_set_chan_handler(this_ptr: &mut MessageHandler, val: crate::ln::msgs::ChannelMessageHandler) {
-	unsafe { &mut *(this_ptr.inner as *mut lnMessageHandler) }.chan_handler = val;
+	this_ptr.inner.chan_handler = val;
 }
 #[no_mangle]
 pub extern "C" fn MessageHandler_get_route_handler(this_ptr: &MessageHandler) -> *const crate::ln::msgs::RoutingMessageHandler {
