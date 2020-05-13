@@ -53,7 +53,6 @@ pub enum ExportStatus {
 	Export,
 	NoExport,
 	TestOnly,
-	Rename(String),
 }
 pub fn export_status(attrs: &[syn::Attribute]) -> ExportStatus {
 	for attr in attrs.iter() {
@@ -84,11 +83,6 @@ pub fn export_status(attrs: &[syn::Attribute]) -> ExportStatus {
 				let line = format!("{}", lit);
 				if line.contains("(C-not exported)") {
 					return ExportStatus::NoExport;
-				} else {
-					let split: Vec<_> = line.split("(C-exported as ").collect();
-					if split.len() == 2 {
-						return ExportStatus::Rename(split[1].split(")").next().unwrap().to_string());
-					}
 				}
 			},
 			_ => unimplemented!(),

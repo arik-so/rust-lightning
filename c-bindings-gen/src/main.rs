@@ -249,7 +249,6 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, module
 	match export_status(&t.attrs) {
 		ExportStatus::Export => {},
 		ExportStatus::NoExport|ExportStatus::TestOnly => return,
-		ExportStatus::Rename(_) => unimplemented!(),
 	}
 	println_docs(w, &t.attrs, "");
 
@@ -300,7 +299,6 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, module
 					},
 					ExportStatus::Export => {},
 					ExportStatus::TestOnly => continue,
-					ExportStatus::Rename(_) => unimplemented!(),
 				}
 				if m.default.is_some() { unimplemented!(); }
 				println_docs(w, &m.attrs, "\t");
@@ -461,12 +459,11 @@ fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name:
 }
 
 fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, module_path: &str, types: &mut TypeResolver, extra_headers: &mut File) {
-	let mut struct_name = &format!("{}", s.ident);
+	let struct_name = &format!("{}", s.ident);
 	let export = export_status(&s.attrs);
 	match export {
 		ExportStatus::Export => {},
 		ExportStatus::NoExport|ExportStatus::TestOnly => return,
-		ExportStatus::Rename(ref name) => { struct_name = &name; },
 	}
 
 	//XXX: Stupid hack:
@@ -492,7 +489,6 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, module_path
 						all_fields_settable = false;
 						continue
 					},
-					ExportStatus::Rename(_) => { unimplemented!(); },
 				}
 
 				if let Some(ident) = &field.ident {
@@ -553,7 +549,6 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, module_path
 		}
 	}
 
-
 	types.struct_imported(&s.ident, struct_name.clone());
 }
 
@@ -583,7 +578,6 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 									match export_status(&m.attrs) {
 										ExportStatus::Export => {},
 										ExportStatus::NoExport|ExportStatus::TestOnly => continue,
-										ExportStatus::Rename(_) => unimplemented!(),
 									}
 									if m.defaultness.is_some() { unimplemented!(); }
 									println_docs(w, &m.attrs, "");
@@ -626,7 +620,6 @@ fn println_enum<W: std::io::Write>(w: &mut W, e: &syn::ItemEnum, module_path: &s
 	match export_status(&e.attrs) {
 		ExportStatus::Export => {},
 		ExportStatus::NoExport|ExportStatus::TestOnly => return,
-		ExportStatus::Rename(_) => { unimplemented!(); },
 	}
 
 	for var in e.variants.iter() {
@@ -743,14 +736,12 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 					match export_status(&m.attrs) {
 						ExportStatus::Export => {},
 						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
-						ExportStatus::Rename(_) => unimplemented!(),
 					}
 
 					if m.content.is_some() { unimplemented!(); } // Probably mod tests {}
 					let f_path = format!("{}/{}.rs", (path.as_ref() as &Path).parent().unwrap().display(), m.ident);
 					let new_mod = if module.is_empty() { format!("{}", m.ident) } else { format!("{}::{}", module, m.ident) };
 					if let Ok(_) = File::open(&f_path) {
-
 						if should_export(&f_path) {
 							println_docs(&mut out, &m.attrs, "");
 							write!(out, "pub mod {};\n", m.ident).unwrap();
@@ -776,7 +767,6 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 					match export_status(&t.attrs) {
 						ExportStatus::Export => {},
 						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
-						ExportStatus::Rename(_) => unimplemented!(),
 					}
 					if t.generics.lt_token.is_none() {
 						println_opaque(&mut out, &t.ident, &format!("{}", t.ident), &t.generics, &t.attrs, &orig_module, &type_resolver, header_file);
@@ -797,15 +787,15 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 
 fn main() {
 	let args: Vec<String> = env::args().collect();
-	if args.len() != 6 {
-		eprintln!("Usage: source/dir our/dir orig_crate module::path extra/includes.h");
+	if args.len() != 5 {
+		eprintln!("Usage: source/dir our/dir orig_crate extra/includes.h");
 		process::exit(1);
 	}
 
 	let mut header_file = std::fs::OpenOptions::new().write(true).append(true)
-		.open(&args[5]).expect("Unable to open new header file");
+		.open(&args[4]).expect("Unable to open new header file");
 
-	convert_file(&(args[1].clone() + "/lib.rs"), &(args[2].clone() + "lib.rs"), &args[3], &args[4], &mut header_file);
+	convert_file(&(args[1].clone() + "/lib.rs"), &(args[2].clone() + "lib.rs"), &args[3], "", &mut header_file);
 
 	header_file.flush().unwrap();
 }
