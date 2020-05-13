@@ -244,7 +244,7 @@ fn maybe_print_generics<W: std::io::Write>(w: &mut W, generics: &syn::Generics, 
 	}
 }
 
-fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, module_path: &str, types: &mut TypeResolver<'a>) {
+fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types: &mut TypeResolver<'a>) {
 	let trait_name = format!("{}", t.ident);
 	match export_status(&t.attrs) {
 		ExportStatus::Export => {},
@@ -354,7 +354,7 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, module
 			write!(w, "\t\tunimplemented!()\n\t}}\n}}\n").unwrap();
 		}
 	);
-	write!(w, "\nuse {}::{} as ln{};\n", module_path, t.ident, trait_name).unwrap();
+	write!(w, "\nuse {}::{}::{} as ln{};\n", types.orig_crate, types.module_path, t.ident, trait_name).unwrap();
 	write!(w, "impl ln{}", t.ident).unwrap();
 	maybe_print_generics(w, &t.generics, types);
 	write!(w, " for {} {{\n", trait_name).unwrap();
@@ -444,11 +444,11 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, module
 	types.trait_declared(&t.ident, t);
 }
 
-fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name: &str, generics: &syn::Generics, attrs: &[syn::Attribute], module_path: &str, types: &TypeResolver, extra_headers: &mut File) {
+fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name: &str, generics: &syn::Generics, attrs: &[syn::Attribute], types: &TypeResolver, extra_headers: &mut File) {
 	// If we directly read the original type by its original name, cbindgen hits
 	// https://github.com/eqrion/cbindgen/issues/286 Thus, instead, we import it as a temporary
 	// name and then reference it by that name, which works around the issue.
-	write!(w, "\nuse {}::{} as ln{}Import;\ntype ln{} = ln{}Import", module_path, ident, ident, ident, ident).unwrap();
+	write!(w, "\nuse {}::{}::{} as ln{}Import;\ntype ln{} = ln{}Import", types.orig_crate, types.module_path, ident, ident, ident, ident).unwrap();
 	maybe_print_generics(w, &generics, &types);
 	write!(w, ";\n\n").unwrap();
 	write!(extra_headers, "struct ln{}Opaque;\ntypedef struct ln{}Opaque LDKln{};\n", ident, ident, ident).unwrap();
@@ -458,7 +458,7 @@ fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name:
 	write!(w, "\tlet _ = unsafe {{ Box::from_raw(this_ptr.inner as *mut ln{}) }};\n}}\n", struct_name).unwrap();
 }
 
-fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, module_path: &str, types: &mut TypeResolver, extra_headers: &mut File) {
+fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, types: &mut TypeResolver, extra_headers: &mut File) {
 	let struct_name = &format!("{}", s.ident);
 	let export = export_status(&s.attrs);
 	match export {
@@ -472,7 +472,7 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, module_path
 		return;
 	}
 
-	println_opaque(w, &s.ident, struct_name, &s.generics, &s.attrs, module_path, types, extra_headers);
+	println_opaque(w, &s.ident, struct_name, &s.generics, &s.attrs, types, extra_headers);
 
 	eprintln!("exporting fields for {}", struct_name);
 	if let syn::Fields::Named(fields) = &s.fields {
@@ -616,7 +616,7 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 	}
 }
 
-fn println_enum<W: std::io::Write>(w: &mut W, e: &syn::ItemEnum, module_path: &str, types: &mut TypeResolver, extra_headers: &mut File) {
+fn println_enum<W: std::io::Write>(w: &mut W, e: &syn::ItemEnum, types: &mut TypeResolver, extra_headers: &mut File) {
 	match export_status(&e.attrs) {
 		ExportStatus::Export => {},
 		ExportStatus::NoExport|ExportStatus::TestOnly => return,
@@ -625,7 +625,7 @@ fn println_enum<W: std::io::Write>(w: &mut W, e: &syn::ItemEnum, module_path: &s
 	for var in e.variants.iter() {
 		if let syn::Fields::Unit = var.fields {} else {
 			eprintln!("Skipping enum {} as it contains non-unit fields", e.ident);
-			println_opaque(w, &e.ident, &format!("{}", e.ident), &e.generics, &e.attrs, module_path, types, extra_headers);
+			println_opaque(w, &e.ident, &format!("{}", e.ident), &e.generics, &e.attrs, types, extra_headers);
 			types.enum_ignored(&e.ident);
 			return;
 		}
@@ -644,7 +644,7 @@ fn println_enum<W: std::io::Write>(w: &mut W, e: &syn::ItemEnum, module_path: &s
 		if var.discriminant.is_some() { unimplemented!(); }
 		write!(w, "\t{},\n", var.ident).unwrap();
 	}
-	write!(w, "}}\nuse {}::{} as ln{};\nimpl {} {{\n", module_path, e.ident, e.ident, e.ident).unwrap();
+	write!(w, "}}\nuse {}::{}::{} as ln{};\nimpl {} {{\n", types.orig_crate, types.module_path, e.ident, e.ident, e.ident).unwrap();
 	write!(w, "\t#[allow(unused)]\n\tpub(crate) fn to_ln(&self) -> ln{} {{\n\t\tmatch self {{\n", e.ident).unwrap();
 	for var in e.variants.iter() {
 		write!(w, "\t\t\t{}::{} => ln{}::{},\n", e.ident, var.ident, e.ident, var.ident).unwrap();
@@ -695,8 +695,7 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 	assert_eq!(export_status(&syntax.attrs), ExportStatus::Export);
 	println_docs(&mut out, &syntax.attrs, "");
 
-	let mut type_resolver = TypeResolver::new(module);
-	let orig_module = orig_crate.to_string() + "::" + module;
+	let mut type_resolver = TypeResolver::new(orig_crate, module, crate_types);
 
 	if path.ends_with("lib.rs") {
 		write!(out, "#![allow(non_camel_case_types)]\n").unwrap();
@@ -715,7 +714,7 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 			syn::Item::Static(_) => {},
 			syn::Item::Enum(e) => {
 				if let syn::Visibility::Public(_) = e.vis {
-					println_enum(&mut out, &e, &orig_module, &mut type_resolver, header_file);
+					println_enum(&mut out, &e, &mut type_resolver, header_file);
 				}
 			},
 			syn::Item::Impl(i) => {
@@ -723,12 +722,12 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 			},
 			syn::Item::Struct(s) => {
 				if let syn::Visibility::Public(_) = s.vis {
-					println_struct(&mut out, &s, &orig_module, &mut type_resolver, header_file);
+					println_struct(&mut out, &s, &mut type_resolver, header_file);
 				}
 			},
 			syn::Item::Trait(t) => {
 				if let syn::Visibility::Public(_) = t.vis {
-					println_trait(&mut out, &t, &orig_module, &mut type_resolver);
+					println_trait(&mut out, &t, &mut type_resolver);
 				}
 			},
 			syn::Item::Mod(m) => {
@@ -769,7 +768,7 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
 					}
 					if t.generics.lt_token.is_none() {
-						println_opaque(&mut out, &t.ident, &format!("{}", t.ident), &t.generics, &t.attrs, &orig_module, &type_resolver, header_file);
+						println_opaque(&mut out, &t.ident, &format!("{}", t.ident), &t.generics, &t.attrs, &type_resolver, header_file);
 					}
 				}
 			},

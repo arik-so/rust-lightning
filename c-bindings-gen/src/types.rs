@@ -168,15 +168,22 @@ pub enum DeclType<'a> {
 	EnumIgnored,
 }
 
+pub struct CrateTypes<'a> {
+	pub traits: HashMap<String, &'a syn::ItemTrait>,
+	pub trait_impls: HashMap<String, Vec<&'a syn::Ident>>,
+}
+
 pub struct TypeResolver<'a> {
-	module_path: &'a str,
+	pub orig_crate: &'a str,
+	pub module_path: &'a str,
 	imports: HashMap<syn::Ident, String>,
 	// ident -> is-mirrored-enum
 	declared: HashMap<syn::Ident, DeclType<'a>>,
+	pub crate_types: &'a CrateTypes<'a>,
 }
 
 impl<'a> TypeResolver<'a> {
-	pub fn new(module_path: &'a str) -> Self {
+	pub fn new(orig_crate: &'a str, module_path: &'a str, crate_types: &'a CrateTypes<'a>) -> Self {
 		let mut imports = HashMap::new();
 		// Add primitives to the "imports" list:
 		imports.insert(syn::Ident::new("bool", Span::call_site()), "bool".to_string());
@@ -190,7 +197,7 @@ impl<'a> TypeResolver<'a> {
 		// have C mappings:
 		imports.insert(syn::Ident::new("Result", Span::call_site()), "Result".to_string());
 		imports.insert(syn::Ident::new("Option", Span::call_site()), "Option".to_string());
-		Self { module_path, imports, declared: HashMap::new() }
+		Self { orig_crate, module_path, imports, declared: HashMap::new(), crate_types }
 	}
 
 	// *** Well know type definitions ***
