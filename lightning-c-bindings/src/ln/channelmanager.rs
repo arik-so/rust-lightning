@@ -90,46 +90,75 @@ pub struct ChannelDetails {
 pub extern "C" fn ChannelDetails_free(this_ptr: ChannelDetails) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelDetails) };
 }
+/// " The channel's ID (prior to funding transaction generation, this is a random 32 bytes,"
+/// " thereafter this is the txid of the funding transaction xor the funding transaction output)."
+/// " Note that this means this value is *not* persistent - it can change once during the"
+/// " lifetime of the channel."
 #[no_mangle]
 pub extern "C" fn ChannelDetails_get_channel_id(this_ptr: &ChannelDetails) -> *const [u8; 32] {
 	&unsafe { &*this_ptr.inner }.channel_id
 }
+/// " The channel's ID (prior to funding transaction generation, this is a random 32 bytes,"
+/// " thereafter this is the txid of the funding transaction xor the funding transaction output)."
+/// " Note that this means this value is *not* persistent - it can change once during the"
+/// " lifetime of the channel."
 #[no_mangle]
 pub extern "C" fn ChannelDetails_set_channel_id(this_ptr: &mut ChannelDetails, val: crate::c_types::ThirtyTwoBytes) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelDetails) }.channel_id = val.data;
 }
+/// " The node_id of our counterparty"
 #[no_mangle]
 pub extern "C" fn ChannelDetails_get_remote_network_id(this_ptr: &ChannelDetails) -> crate::c_types::PublicKey {
 	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.remote_network_id)
 }
+/// " The node_id of our counterparty"
 #[no_mangle]
 pub extern "C" fn ChannelDetails_set_remote_network_id(this_ptr: &mut ChannelDetails, val: crate::c_types::PublicKey) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelDetails) }.remote_network_id = val.into_rust();
 }
+/// " The Features the channel counterparty provided upon last connection."
+/// " Useful for routing as it is the most up-to-date copy of the counterparty's features and"
+/// " many routing-relevant features are present in the init context."
 #[no_mangle]
 pub extern "C" fn ChannelDetails_get_counterparty_features(this_ptr: &ChannelDetails) -> *const crate::ln::features::InitFeatures {
 	Box::into_raw(Box::new(crate::ln::features::InitFeatures { inner: &unsafe { &*this_ptr.inner }.counterparty_features }))
 }
+/// " The Features the channel counterparty provided upon last connection."
+/// " Useful for routing as it is the most up-to-date copy of the counterparty's features and"
+/// " many routing-relevant features are present in the init context."
 #[no_mangle]
 pub extern "C" fn ChannelDetails_set_counterparty_features(this_ptr: &mut ChannelDetails, val: crate::ln::features::InitFeatures) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelDetails) }.counterparty_features = *unsafe { Box::from_raw(val.inner as *mut _) };
 }
+/// " The value, in satoshis, of this channel as appears in the funding output"
 #[no_mangle]
 pub extern "C" fn ChannelDetails_set_channel_value_satoshis(this_ptr: &mut ChannelDetails, val: u64) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelDetails) }.channel_value_satoshis = val;
 }
+/// " The user_id passed in to create_channel, or 0 if the channel was inbound."
 #[no_mangle]
 pub extern "C" fn ChannelDetails_set_user_id(this_ptr: &mut ChannelDetails, val: u64) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelDetails) }.user_id = val;
 }
+/// " The available outbound capacity for sending HTLCs to the remote peer. This does not include"
+/// " any pending HTLCs which are not yet fully resolved (and, thus, who's balance is not"
+/// " available for inclusion in new outbound HTLCs). This further does not include any pending"
+/// " outgoing HTLCs which are awaiting some other resolution to be sent."
 #[no_mangle]
 pub extern "C" fn ChannelDetails_set_outbound_capacity_msat(this_ptr: &mut ChannelDetails, val: u64) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelDetails) }.outbound_capacity_msat = val;
 }
+/// " The available inbound capacity for the remote peer to send HTLCs to us. This does not"
+/// " include any pending HTLCs which are not yet fully resolved (and, thus, who's balance is not"
+/// " available for inclusion in new inbound HTLCs)."
+/// " Note that there are some corner cases not fully handled here, so the actual available"
+/// " inbound capacity may be slightly higher than this."
 #[no_mangle]
 pub extern "C" fn ChannelDetails_set_inbound_capacity_msat(this_ptr: &mut ChannelDetails, val: u64) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelDetails) }.inbound_capacity_msat = val;
 }
+/// " True if the channel is (a) confirmed and funding_locked messages have been exchanged, (b)"
+/// " the peer is connected, and (c) no monitor update failure is pending resolution."
 #[no_mangle]
 pub extern "C" fn ChannelDetails_set_is_live(this_ptr: &mut ChannelDetails, val: bool) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelDetails) }.is_live = val;

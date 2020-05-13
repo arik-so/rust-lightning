@@ -169,6 +169,7 @@ pub enum DeclType<'a> {
 }
 
 pub struct CrateTypes<'a> {
+	pub structs: HashMap<String, &'a syn::ItemStruct>,
 	pub traits: HashMap<String, &'a syn::ItemTrait>,
 	pub trait_impls: HashMap<String, Vec<&'a syn::Ident>>,
 }

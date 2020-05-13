@@ -496,6 +496,7 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, types: &mut
 						and_token: syn::Token!(&)(Span::call_site()), lifetime: None, mutability: None,
 						elem: Box::new(field.ty.clone()) });
 					if types.understood_c_type(&ref_type, Some(&gen_types)) {
+						println_docs(w, &field.attrs, "");
 						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_get_{}(this_ptr: &{}) -> ", struct_name, ident, struct_name).unwrap();
 						types.print_c_type(w, &ref_type, Some(&gen_types), true);
 						write!(w, " {{\n\t").unwrap();
@@ -507,6 +508,7 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, types: &mut
 					}
 
 					if types.understood_c_type(&field.ty, Some(&gen_types)) {
+						println_docs(w, &field.attrs, "");
 						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_set_{}(this_ptr: &mut {}, val: ", struct_name, ident, struct_name).unwrap();
 						types.print_c_type(w, &field.ty, Some(&gen_types), false);
 						write!(w, ") {{\n\t").unwrap();
@@ -567,7 +569,18 @@ fn println_impl<W: std::io::Write>(w: &mut W, i: &syn::ItemImpl, types: &TypeRes
 					if trait_path.0.is_some() { unimplemented!(); }
 					if types.understood_c_path(&trait_path.1) {
 eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
+					} else if let Some(trait_ident) = trait_path.1.get_ident() {
 						//XXX: implement for basic things like ToString and implement traits
+						match &format!("{}", trait_ident) as &str {
+							"From" => {},
+							"Default" => {
+								write!(w, "#[no_mangle]\npub extern \"C\" fn {}_default() -> {} {{\n", ident, ident).unwrap();
+								write!(w, "\t{} {{ inner: Box::into_raw(Box::new(Default::default())) }}\n", ident).unwrap();
+								write!(w, "}}\n").unwrap();
+							},
+							"PartialEq" => {},
+							_ => {},
+						}
 					}
 				} else {
 					let declared_type = types.get_declared_type(&ident).unwrap();
@@ -678,14 +691,15 @@ fn should_export(path: &str) -> bool {
 	}
 }
 
-fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, header_file: &mut File) {
+struct FullLibraryAST {
+	files: HashMap<String, syn::File>,
+}
+
+fn convert_file(libast: &FullLibraryAST, crate_types: &CrateTypes, path: &str, out_path: &str, orig_crate: &str, module: &str, header_file: &mut File) {
 	if !should_export(path) { return; }
 	eprintln!("Converting {}...", path);
 
-	let mut file = File::open(path).expect("Unable to open file");
-	let mut src = String::new();
-	file.read_to_string(&mut src).expect("Unable to read file");
-	let syntax = syn::parse_file(&src).expect("Unable to parse file");
+	let syntax = if let Some(ast) = libast.files.get(module) { ast } else { return };
 
 	assert!(syntax.shebang.is_none()); // Not sure what this is, hope we dont have one
 
@@ -744,7 +758,8 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 						if should_export(&f_path) {
 							println_docs(&mut out, &m.attrs, "");
 							write!(out, "pub mod {};\n", m.ident).unwrap();
-							convert_file(&f_path, &format!("{}/{}.rs", (out_path.as_ref() as &Path).parent().unwrap().display(), m.ident),
+							convert_file(libast, crate_types, &f_path,
+								&format!("{}/{}.rs", (out_path.as_ref() as &Path).parent().unwrap().display(), m.ident),
 								orig_crate, &new_mod, header_file);
 						}
 					} else {
@@ -752,7 +767,8 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 						if should_export(&f_path) {
 							println_docs(&mut out, &m.attrs, "");
 							write!(out, "pub mod {};\n", m.ident).unwrap();
-							convert_file(&f_path, &format!("{}/{}/mod.rs", (out_path.as_ref() as &Path).parent().unwrap().display(), m.ident),
+							convert_file(libast, crate_types, &f_path,
+								&format!("{}/{}/mod.rs", (out_path.as_ref() as &Path).parent().unwrap().display(), m.ident),
 								orig_crate, &new_mod, header_file);
 						}
 					}
@@ -784,6 +800,115 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 	out.flush().unwrap();
 }
 
+fn load_ast(path: &str, module: String, ast_storage: &mut FullLibraryAST) {
+	if !should_export(path) { return; }
+	eprintln!("Loading {}...", path);
+
+	let mut file = File::open(path).expect("Unable to open file");
+	let mut src = String::new();
+	file.read_to_string(&mut src).expect("Unable to read file");
+	let syntax = syn::parse_file(&src).expect("Unable to parse file");
+
+	assert_eq!(export_status(&syntax.attrs), ExportStatus::Export);
+
+	for item in syntax.items.iter() {
+		match item {
+			syn::Item::Mod(m) => {
+				if let syn::Visibility::Public(_) = m.vis {
+					match export_status(&m.attrs) {
+						ExportStatus::Export => {},
+						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+					}
+
+					let f_path = format!("{}/{}.rs", (path.as_ref() as &Path).parent().unwrap().display(), m.ident);
+					let new_mod = if module.is_empty() { format!("{}", m.ident) } else { format!("{}::{}", module, m.ident) };
+					if let Ok(_) = File::open(&f_path) {
+						if should_export(&f_path) {
+							load_ast(&f_path, new_mod, ast_storage);
+						}
+					} else {
+						let f_path = format!("{}/{}/mod.rs", (path.as_ref() as &Path).parent().unwrap().display(), m.ident);
+						if should_export(&f_path) {
+							load_ast(&f_path, new_mod, ast_storage);
+						}
+					}
+				}
+			},
+			_ => {},
+		}
+	}
+	ast_storage.files.insert(module, syntax);
+}
+
+fn walk_ast<'a>(path: &str, module: String, ast_storage: &'a FullLibraryAST, crate_types: &mut CrateTypes<'a>) {
+	if !should_export(path) { return; }
+	eprintln!("Walking {}...", path);
+	let syntax = if let Some(ast) = ast_storage.files.get(&module) { ast } else { return };
+	assert_eq!(export_status(&syntax.attrs), ExportStatus::Export);
+
+	for item in syntax.items.iter() {
+		match item {
+			syn::Item::Mod(m) => {
+				if let syn::Visibility::Public(_) = m.vis {
+					match export_status(&m.attrs) {
+						ExportStatus::Export => {},
+						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+					}
+
+					let f_path = format!("{}/{}.rs", (path.as_ref() as &Path).parent().unwrap().display(), m.ident);
+					let new_mod = if module.is_empty() { format!("{}", m.ident) } else { format!("{}::{}", module, m.ident) };
+					if let Ok(_) = File::open(&f_path) {
+						if should_export(&f_path) {
+							walk_ast(&f_path, new_mod, ast_storage, crate_types);
+						}
+					} else {
+						let f_path = format!("{}/{}/mod.rs", (path.as_ref() as &Path).parent().unwrap().display(), m.ident);
+						if should_export(&f_path) {
+							walk_ast(&f_path, new_mod, ast_storage, crate_types);
+						}
+					}
+				}
+			},
+			syn::Item::Struct(s) => {
+				if let syn::Visibility::Public(_) = s.vis {
+					match export_status(&s.attrs) {
+						ExportStatus::Export => {},
+						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+					}
+					let struct_path = format!("{}::{}", module, s.ident);
+					crate_types.structs.insert(struct_path, &s);
+				}
+			},
+			syn::Item::Trait(t) => {
+				if let syn::Visibility::Public(_) = t.vis {
+					match export_status(&t.attrs) {
+						ExportStatus::Export => {},
+						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+					}
+					let trait_path = format!("{}::{}", module, t.ident);
+					crate_types.traits.insert(trait_path, &t);
+				}
+			},
+			syn::Item::Impl(i) => {
+				match export_status(&i.attrs) {
+					ExportStatus::Export => {},
+					ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+				}
+				if i.defaultness.is_none() && i.unsafety.is_none() && i.trait_.is_some() {
+					if let syn::Type::Path(path) = &*i.self_ty {
+						if let Some(ident) = single_ident_generic_path_to_ident(&path.path) {
+							if let Some(trait_ident) = single_ident_generic_path_to_ident(&i.trait_.as_ref().unwrap().1) {
+								crate_types.trait_impls.entry(format!("{}::{}", module, ident)).or_insert(Vec::new()).push(trait_ident);
+							}
+						}
+					}
+				}
+			},
+			_ => {},
+		}
+	}
+}
+
 fn main() {
 	let args: Vec<String> = env::args().collect();
 	if args.len() != 5 {
@@ -794,7 +919,13 @@ fn main() {
 	let mut header_file = std::fs::OpenOptions::new().write(true).append(true)
 		.open(&args[4]).expect("Unable to open new header file");
 
-	convert_file(&(args[1].clone() + "/lib.rs"), &(args[2].clone() + "lib.rs"), &args[3], "", &mut header_file);
+	let mut libast = FullLibraryAST { files: HashMap::new() };
+	load_ast(&(args[1].clone() + "/lib.rs"), "".to_string(), &mut libast);
+
+	let mut libtypes = CrateTypes { traits: HashMap::new(), trait_impls: HashMap::new(), structs: HashMap::new() };
+	walk_ast(&(args[1].clone() + "/lib.rs"), "".to_string(), &libast, &mut libtypes);
+
+	convert_file(&libast, &libtypes, &(args[1].clone() + "/lib.rs"), &(args[2].clone() + "lib.rs"), &args[3], "", &mut header_file);
 
 	header_file.flush().unwrap();
 }

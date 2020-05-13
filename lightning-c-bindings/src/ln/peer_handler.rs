@@ -27,18 +27,26 @@ pub struct MessageHandler {
 pub extern "C" fn MessageHandler_free(this_ptr: MessageHandler) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnMessageHandler) };
 }
+/// " A message handler which handles messages specific to channels. Usually this is just a"
+/// " ChannelManager object."
 #[no_mangle]
 pub extern "C" fn MessageHandler_get_chan_handler(this_ptr: &MessageHandler) -> *const crate::ln::msgs::ChannelMessageHandler {
 	&unsafe { &*this_ptr.inner }.chan_handler
 }
+/// " A message handler which handles messages specific to channels. Usually this is just a"
+/// " ChannelManager object."
 #[no_mangle]
 pub extern "C" fn MessageHandler_set_chan_handler(this_ptr: &mut MessageHandler, val: crate::ln::msgs::ChannelMessageHandler) {
 	unsafe { &mut *(this_ptr.inner as *mut lnMessageHandler) }.chan_handler = val;
 }
+/// " A message handler which handles messages updating our knowledge of the network channel"
+/// " graph. Usually this is just a NetGraphMsgHandlerMonitor object."
 #[no_mangle]
 pub extern "C" fn MessageHandler_get_route_handler(this_ptr: &MessageHandler) -> *const crate::ln::msgs::RoutingMessageHandler {
 	&unsafe { &*this_ptr.inner }.route_handler
 }
+/// " A message handler which handles messages updating our knowledge of the network channel"
+/// " graph. Usually this is just a NetGraphMsgHandlerMonitor object."
 #[no_mangle]
 pub extern "C" fn MessageHandler_set_route_handler(this_ptr: &mut MessageHandler, val: crate::ln::msgs::RoutingMessageHandler) {
 	unsafe { &mut *(this_ptr.inner as *mut lnMessageHandler) }.route_handler = val;

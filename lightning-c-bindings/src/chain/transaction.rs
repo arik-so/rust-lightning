@@ -21,14 +21,17 @@ pub struct OutPoint {
 pub extern "C" fn OutPoint_free(this_ptr: OutPoint) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnOutPoint) };
 }
+/// " The referenced transaction's txid."
 #[no_mangle]
 pub extern "C" fn OutPoint_get_txid(this_ptr: &OutPoint) -> *const [u8; 32] {
 	&unsafe { &*this_ptr.inner }.txid.into_inner()
 }
+/// " The referenced transaction's txid."
 #[no_mangle]
 pub extern "C" fn OutPoint_set_txid(this_ptr: &mut OutPoint, val: [u8; 32]) {
 	unsafe { &mut *(this_ptr.inner as *mut lnOutPoint) }.txid = ::bitcoin::hash_types::Txid::from_slice(&val[..]).unwrap();
 }
+/// " The index of the referenced output in its transaction's vout."
 #[no_mangle]
 pub extern "C" fn OutPoint_set_index(this_ptr: &mut OutPoint, val: u16) {
 	unsafe { &mut *(this_ptr.inner as *mut lnOutPoint) }.index = val;

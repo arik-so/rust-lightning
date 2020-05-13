@@ -369,10 +369,14 @@ pub struct UnsignedNodeAnnouncement {
 pub extern "C" fn UnsignedNodeAnnouncement_free(this_ptr: UnsignedNodeAnnouncement) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnUnsignedNodeAnnouncement) };
 }
+/// " The node_id this announcement originated from (don't rebroadcast the node_announcement back"
+/// " to this node)."
 #[no_mangle]
 pub extern "C" fn UnsignedNodeAnnouncement_get_node_id(this_ptr: &UnsignedNodeAnnouncement) -> crate::c_types::PublicKey {
 	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.node_id)
 }
+/// " The node_id this announcement originated from (don't rebroadcast the node_announcement back"
+/// " to this node)."
 #[no_mangle]
 pub extern "C" fn UnsignedNodeAnnouncement_set_node_id(this_ptr: &mut UnsignedNodeAnnouncement, val: crate::c_types::PublicKey) {
 	unsafe { &mut *(this_ptr.inner as *mut lnUnsignedNodeAnnouncement) }.node_id = val.into_rust();
@@ -405,18 +409,22 @@ pub struct UnsignedChannelAnnouncement {
 pub extern "C" fn UnsignedChannelAnnouncement_free(this_ptr: UnsignedChannelAnnouncement) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnUnsignedChannelAnnouncement) };
 }
+/// " One of the two node_ids which are endpoints of this channel"
 #[no_mangle]
 pub extern "C" fn UnsignedChannelAnnouncement_get_node_id_1(this_ptr: &UnsignedChannelAnnouncement) -> crate::c_types::PublicKey {
 	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.node_id_1)
 }
+/// " One of the two node_ids which are endpoints of this channel"
 #[no_mangle]
 pub extern "C" fn UnsignedChannelAnnouncement_set_node_id_1(this_ptr: &mut UnsignedChannelAnnouncement, val: crate::c_types::PublicKey) {
 	unsafe { &mut *(this_ptr.inner as *mut lnUnsignedChannelAnnouncement) }.node_id_1 = val.into_rust();
 }
+/// " The other of the two node_ids which are endpoints of this channel"
 #[no_mangle]
 pub extern "C" fn UnsignedChannelAnnouncement_get_node_id_2(this_ptr: &UnsignedChannelAnnouncement) -> crate::c_types::PublicKey {
 	crate::c_types::PublicKey::from_rust(&unsafe { &*this_ptr.inner }.node_id_2)
 }
+/// " The other of the two node_ids which are endpoints of this channel"
 #[no_mangle]
 pub extern "C" fn UnsignedChannelAnnouncement_set_node_id_2(this_ptr: &mut UnsignedChannelAnnouncement, val: crate::c_types::PublicKey) {
 	unsafe { &mut *(this_ptr.inner as *mut lnUnsignedChannelAnnouncement) }.node_id_2 = val.into_rust();
@@ -478,10 +486,12 @@ pub struct CommitmentUpdate {
 pub extern "C" fn CommitmentUpdate_free(this_ptr: CommitmentUpdate) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnCommitmentUpdate) };
 }
+/// " Finally, the commitment_signed message which should be sent"
 #[no_mangle]
 pub extern "C" fn CommitmentUpdate_get_commitment_signed(this_ptr: &CommitmentUpdate) -> *const CommitmentSigned {
 	Box::into_raw(Box::new(CommitmentSigned { inner: &unsafe { &*this_ptr.inner }.commitment_signed } ))
 }
+/// " Finally, the commitment_signed message which should be sent"
 #[no_mangle]
 pub extern "C" fn CommitmentUpdate_set_commitment_signed(this_ptr: &mut CommitmentUpdate, val: CommitmentSigned) {
 	unsafe { &mut *(this_ptr.inner as *mut lnCommitmentUpdate) }.commitment_signed = *unsafe { Box::from_raw(val.inner as *mut _) };
