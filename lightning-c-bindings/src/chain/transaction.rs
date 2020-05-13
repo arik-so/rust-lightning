@@ -45,7 +45,7 @@ pub extern "C" fn OutPoint_new(txid_arg: [u8; 32], index_arg: u16) -> OutPoint {
 }
 /// " Convert an `OutPoint` to a lightning channel id."
 #[no_mangle]
-pub extern "C" fn OutPoint_to_channel_id(this_arg: & OutPoint) -> crate::c_types::ThirtyTwoBytes {
+pub extern "C" fn OutPoint_to_channel_id(this_arg: &OutPoint) -> crate::c_types::ThirtyTwoBytes {
 	crate::c_types::ThirtyTwoBytes { data: unsafe { &*this_arg.inner }.to_channel_id() }
 }
 

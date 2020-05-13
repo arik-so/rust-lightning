@@ -520,46 +520,46 @@ pub extern "C" fn HTLCFailChannelUpdate_free(this_ptr: HTLCFailChannelUpdate) {
 pub struct ChannelMessageHandler {
 	pub this_arg: *mut c_void,
 	/// " Handle an incoming open_channel message from the given peer."
-	pub handle_open_channel: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: &OpenChannel),
+	pub handle_open_channel: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: &OpenChannel),
 	/// " Handle an incoming accept_channel message from the given peer."
-	pub handle_accept_channel: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: &AcceptChannel),
+	pub handle_accept_channel: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: &AcceptChannel),
 	/// " Handle an incoming funding_created message from the given peer."
-	pub handle_funding_created: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &FundingCreated),
+	pub handle_funding_created: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &FundingCreated),
 	/// " Handle an incoming funding_signed message from the given peer."
-	pub handle_funding_signed: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &FundingSigned),
+	pub handle_funding_signed: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &FundingSigned),
 	/// " Handle an incoming funding_locked message from the given peer."
-	pub handle_funding_locked: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &FundingLocked),
+	pub handle_funding_locked: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &FundingLocked),
 	/// " Handle an incoming shutdown message from the given peer."
-	pub handle_shutdown: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &Shutdown),
+	pub handle_shutdown: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &Shutdown),
 	/// " Handle an incoming closing_signed message from the given peer."
-	pub handle_closing_signed: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &ClosingSigned),
+	pub handle_closing_signed: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &ClosingSigned),
 	/// " Handle an incoming update_add_htlc message from the given peer."
-	pub handle_update_add_htlc: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateAddHTLC),
+	pub handle_update_add_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateAddHTLC),
 	/// " Handle an incoming update_fulfill_htlc message from the given peer."
-	pub handle_update_fulfill_htlc: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFulfillHTLC),
+	pub handle_update_fulfill_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFulfillHTLC),
 	/// " Handle an incoming update_fail_htlc message from the given peer."
-	pub handle_update_fail_htlc: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFailHTLC),
+	pub handle_update_fail_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFailHTLC),
 	/// " Handle an incoming update_fail_malformed_htlc message from the given peer."
-	pub handle_update_fail_malformed_htlc: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFailMalformedHTLC),
+	pub handle_update_fail_malformed_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFailMalformedHTLC),
 	/// " Handle an incoming commitment_signed message from the given peer."
-	pub handle_commitment_signed: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &CommitmentSigned),
+	pub handle_commitment_signed: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &CommitmentSigned),
 	/// " Handle an incoming revoke_and_ack message from the given peer."
-	pub handle_revoke_and_ack: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &RevokeAndACK),
+	pub handle_revoke_and_ack: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &RevokeAndACK),
 	/// " Handle an incoming update_fee message from the given peer."
-	pub handle_update_fee: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFee),
+	pub handle_update_fee: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFee),
 	/// " Handle an incoming announcement_signatures message from the given peer."
-	pub handle_announcement_signatures: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &AnnouncementSignatures),
+	pub handle_announcement_signatures: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &AnnouncementSignatures),
 	/// " Indicates a connection to the peer failed/an existing connection was lost. If no connection"
 	/// " is believed to be possible in the future (eg they're sending us messages we don't"
 	/// " understand or indicate they require unknown feature bits), no_connection_possible is set"
 	/// " and any outstanding channels should be failed."
-	pub peer_disconnected: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, no_connection_possible: bool),
+	pub peer_disconnected: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, no_connection_possible: bool),
 	/// " Handle a peer reconnecting, possibly generating channel_reestablish message(s)."
-	pub peer_connected: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &Init),
+	pub peer_connected: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &Init),
 	/// " Handle an incoming channel_reestablish message from the given peer."
-	pub handle_channel_reestablish: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &ChannelReestablish),
+	pub handle_channel_reestablish: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &ChannelReestablish),
 	/// " Handle an incoming error message from the given peer."
-	pub handle_error: extern "C" fn (this_arg: *const  c_void, their_node_id: crate::c_types::PublicKey, msg: &ErrorMessage),
+	pub handle_error: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &ErrorMessage),
 	pub MessageSendEventsProvider: crate::util::events::MessageSendEventsProvider,
 }
 impl lightning::util::events::MessageSendEventsProvider for ChannelMessageHandler {
@@ -650,7 +650,7 @@ pub struct RoutingMessageHandler {
 	//XXX: Need to export get_next_channel_announcements
 	//XXX: Need to export get_next_node_announcements
 	/// " Returns whether a full sync should be requested from a peer."
-	pub should_request_full_sync: extern "C" fn (this_arg: *const  c_void, node_id: crate::c_types::PublicKey) -> bool,
+	pub should_request_full_sync: extern "C" fn (this_arg: *const c_void, node_id: crate::c_types::PublicKey) -> bool,
 }
 unsafe impl Send for RoutingMessageHandler {}
 unsafe impl Sync for RoutingMessageHandler {}

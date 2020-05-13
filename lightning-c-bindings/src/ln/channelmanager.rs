@@ -207,14 +207,14 @@ pub extern "C" fn ChannelManager_new(network: crate::bitcoin::network::Network, 
 /// " Force closes a channel, immediately broadcasting the latest local commitment transaction to"
 /// " the chain and rejecting new HTLCs on the given channel."
 #[no_mangle]
-pub extern "C" fn ChannelManager_force_close_channel(this_arg: & ChannelManager, channel_id: *const [u8; 32]) {
+pub extern "C" fn ChannelManager_force_close_channel(this_arg: &ChannelManager, channel_id: *const [u8; 32]) {
 	unsafe { &*this_arg.inner }.force_close_channel(unsafe { &*channel_id})
 }
 
 /// " Force close all channels, immediately broadcasting the latest local commitment transaction"
 /// " for each to the chain and rejecting new HTLCs on each."
 #[no_mangle]
-pub extern "C" fn ChannelManager_force_close_all_channels(this_arg: & ChannelManager) {
+pub extern "C" fn ChannelManager_force_close_all_channels(this_arg: &ChannelManager) {
 	unsafe { &*this_arg.inner }.force_close_all_channels()
 }
 
@@ -223,7 +223,7 @@ pub extern "C" fn ChannelManager_force_close_all_channels(this_arg: & ChannelMan
 /// " Should only really ever be called in response to a PendingHTLCsForwardable event."
 /// " Will likely generate further events."
 #[no_mangle]
-pub extern "C" fn ChannelManager_process_pending_htlc_forwards(this_arg: & ChannelManager) {
+pub extern "C" fn ChannelManager_process_pending_htlc_forwards(this_arg: &ChannelManager) {
 	unsafe { &*this_arg.inner }.process_pending_htlc_forwards()
 }
 
@@ -233,13 +233,13 @@ pub extern "C" fn ChannelManager_process_pending_htlc_forwards(this_arg: & Chann
 /// ""
 /// " This method handles all the details, and must be called roughly once per minute."
 #[no_mangle]
-pub extern "C" fn ChannelManager_timer_chan_freshness_every_min(this_arg: & ChannelManager) {
+pub extern "C" fn ChannelManager_timer_chan_freshness_every_min(this_arg: &ChannelManager) {
 	unsafe { &*this_arg.inner }.timer_chan_freshness_every_min()
 }
 
 /// " Gets the node_id held by this ChannelManager"
 #[no_mangle]
-pub extern "C" fn ChannelManager_get_our_node_id(this_arg: & ChannelManager) -> crate::c_types::PublicKey {
+pub extern "C" fn ChannelManager_get_our_node_id(this_arg: &ChannelManager) -> crate::c_types::PublicKey {
 	crate::c_types::PublicKey::from_rust(&unsafe { &*this_arg.inner }.get_our_node_id())
 }
 

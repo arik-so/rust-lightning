@@ -141,17 +141,17 @@ impl std::ops::Deref for ChannelKeys {
 pub struct KeysInterface {
 	pub this_arg: *mut c_void,
 	/// " Get node secret key (aka node_id or network_key)"
-	pub get_node_secret: extern "C" fn (this_arg: *const  c_void) -> crate::c_types::SecretKey,
+	pub get_node_secret: extern "C" fn (this_arg: *const c_void) -> crate::c_types::SecretKey,
 	/// " Get destination redeemScript to encumber static protocol exit points."
-	pub get_destination_script: extern "C" fn (this_arg: *const  c_void) -> crate::c_types::Script,
+	pub get_destination_script: extern "C" fn (this_arg: *const c_void) -> crate::c_types::Script,
 	/// " Get shutdown_pubkey to use as PublicKey at channel closure"
-	pub get_shutdown_pubkey: extern "C" fn (this_arg: *const  c_void) -> crate::c_types::PublicKey,
+	pub get_shutdown_pubkey: extern "C" fn (this_arg: *const c_void) -> crate::c_types::PublicKey,
 	//XXX: Need to export get_channel_keys
 	//XXX: Need to export get_onion_rand
 	/// " Get a unique temporary channel id. Channels will be referred to by this until the funding"
 	/// " transaction is created, at which point they will use the outpoint in the funding"
 	/// " transaction."
-	pub get_channel_id: extern "C" fn (this_arg: *const  c_void) -> crate::c_types::ThirtyTwoBytes,
+	pub get_channel_id: extern "C" fn (this_arg: *const c_void) -> crate::c_types::ThirtyTwoBytes,
 }
 unsafe impl Send for KeysInterface {}
 unsafe impl Sync for KeysInterface {}

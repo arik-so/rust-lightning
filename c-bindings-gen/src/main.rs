@@ -71,9 +71,13 @@ fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, assoc
 			syn::FnArg::Receiver(recv) => {
 				if !recv.attrs.is_empty() || recv.reference.is_none() { unimplemented!(); }
 				if recv.reference.as_ref().unwrap().1.is_some() { unimplemented!(); }
-				write!(w, "this_arg: {}{} {}",
-					if self_ptr && recv.mutability.is_some() { "*" } else if self_ptr { "*const " } else { "&" },
-					if recv.mutability.is_some() { "mut " } else { "" }, this_param).unwrap();
+				write!(w, "this_arg: {}{}",
+					match (self_ptr, recv.mutability.is_some()) {
+						(true, true) => "*mut ",
+						(true, false) => "*const ",
+						(false, true) => "&mut ",
+						(false, false) => "&",
+					}, this_param).unwrap();
 				assert!(first_arg);
 				first_arg = false;
 			},

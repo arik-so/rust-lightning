@@ -234,7 +234,7 @@ impl std::ops::Deref for ManyChannelMonitor {
 /// " Gets the update_id from the latest ChannelMonitorUpdate which was applied to this"
 /// " ChannelMonitor."
 #[no_mangle]
-pub extern "C" fn ChannelMonitor_get_latest_update_id(this_arg: & ChannelMonitor) -> u64 {
+pub extern "C" fn ChannelMonitor_get_latest_update_id(this_arg: &ChannelMonitor) -> u64 {
 	unsafe { &*this_arg.inner }.get_latest_update_id()
 }
 
