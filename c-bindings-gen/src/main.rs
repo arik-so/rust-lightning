@@ -248,6 +248,31 @@ fn maybe_print_generics<W: std::io::Write>(w: &mut W, generics: &syn::Generics, 
 	}
 }
 
+macro_rules! walk_supertraits { ($t: expr, $types: expr, ($( $pat: pat => $e: expr),*) ) => { {
+	if $t.colon_token.is_some() {
+		for st in $t.supertraits.iter() {
+			match st {
+				syn::TypeParamBound::Trait(supertrait) => {
+					if supertrait.paren_token.is_some() || supertrait.lifetimes.is_some() {
+						unimplemented!();
+					}
+					if let Some(ident) = supertrait.path.get_ident() {
+						match (&format!("{}", ident) as &str, &ident) {
+							$( $pat => $e, )*
+						}
+					} else {
+						let path = $types.resolve_path(&supertrait.path);
+						match (&path as &str, &supertrait.path.segments.iter().last().unwrap().ident) {
+							$( $pat => $e, )*
+						}
+					}
+				},
+				syn::TypeParamBound::Lifetime(_) => unimplemented!(),
+			}
+		}
+	}
+} } }
+
 fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types: &mut TypeResolver<'a>) {
 	let trait_name = format!("{}", t.ident);
 	match export_status(&t.attrs) {
@@ -256,32 +281,7 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types:
 	}
 	println_docs(w, &t.attrs, "");
 
-	macro_rules! walk_supertraits { ($( $pat: pat => $e: expr),*) => { {
-		if t.colon_token.is_some() {
-			for st in t.supertraits.iter() {
-				match st {
-					syn::TypeParamBound::Trait(supertrait) => {
-						if supertrait.paren_token.is_some() || supertrait.lifetimes.is_some() {
-							unimplemented!();
-						}
-						if let Some(ident) = supertrait.path.get_ident() {
-							match (&format!("{}", ident) as &str, &ident) {
-								$( $pat => $e, )*
-							}
-						} else {
-							let path = types.resolve_path(&supertrait.path);
-							match (&path as &str, &supertrait.path.segments.iter().last().unwrap().ident) {
-								$( $pat => $e, )*
-							}
-						}
-					},
-					syn::TypeParamBound::Lifetime(_) => unimplemented!(),
-				}
-			}
-		}
-	} } }
-
-	walk_supertraits!(
+	walk_supertraits!(t, types, (
 		("Clone", _) => write!(w, "#[derive(Clone)]\n").unwrap(),
 		("std::cmp::Eq", _) => {},
 		("std::hash::Hash", _) => {},
@@ -289,7 +289,7 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types:
 		(s, _) => {
 			if !s.starts_with("util::") { unimplemented!(); }
 		}
-	);
+	) );
 	write!(w, "#[repr(C)]\npub struct {} {{\n", trait_name).unwrap();
 	write!(w, "\tpub this_arg: *mut c_void,\n").unwrap();
 	let mut associated_types: HashMap<&syn::Ident, &syn::Ident> = HashMap::new();
@@ -325,7 +325,7 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types:
 			_ => unimplemented!(),
 		}
 	}
-	walk_supertraits!(
+	walk_supertraits!(t, types, (
 		("Clone", _) => {},
 		("std::cmp::Eq", _) => write!(w, "\tpub eq: extern \"C\" fn (this_arg: *const c_void, other_arg: *const c_void) -> bool,\n").unwrap(),
 		("std::hash::Hash", _) => write!(w, "\tpub hash: extern \"C\" fn (this_arg: *const c_void) -> u64,\n").unwrap(),
@@ -334,9 +334,9 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types:
 			if !s.starts_with("util::") { unimplemented!(); }
 			write!(w, "\tpub {}: crate::{},\n", i, s).unwrap();
 		}
-	);
+	) );
 	write!(w, "}}\n").unwrap();
-	walk_supertraits!(
+	walk_supertraits!(t, types, (
 		("Send", _) => write!(w, "unsafe impl Send for {} {{}}\n", trait_name).unwrap(),
 		("Sync", _) => write!(w, "unsafe impl Sync for {} {{}}\n", trait_name).unwrap(),
 		("std::cmp::Eq", _) => {
@@ -357,7 +357,7 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types:
 			write!(w, "\tfn get_and_clear_pending_msg_events(&self) -> Vec<lightning::util::events::MessageSendEvent> {{\n").unwrap();
 			write!(w, "\t\tunimplemented!()\n\t}}\n}}\n").unwrap();
 		}
-	);
+	) );
 	write!(w, "\nuse {}::{}::{} as ln{};\n", types.orig_crate, types.module_path, t.ident, trait_name).unwrap();
 	write!(w, "impl ln{}", t.ident).unwrap();
 	maybe_print_generics(w, &t.generics, types);
@@ -573,8 +573,82 @@ fn println_impl<W: std::io::Write>(w: &mut W, i: &syn::ItemImpl, types: &TypeRes
 					if trait_path.0.is_some() { unimplemented!(); }
 					if types.understood_c_path(&trait_path.1) {
 eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
+						let full_trait_path = types.resolve_path(&trait_path.1);
+						let trait_obj = types.crate_types.traits.get(&full_trait_path).unwrap();
+						let export = export_status(&trait_obj.attrs);
+						match export {
+							ExportStatus::Export => {},
+							ExportStatus::NoExport|ExportStatus::TestOnly => return,
+						}
+						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_as_{}(this_arg: *const {}) -> crate::{} {{\n", ident, trait_obj.ident, ident, full_trait_path).unwrap();
+						write!(w, "\tcrate::{} {{\n\t\tthis_arg: unsafe {{ (*this_arg).inner as *mut c_void }},\n", full_trait_path).unwrap();
+
+						for item in i.items.iter() {
+							match item {
+								syn::ImplItem::Method(m) => {
+									let trait_method = trait_obj.items.iter().filter_map(|item| {
+										if let syn::TraitItem::Method(t_m) = item { Some(t_m) } else { None }
+									}).find(|trait_meth| trait_meth.sig.ident == m.sig.ident).unwrap();
+									match export_status(&trait_method.attrs) {
+										ExportStatus::Export => {},
+										ExportStatus::NoExport => {
+											write!(w, "\t\t//XXX: Need to export {}\n", m.sig.ident).unwrap();
+											continue;
+										},
+										ExportStatus::TestOnly => continue,
+									}
+									write!(w, "\t\t{}: {}_{}_{},\n", m.sig.ident, ident, trait_obj.ident, m.sig.ident).unwrap();
+								},
+								_ => {},
+							}
+						}
+						walk_supertraits!(trait_obj, types, (
+							(s, t) => {
+								if s.starts_with("util::") {
+									let supertrait_obj = types.crate_types.traits.get(s).unwrap();
+									write!(w, "\t\t{}: crate::{} {{\t\t\tthis_arg: unsafe {{ (*this_arg).inner as *mut c_void }},\n", t, s).unwrap();
+									// TODO: Expose supertrait methods
+									write!(w, "\t\t}},\n").unwrap();
+								}
+							}
+						) );
+						write!(w, "\t}}\n}}\nuse {}::{} as {}TraitImport;\n", types.orig_crate, full_trait_path, trait_obj.ident).unwrap();
+
+						for item in i.items.iter() {
+							match item {
+								syn::ImplItem::Method(m) => {
+									let trait_method = trait_obj.items.iter().filter_map(|item| {
+										if let syn::TraitItem::Method(t_m) = item { Some(t_m) } else { None }
+									}).find(|trait_meth| trait_meth.sig.ident == m.sig.ident).unwrap();
+									match export_status(&trait_method.attrs) {
+										ExportStatus::Export => {},
+										ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+									}
+									write!(w, "extern \"C\" fn {}_{}_{}(", ident, trait_obj.ident, m.sig.ident).unwrap();
+									print_method_params(w, &m.sig, &HashMap::new(), "c_void", types, Some(&gen_types), true);
+									write!(w, " {{\n\t").unwrap();
+									print_method_var_decl_body(w, &m.sig, "", types, Some(&gen_types), false);
+									let mut takes_self = false;
+									for inp in m.sig.inputs.iter() {
+										if let syn::FnArg::Receiver(_) = inp {
+											takes_self = true;
+										}
+									}
+									if takes_self {
+										write!(w, "unsafe {{ &*(*(this_arg as *const {})).inner }}.{}(", ident, m.sig.ident).unwrap();
+									} else {
+										write!(w, "lightning::{}::{}(", resolved_path, m.sig.ident).unwrap();
+									}
+									print_method_call_params(w, &m.sig, types, Some(&gen_types), "", false);
+									write!(w, "\n}}\n").unwrap();
+								},
+								syn::ImplItem::Type(_) => {},
+								_ => unimplemented!(),
+							}
+						}
+						write!(w, "\n").unwrap();
 					} else if let Some(trait_ident) = trait_path.1.get_ident() {
-						//XXX: implement for basic things like ToString and implement traits
+						//XXX: implement for other things like ToString
 						match &format!("{}", trait_ident) as &str {
 							"From" => {},
 							"Default" => {

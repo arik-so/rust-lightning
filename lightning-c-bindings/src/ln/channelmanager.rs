@@ -243,3 +243,89 @@ pub extern "C" fn ChannelManager_get_our_node_id(this_arg: &ChannelManager) -> c
 	crate::c_types::PublicKey::from_rust(&unsafe { &*this_arg.inner }.get_our_node_id())
 }
 
+#[no_mangle]
+pub extern "C" fn ChannelManager_as_ChannelMessageHandler(this_arg: *const ChannelManager) -> crate::ln::msgs::ChannelMessageHandler {
+	crate::ln::msgs::ChannelMessageHandler {
+		this_arg: unsafe { (*this_arg).inner as *mut c_void },
+		handle_open_channel: ChannelManager_ChannelMessageHandler_handle_open_channel,
+		handle_accept_channel: ChannelManager_ChannelMessageHandler_handle_accept_channel,
+		handle_funding_created: ChannelManager_ChannelMessageHandler_handle_funding_created,
+		handle_funding_signed: ChannelManager_ChannelMessageHandler_handle_funding_signed,
+		handle_funding_locked: ChannelManager_ChannelMessageHandler_handle_funding_locked,
+		handle_shutdown: ChannelManager_ChannelMessageHandler_handle_shutdown,
+		handle_closing_signed: ChannelManager_ChannelMessageHandler_handle_closing_signed,
+		handle_update_add_htlc: ChannelManager_ChannelMessageHandler_handle_update_add_htlc,
+		handle_update_fulfill_htlc: ChannelManager_ChannelMessageHandler_handle_update_fulfill_htlc,
+		handle_update_fail_htlc: ChannelManager_ChannelMessageHandler_handle_update_fail_htlc,
+		handle_update_fail_malformed_htlc: ChannelManager_ChannelMessageHandler_handle_update_fail_malformed_htlc,
+		handle_commitment_signed: ChannelManager_ChannelMessageHandler_handle_commitment_signed,
+		handle_revoke_and_ack: ChannelManager_ChannelMessageHandler_handle_revoke_and_ack,
+		handle_update_fee: ChannelManager_ChannelMessageHandler_handle_update_fee,
+		handle_announcement_signatures: ChannelManager_ChannelMessageHandler_handle_announcement_signatures,
+		handle_channel_reestablish: ChannelManager_ChannelMessageHandler_handle_channel_reestablish,
+		peer_disconnected: ChannelManager_ChannelMessageHandler_peer_disconnected,
+		peer_connected: ChannelManager_ChannelMessageHandler_peer_connected,
+		handle_error: ChannelManager_ChannelMessageHandler_handle_error,
+		MessageSendEventsProvider: crate::util::events::MessageSendEventsProvider {			this_arg: unsafe { (*this_arg).inner as *mut c_void },
+		},
+	}
+}
+use lightning::ln::msgs::ChannelMessageHandler as ChannelMessageHandlerTraitImport;
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_open_channel(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: &crate::ln::msgs::OpenChannel) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_open_channel(&their_node_id.into_rust(), *unsafe { Box::from_raw(their_features.inner as *mut _) }, unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_accept_channel(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: &crate::ln::msgs::AcceptChannel) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_accept_channel(&their_node_id.into_rust(), *unsafe { Box::from_raw(their_features.inner as *mut _) }, unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_funding_created(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::FundingCreated) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_funding_created(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_funding_signed(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::FundingSigned) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_funding_signed(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_funding_locked(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::FundingLocked) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_funding_locked(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_shutdown(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::Shutdown) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_shutdown(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_closing_signed(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::ClosingSigned) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_closing_signed(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_update_add_htlc(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::UpdateAddHTLC) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_update_add_htlc(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_update_fulfill_htlc(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::UpdateFulfillHTLC) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_update_fulfill_htlc(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_update_fail_htlc(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::UpdateFailHTLC) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_update_fail_htlc(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_update_fail_malformed_htlc(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::UpdateFailMalformedHTLC) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_update_fail_malformed_htlc(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_commitment_signed(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::CommitmentSigned) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_commitment_signed(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_revoke_and_ack(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::RevokeAndACK) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_revoke_and_ack(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_update_fee(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::UpdateFee) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_update_fee(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_announcement_signatures(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::AnnouncementSignatures) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_announcement_signatures(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_channel_reestablish(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::ChannelReestablish) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_channel_reestablish(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_peer_disconnected(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, no_connection_possible: bool) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.peer_disconnected(&their_node_id.into_rust(), no_connection_possible)
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_peer_connected(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, init_msg: &crate::ln::msgs::Init) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.peer_connected(&their_node_id.into_rust(), unsafe { &*init_msg.inner })
+}
+extern "C" fn ChannelManager_ChannelMessageHandler_handle_error(this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::ErrorMessage) {
+	unsafe { &*(*(this_arg as *const ChannelManager)).inner }.handle_error(&their_node_id.into_rust(), unsafe { &*msg.inner })
+}
+

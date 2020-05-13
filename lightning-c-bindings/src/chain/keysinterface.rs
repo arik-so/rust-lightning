@@ -142,8 +142,7 @@ pub struct KeysInterface {
 	pub this_arg: *mut c_void,
 	/// " Get node secret key (aka node_id or network_key)"
 	pub get_node_secret: extern "C" fn (this_arg: *const c_void) -> crate::c_types::SecretKey,
-	/// " Get destination redeemScript to encumber static protocol exit points."
-	pub get_destination_script: extern "C" fn (this_arg: *const c_void) -> crate::c_types::Script,
+	//XXX: Need to export get_destination_script
 	/// " Get shutdown_pubkey to use as PublicKey at channel closure"
 	pub get_shutdown_pubkey: extern "C" fn (this_arg: *const c_void) -> crate::c_types::PublicKey,
 	//XXX: Need to export get_channel_keys
@@ -163,7 +162,7 @@ impl lnKeysInterface for KeysInterface {
 		(self.get_node_secret)(self.this_arg).into_rust()
 	}
 	fn get_destination_script(&self) -> bitcoin::blockdata::script::Script {
-		(self.get_destination_script)(self.this_arg).into_bitcoin()
+		unimplemented!();
 	}
 	fn get_shutdown_pubkey(&self) -> bitcoin::secp256k1::key::PublicKey {
 		(self.get_shutdown_pubkey)(self.this_arg).into_rust()
@@ -201,6 +200,27 @@ pub struct InMemoryChannelKeys {
 pub extern "C" fn InMemoryChannelKeys_free(this_ptr: InMemoryChannelKeys) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnInMemoryChannelKeys) };
 }
+#[no_mangle]
+pub extern "C" fn InMemoryChannelKeys_as_ChannelKeys(this_arg: *const InMemoryChannelKeys) -> crate::chain::keysinterface::ChannelKeys {
+	crate::chain::keysinterface::ChannelKeys {
+		this_arg: unsafe { (*this_arg).inner as *mut c_void },
+		//XXX: Need to export funding_key
+		//XXX: Need to export revocation_base_key
+		//XXX: Need to export payment_key
+		//XXX: Need to export delayed_payment_base_key
+		//XXX: Need to export htlc_base_key
+		//XXX: Need to export commitment_seed
+		//XXX: Need to export pubkeys
+		//XXX: Need to export sign_remote_commitment
+		//XXX: Need to export sign_local_commitment
+		//XXX: Need to export sign_local_commitment_htlc_transactions
+		//XXX: Need to export sign_closing_transaction
+		//XXX: Need to export sign_channel_announcement
+		//XXX: Need to export set_remote_channel_pubkeys
+	}
+}
+use lightning::chain::keysinterface::ChannelKeys as ChannelKeysTraitImport;
+
 
 use lightning::chain::keysinterface::KeysManager as lnKeysManagerImport;
 type lnKeysManager = lnKeysManagerImport;
@@ -245,5 +265,28 @@ pub extern "C" fn KeysManager_new(seed: *const [u8; 32], network: crate::bitcoin
 	let rust_logger = std::sync::Arc::new(logger);
 	let ret = lightning::chain::keysinterface::KeysManager::new(unsafe { &*seed}, network.into_bitcoin(), rust_logger, starting_time_secs, starting_time_nanos);
 	KeysManager { inner: Box::into_raw(Box::new(ret)) }
+}
+
+#[no_mangle]
+pub extern "C" fn KeysManager_as_KeysInterface(this_arg: *const KeysManager) -> crate::chain::keysinterface::KeysInterface {
+	crate::chain::keysinterface::KeysInterface {
+		this_arg: unsafe { (*this_arg).inner as *mut c_void },
+		get_node_secret: KeysManager_KeysInterface_get_node_secret,
+		//XXX: Need to export get_destination_script
+		get_shutdown_pubkey: KeysManager_KeysInterface_get_shutdown_pubkey,
+		//XXX: Need to export get_channel_keys
+		//XXX: Need to export get_onion_rand
+		get_channel_id: KeysManager_KeysInterface_get_channel_id,
+	}
+}
+use lightning::chain::keysinterface::KeysInterface as KeysInterfaceTraitImport;
+extern "C" fn KeysManager_KeysInterface_get_node_secret(this_arg: *const c_void) -> crate::c_types::SecretKey {
+	crate::c_types::SecretKey::from_rust(unsafe { &*(*(this_arg as *const KeysManager)).inner }.get_node_secret())
+}
+extern "C" fn KeysManager_KeysInterface_get_shutdown_pubkey(this_arg: *const c_void) -> crate::c_types::PublicKey {
+	crate::c_types::PublicKey::from_rust(&unsafe { &*(*(this_arg as *const KeysManager)).inner }.get_shutdown_pubkey())
+}
+extern "C" fn KeysManager_KeysInterface_get_channel_id(this_arg: *const c_void) -> crate::c_types::ThirtyTwoBytes {
+	crate::c_types::ThirtyTwoBytes { data: unsafe { &*(*(this_arg as *const KeysManager)).inner }.get_channel_id() }
 }
 
