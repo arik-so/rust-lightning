@@ -71,9 +71,13 @@ fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, assoc
 			syn::FnArg::Receiver(recv) => {
 				if !recv.attrs.is_empty() || recv.reference.is_none() { unimplemented!(); }
 				if recv.reference.as_ref().unwrap().1.is_some() { unimplemented!(); }
-				write!(w, "this_arg: {}{} {}",
-					if self_ptr && recv.mutability.is_some() { "*" } else if self_ptr { "*const " } else { "&" },
-					if recv.mutability.is_some() { "mut " } else { "" }, this_param).unwrap();
+				write!(w, "this_arg: {}{}",
+					match (self_ptr, recv.mutability.is_some()) {
+						(true, true) => "*mut ",
+						(true, false) => "*const ",
+						(false, true) => "&mut ",
+						(false, false) => "&",
+					}, this_param).unwrap();
 				assert!(first_arg);
 				first_arg = false;
 			},
@@ -244,41 +248,40 @@ fn maybe_print_generics<W: std::io::Write>(w: &mut W, generics: &syn::Generics, 
 	}
 }
 
-fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, module_path: &str, types: &mut TypeResolver<'a>) {
+macro_rules! walk_supertraits { ($t: expr, $types: expr, ($( $pat: pat => $e: expr),*) ) => { {
+	if $t.colon_token.is_some() {
+		for st in $t.supertraits.iter() {
+			match st {
+				syn::TypeParamBound::Trait(supertrait) => {
+					if supertrait.paren_token.is_some() || supertrait.lifetimes.is_some() {
+						unimplemented!();
+					}
+					if let Some(ident) = supertrait.path.get_ident() {
+						match (&format!("{}", ident) as &str, &ident) {
+							$( $pat => $e, )*
+						}
+					} else {
+						let path = $types.resolve_path(&supertrait.path);
+						match (&path as &str, &supertrait.path.segments.iter().last().unwrap().ident) {
+							$( $pat => $e, )*
+						}
+					}
+				},
+				syn::TypeParamBound::Lifetime(_) => unimplemented!(),
+			}
+		}
+	}
+} } }
+
+fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types: &mut TypeResolver<'a>) {
 	let trait_name = format!("{}", t.ident);
 	match export_status(&t.attrs) {
 		ExportStatus::Export => {},
 		ExportStatus::NoExport|ExportStatus::TestOnly => return,
-		ExportStatus::Rename(_) => unimplemented!(),
 	}
 	println_docs(w, &t.attrs, "");
 
-	macro_rules! walk_supertraits { ($( $pat: pat => $e: expr),*) => { {
-		if t.colon_token.is_some() {
-			for st in t.supertraits.iter() {
-				match st {
-					syn::TypeParamBound::Trait(supertrait) => {
-						if supertrait.paren_token.is_some() || supertrait.lifetimes.is_some() {
-							unimplemented!();
-						}
-						if let Some(ident) = supertrait.path.get_ident() {
-							match (&format!("{}", ident) as &str, &ident) {
-								$( $pat => $e, )*
-							}
-						} else {
-							let path = types.resolve_path(&supertrait.path);
-							match (&path as &str, &supertrait.path.segments.iter().last().unwrap().ident) {
-								$( $pat => $e, )*
-							}
-						}
-					},
-					syn::TypeParamBound::Lifetime(_) => unimplemented!(),
-				}
-			}
-		}
-	} } }
-
-	walk_supertraits!(
+	walk_supertraits!(t, types, (
 		("Clone", _) => write!(w, "#[derive(Clone)]\n").unwrap(),
 		("std::cmp::Eq", _) => {},
 		("std::hash::Hash", _) => {},
@@ -286,7 +289,7 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, module
 		(s, _) => {
 			if !s.starts_with("util::") { unimplemented!(); }
 		}
-	);
+	) );
 	write!(w, "#[repr(C)]\npub struct {} {{\n", trait_name).unwrap();
 	write!(w, "\tpub this_arg: *mut c_void,\n").unwrap();
 	let mut associated_types: HashMap<&syn::Ident, &syn::Ident> = HashMap::new();
@@ -300,7 +303,6 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, module
 					},
 					ExportStatus::Export => {},
 					ExportStatus::TestOnly => continue,
-					ExportStatus::Rename(_) => unimplemented!(),
 				}
 				if m.default.is_some() { unimplemented!(); }
 				println_docs(w, &m.attrs, "\t");
@@ -323,7 +325,7 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, module
 			_ => unimplemented!(),
 		}
 	}
-	walk_supertraits!(
+	walk_supertraits!(t, types, (
 		("Clone", _) => {},
 		("std::cmp::Eq", _) => write!(w, "\tpub eq: extern \"C\" fn (this_arg: *const c_void, other_arg: *const c_void) -> bool,\n").unwrap(),
 		("std::hash::Hash", _) => write!(w, "\tpub hash: extern \"C\" fn (this_arg: *const c_void) -> u64,\n").unwrap(),
@@ -332,9 +334,9 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, module
 			if !s.starts_with("util::") { unimplemented!(); }
 			write!(w, "\tpub {}: crate::{},\n", i, s).unwrap();
 		}
-	);
+	) );
 	write!(w, "}}\n").unwrap();
-	walk_supertraits!(
+	walk_supertraits!(t, types, (
 		("Send", _) => write!(w, "unsafe impl Send for {} {{}}\n", trait_name).unwrap(),
 		("Sync", _) => write!(w, "unsafe impl Sync for {} {{}}\n", trait_name).unwrap(),
 		("std::cmp::Eq", _) => {
@@ -355,8 +357,8 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, module
 			write!(w, "\tfn get_and_clear_pending_msg_events(&self) -> Vec<lightning::util::events::MessageSendEvent> {{\n").unwrap();
 			write!(w, "\t\tunimplemented!()\n\t}}\n}}\n").unwrap();
 		}
-	);
-	write!(w, "\nuse {}::{} as ln{};\n", module_path, t.ident, trait_name).unwrap();
+	) );
+	write!(w, "\nuse {}::{}::{} as ln{};\n", types.orig_crate, types.module_path, t.ident, trait_name).unwrap();
 	write!(w, "impl ln{}", t.ident).unwrap();
 	maybe_print_generics(w, &t.generics, types);
 	write!(w, " for {} {{\n", trait_name).unwrap();
@@ -446,11 +448,11 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, module
 	types.trait_declared(&t.ident, t);
 }
 
-fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name: &str, generics: &syn::Generics, attrs: &[syn::Attribute], module_path: &str, types: &TypeResolver, extra_headers: &mut File) {
+fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name: &str, generics: &syn::Generics, attrs: &[syn::Attribute], types: &TypeResolver, extra_headers: &mut File) {
 	// If we directly read the original type by its original name, cbindgen hits
 	// https://github.com/eqrion/cbindgen/issues/286 Thus, instead, we import it as a temporary
 	// name and then reference it by that name, which works around the issue.
-	write!(w, "\nuse {}::{} as ln{}Import;\ntype ln{} = ln{}Import", module_path, ident, ident, ident, ident).unwrap();
+	write!(w, "\nuse {}::{}::{} as ln{}Import;\ntype ln{} = ln{}Import", types.orig_crate, types.module_path, ident, ident, ident, ident).unwrap();
 	maybe_print_generics(w, &generics, &types);
 	write!(w, ";\n\n").unwrap();
 	write!(extra_headers, "struct ln{}Opaque;\ntypedef struct ln{}Opaque LDKln{};\n", ident, ident, ident).unwrap();
@@ -460,13 +462,12 @@ fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name:
 	write!(w, "\tlet _ = unsafe {{ Box::from_raw(this_ptr.inner as *mut ln{}) }};\n}}\n", struct_name).unwrap();
 }
 
-fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, module_path: &str, types: &mut TypeResolver, extra_headers: &mut File) {
-	let mut struct_name = &format!("{}", s.ident);
+fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, types: &mut TypeResolver, extra_headers: &mut File) {
+	let struct_name = &format!("{}", s.ident);
 	let export = export_status(&s.attrs);
 	match export {
 		ExportStatus::Export => {},
 		ExportStatus::NoExport|ExportStatus::TestOnly => return,
-		ExportStatus::Rename(ref name) => { struct_name = &name; },
 	}
 
 	//XXX: Stupid hack:
@@ -475,7 +476,7 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, module_path
 		return;
 	}
 
-	println_opaque(w, &s.ident, struct_name, &s.generics, &s.attrs, module_path, types, extra_headers);
+	println_opaque(w, &s.ident, struct_name, &s.generics, &s.attrs, types, extra_headers);
 
 	eprintln!("exporting fields for {}", struct_name);
 	if let syn::Fields::Named(fields) = &s.fields {
@@ -492,7 +493,6 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, module_path
 						all_fields_settable = false;
 						continue
 					},
-					ExportStatus::Rename(_) => { unimplemented!(); },
 				}
 
 				if let Some(ident) = &field.ident {
@@ -500,6 +500,7 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, module_path
 						and_token: syn::Token!(&)(Span::call_site()), lifetime: None, mutability: None,
 						elem: Box::new(field.ty.clone()) });
 					if types.understood_c_type(&ref_type, Some(&gen_types)) {
+						println_docs(w, &field.attrs, "");
 						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_get_{}(this_ptr: &{}) -> ", struct_name, ident, struct_name).unwrap();
 						types.print_c_type(w, &ref_type, Some(&gen_types), true);
 						write!(w, " {{\n\t").unwrap();
@@ -511,6 +512,7 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, module_path
 					}
 
 					if types.understood_c_type(&field.ty, Some(&gen_types)) {
+						println_docs(w, &field.attrs, "");
 						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_set_{}(this_ptr: &mut {}, val: ", struct_name, ident, struct_name).unwrap();
 						types.print_c_type(w, &field.ty, Some(&gen_types), false);
 						write!(w, ") {{\n\t").unwrap();
@@ -553,7 +555,6 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, module_path
 		}
 	}
 
-
 	types.struct_imported(&s.ident, struct_name.clone());
 }
 
@@ -572,7 +573,92 @@ fn println_impl<W: std::io::Write>(w: &mut W, i: &syn::ItemImpl, types: &TypeRes
 					if trait_path.0.is_some() { unimplemented!(); }
 					if types.understood_c_path(&trait_path.1) {
 eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
-						//XXX: implement for basic things like ToString and implement traits
+						let full_trait_path = types.resolve_path(&trait_path.1);
+						let trait_obj = types.crate_types.traits.get(&full_trait_path).unwrap();
+						let export = export_status(&trait_obj.attrs);
+						match export {
+							ExportStatus::Export => {},
+							ExportStatus::NoExport|ExportStatus::TestOnly => return,
+						}
+						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_as_{}(this_arg: *const {}) -> crate::{} {{\n", ident, trait_obj.ident, ident, full_trait_path).unwrap();
+						write!(w, "\tcrate::{} {{\n\t\tthis_arg: unsafe {{ (*this_arg).inner as *mut c_void }},\n", full_trait_path).unwrap();
+
+						for item in i.items.iter() {
+							match item {
+								syn::ImplItem::Method(m) => {
+									let trait_method = trait_obj.items.iter().filter_map(|item| {
+										if let syn::TraitItem::Method(t_m) = item { Some(t_m) } else { None }
+									}).find(|trait_meth| trait_meth.sig.ident == m.sig.ident).unwrap();
+									match export_status(&trait_method.attrs) {
+										ExportStatus::Export => {},
+										ExportStatus::NoExport => {
+											write!(w, "\t\t//XXX: Need to export {}\n", m.sig.ident).unwrap();
+											continue;
+										},
+										ExportStatus::TestOnly => continue,
+									}
+									write!(w, "\t\t{}: {}_{}_{},\n", m.sig.ident, ident, trait_obj.ident, m.sig.ident).unwrap();
+								},
+								_ => {},
+							}
+						}
+						walk_supertraits!(trait_obj, types, (
+							(s, t) => {
+								if s.starts_with("util::") {
+									let supertrait_obj = types.crate_types.traits.get(s).unwrap();
+									write!(w, "\t\t{}: crate::{} {{\t\t\tthis_arg: unsafe {{ (*this_arg).inner as *mut c_void }},\n", t, s).unwrap();
+									// TODO: Expose supertrait methods
+									write!(w, "\t\t}},\n").unwrap();
+								}
+							}
+						) );
+						write!(w, "\t}}\n}}\nuse {}::{} as {}TraitImport;\n", types.orig_crate, full_trait_path, trait_obj.ident).unwrap();
+
+						for item in i.items.iter() {
+							match item {
+								syn::ImplItem::Method(m) => {
+									let trait_method = trait_obj.items.iter().filter_map(|item| {
+										if let syn::TraitItem::Method(t_m) = item { Some(t_m) } else { None }
+									}).find(|trait_meth| trait_meth.sig.ident == m.sig.ident).unwrap();
+									match export_status(&trait_method.attrs) {
+										ExportStatus::Export => {},
+										ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+									}
+									write!(w, "extern \"C\" fn {}_{}_{}(", ident, trait_obj.ident, m.sig.ident).unwrap();
+									print_method_params(w, &m.sig, &HashMap::new(), "c_void", types, Some(&gen_types), true);
+									write!(w, " {{\n\t").unwrap();
+									print_method_var_decl_body(w, &m.sig, "", types, Some(&gen_types), false);
+									let mut takes_self = false;
+									for inp in m.sig.inputs.iter() {
+										if let syn::FnArg::Receiver(_) = inp {
+											takes_self = true;
+										}
+									}
+									if takes_self {
+										write!(w, "unsafe {{ &*(*(this_arg as *const {})).inner }}.{}(", ident, m.sig.ident).unwrap();
+									} else {
+										write!(w, "lightning::{}::{}(", resolved_path, m.sig.ident).unwrap();
+									}
+									print_method_call_params(w, &m.sig, types, Some(&gen_types), "", false);
+									write!(w, "\n}}\n").unwrap();
+								},
+								syn::ImplItem::Type(_) => {},
+								_ => unimplemented!(),
+							}
+						}
+						write!(w, "\n").unwrap();
+					} else if let Some(trait_ident) = trait_path.1.get_ident() {
+						//XXX: implement for other things like ToString
+						match &format!("{}", trait_ident) as &str {
+							"From" => {},
+							"Default" => {
+								write!(w, "#[no_mangle]\npub extern \"C\" fn {}_default() -> {} {{\n", ident, ident).unwrap();
+								write!(w, "\t{} {{ inner: Box::into_raw(Box::new(Default::default())) }}\n", ident).unwrap();
+								write!(w, "}}\n").unwrap();
+							},
+							"PartialEq" => {},
+							_ => {},
+						}
 					}
 				} else {
 					let declared_type = types.get_declared_type(&ident).unwrap();
@@ -583,7 +669,6 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 									match export_status(&m.attrs) {
 										ExportStatus::Export => {},
 										ExportStatus::NoExport|ExportStatus::TestOnly => continue,
-										ExportStatus::Rename(_) => unimplemented!(),
 									}
 									if m.defaultness.is_some() { unimplemented!(); }
 									println_docs(w, &m.attrs, "");
@@ -622,17 +707,16 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 	}
 }
 
-fn println_enum<W: std::io::Write>(w: &mut W, e: &syn::ItemEnum, module_path: &str, types: &mut TypeResolver, extra_headers: &mut File) {
+fn println_enum<W: std::io::Write>(w: &mut W, e: &syn::ItemEnum, types: &mut TypeResolver, extra_headers: &mut File) {
 	match export_status(&e.attrs) {
 		ExportStatus::Export => {},
 		ExportStatus::NoExport|ExportStatus::TestOnly => return,
-		ExportStatus::Rename(_) => { unimplemented!(); },
 	}
 
 	for var in e.variants.iter() {
 		if let syn::Fields::Unit = var.fields {} else {
 			eprintln!("Skipping enum {} as it contains non-unit fields", e.ident);
-			println_opaque(w, &e.ident, &format!("{}", e.ident), &e.generics, &e.attrs, module_path, types, extra_headers);
+			println_opaque(w, &e.ident, &format!("{}", e.ident), &e.generics, &e.attrs, types, extra_headers);
 			types.enum_ignored(&e.ident);
 			return;
 		}
@@ -651,7 +735,7 @@ fn println_enum<W: std::io::Write>(w: &mut W, e: &syn::ItemEnum, module_path: &s
 		if var.discriminant.is_some() { unimplemented!(); }
 		write!(w, "\t{},\n", var.ident).unwrap();
 	}
-	write!(w, "}}\nuse {}::{} as ln{};\nimpl {} {{\n", module_path, e.ident, e.ident, e.ident).unwrap();
+	write!(w, "}}\nuse {}::{}::{} as ln{};\nimpl {} {{\n", types.orig_crate, types.module_path, e.ident, e.ident, e.ident).unwrap();
 	write!(w, "\t#[allow(unused)]\n\tpub(crate) fn to_ln(&self) -> ln{} {{\n\t\tmatch self {{\n", e.ident).unwrap();
 	for var in e.variants.iter() {
 		write!(w, "\t\t\t{}::{} => ln{}::{},\n", e.ident, var.ident, e.ident, var.ident).unwrap();
@@ -685,14 +769,15 @@ fn should_export(path: &str) -> bool {
 	}
 }
 
-fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, header_file: &mut File) {
+struct FullLibraryAST {
+	files: HashMap<String, syn::File>,
+}
+
+fn convert_file(libast: &FullLibraryAST, crate_types: &CrateTypes, path: &str, out_path: &str, orig_crate: &str, module: &str, header_file: &mut File) {
 	if !should_export(path) { return; }
 	eprintln!("Converting {}...", path);
 
-	let mut file = File::open(path).expect("Unable to open file");
-	let mut src = String::new();
-	file.read_to_string(&mut src).expect("Unable to read file");
-	let syntax = syn::parse_file(&src).expect("Unable to parse file");
+	let syntax = if let Some(ast) = libast.files.get(module) { ast } else { return };
 
 	assert!(syntax.shebang.is_none()); // Not sure what this is, hope we dont have one
 
@@ -702,8 +787,7 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 	assert_eq!(export_status(&syntax.attrs), ExportStatus::Export);
 	println_docs(&mut out, &syntax.attrs, "");
 
-	let mut type_resolver = TypeResolver::new(module);
-	let orig_module = orig_crate.to_string() + "::" + module;
+	let mut type_resolver = TypeResolver::new(orig_crate, module, crate_types);
 
 	if path.ends_with("lib.rs") {
 		write!(out, "#![allow(non_camel_case_types)]\n").unwrap();
@@ -722,7 +806,7 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 			syn::Item::Static(_) => {},
 			syn::Item::Enum(e) => {
 				if let syn::Visibility::Public(_) = e.vis {
-					println_enum(&mut out, &e, &orig_module, &mut type_resolver, header_file);
+					println_enum(&mut out, &e, &mut type_resolver, header_file);
 				}
 			},
 			syn::Item::Impl(i) => {
@@ -730,12 +814,12 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 			},
 			syn::Item::Struct(s) => {
 				if let syn::Visibility::Public(_) = s.vis {
-					println_struct(&mut out, &s, &orig_module, &mut type_resolver, header_file);
+					println_struct(&mut out, &s, &mut type_resolver, header_file);
 				}
 			},
 			syn::Item::Trait(t) => {
 				if let syn::Visibility::Public(_) = t.vis {
-					println_trait(&mut out, &t, &orig_module, &mut type_resolver);
+					println_trait(&mut out, &t, &mut type_resolver);
 				}
 			},
 			syn::Item::Mod(m) => {
@@ -743,18 +827,17 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 					match export_status(&m.attrs) {
 						ExportStatus::Export => {},
 						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
-						ExportStatus::Rename(_) => unimplemented!(),
 					}
 
 					if m.content.is_some() { unimplemented!(); } // Probably mod tests {}
 					let f_path = format!("{}/{}.rs", (path.as_ref() as &Path).parent().unwrap().display(), m.ident);
 					let new_mod = if module.is_empty() { format!("{}", m.ident) } else { format!("{}::{}", module, m.ident) };
 					if let Ok(_) = File::open(&f_path) {
-
 						if should_export(&f_path) {
 							println_docs(&mut out, &m.attrs, "");
 							write!(out, "pub mod {};\n", m.ident).unwrap();
-							convert_file(&f_path, &format!("{}/{}.rs", (out_path.as_ref() as &Path).parent().unwrap().display(), m.ident),
+							convert_file(libast, crate_types, &f_path,
+								&format!("{}/{}.rs", (out_path.as_ref() as &Path).parent().unwrap().display(), m.ident),
 								orig_crate, &new_mod, header_file);
 						}
 					} else {
@@ -762,7 +845,8 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 						if should_export(&f_path) {
 							println_docs(&mut out, &m.attrs, "");
 							write!(out, "pub mod {};\n", m.ident).unwrap();
-							convert_file(&f_path, &format!("{}/{}/mod.rs", (out_path.as_ref() as &Path).parent().unwrap().display(), m.ident),
+							convert_file(libast, crate_types, &f_path,
+								&format!("{}/{}/mod.rs", (out_path.as_ref() as &Path).parent().unwrap().display(), m.ident),
 								orig_crate, &new_mod, header_file);
 						}
 					}
@@ -776,10 +860,9 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 					match export_status(&t.attrs) {
 						ExportStatus::Export => {},
 						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
-						ExportStatus::Rename(_) => unimplemented!(),
 					}
 					if t.generics.lt_token.is_none() {
-						println_opaque(&mut out, &t.ident, &format!("{}", t.ident), &t.generics, &t.attrs, &orig_module, &type_resolver, header_file);
+						println_opaque(&mut out, &t.ident, &format!("{}", t.ident), &t.generics, &t.attrs, &type_resolver, header_file);
 					}
 				}
 			},
@@ -795,17 +878,132 @@ fn convert_file(path: &str, out_path: &str, orig_crate: &str, module: &str, head
 	out.flush().unwrap();
 }
 
+fn load_ast(path: &str, module: String, ast_storage: &mut FullLibraryAST) {
+	if !should_export(path) { return; }
+	eprintln!("Loading {}...", path);
+
+	let mut file = File::open(path).expect("Unable to open file");
+	let mut src = String::new();
+	file.read_to_string(&mut src).expect("Unable to read file");
+	let syntax = syn::parse_file(&src).expect("Unable to parse file");
+
+	assert_eq!(export_status(&syntax.attrs), ExportStatus::Export);
+
+	for item in syntax.items.iter() {
+		match item {
+			syn::Item::Mod(m) => {
+				if let syn::Visibility::Public(_) = m.vis {
+					match export_status(&m.attrs) {
+						ExportStatus::Export => {},
+						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+					}
+
+					let f_path = format!("{}/{}.rs", (path.as_ref() as &Path).parent().unwrap().display(), m.ident);
+					let new_mod = if module.is_empty() { format!("{}", m.ident) } else { format!("{}::{}", module, m.ident) };
+					if let Ok(_) = File::open(&f_path) {
+						if should_export(&f_path) {
+							load_ast(&f_path, new_mod, ast_storage);
+						}
+					} else {
+						let f_path = format!("{}/{}/mod.rs", (path.as_ref() as &Path).parent().unwrap().display(), m.ident);
+						if should_export(&f_path) {
+							load_ast(&f_path, new_mod, ast_storage);
+						}
+					}
+				}
+			},
+			_ => {},
+		}
+	}
+	ast_storage.files.insert(module, syntax);
+}
+
+fn walk_ast<'a>(path: &str, module: String, ast_storage: &'a FullLibraryAST, crate_types: &mut CrateTypes<'a>) {
+	if !should_export(path) { return; }
+	eprintln!("Walking {}...", path);
+	let syntax = if let Some(ast) = ast_storage.files.get(&module) { ast } else { return };
+	assert_eq!(export_status(&syntax.attrs), ExportStatus::Export);
+
+	for item in syntax.items.iter() {
+		match item {
+			syn::Item::Mod(m) => {
+				if let syn::Visibility::Public(_) = m.vis {
+					match export_status(&m.attrs) {
+						ExportStatus::Export => {},
+						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+					}
+
+					let f_path = format!("{}/{}.rs", (path.as_ref() as &Path).parent().unwrap().display(), m.ident);
+					let new_mod = if module.is_empty() { format!("{}", m.ident) } else { format!("{}::{}", module, m.ident) };
+					if let Ok(_) = File::open(&f_path) {
+						if should_export(&f_path) {
+							walk_ast(&f_path, new_mod, ast_storage, crate_types);
+						}
+					} else {
+						let f_path = format!("{}/{}/mod.rs", (path.as_ref() as &Path).parent().unwrap().display(), m.ident);
+						if should_export(&f_path) {
+							walk_ast(&f_path, new_mod, ast_storage, crate_types);
+						}
+					}
+				}
+			},
+			syn::Item::Struct(s) => {
+				if let syn::Visibility::Public(_) = s.vis {
+					match export_status(&s.attrs) {
+						ExportStatus::Export => {},
+						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+					}
+					let struct_path = format!("{}::{}", module, s.ident);
+					crate_types.structs.insert(struct_path, &s);
+				}
+			},
+			syn::Item::Trait(t) => {
+				if let syn::Visibility::Public(_) = t.vis {
+					match export_status(&t.attrs) {
+						ExportStatus::Export => {},
+						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+					}
+					let trait_path = format!("{}::{}", module, t.ident);
+					crate_types.traits.insert(trait_path, &t);
+				}
+			},
+			syn::Item::Impl(i) => {
+				match export_status(&i.attrs) {
+					ExportStatus::Export => {},
+					ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+				}
+				if i.defaultness.is_none() && i.unsafety.is_none() && i.trait_.is_some() {
+					if let syn::Type::Path(path) = &*i.self_ty {
+						if let Some(ident) = single_ident_generic_path_to_ident(&path.path) {
+							if let Some(trait_ident) = single_ident_generic_path_to_ident(&i.trait_.as_ref().unwrap().1) {
+								crate_types.trait_impls.entry(format!("{}::{}", module, ident)).or_insert(Vec::new()).push(trait_ident);
+							}
+						}
+					}
+				}
+			},
+			_ => {},
+		}
+	}
+}
+
 fn main() {
 	let args: Vec<String> = env::args().collect();
-	if args.len() != 6 {
-		eprintln!("Usage: source/dir our/dir orig_crate module::path extra/includes.h");
+	if args.len() != 5 {
+		eprintln!("Usage: source/dir our/dir orig_crate extra/includes.h");
 		process::exit(1);
 	}
 
 	let mut header_file = std::fs::OpenOptions::new().write(true).append(true)
-		.open(&args[5]).expect("Unable to open new header file");
+		.open(&args[4]).expect("Unable to open new header file");
 
-	convert_file(&(args[1].clone() + "/lib.rs"), &(args[2].clone() + "lib.rs"), &args[3], &args[4], &mut header_file);
+	let mut libast = FullLibraryAST { files: HashMap::new() };
+	load_ast(&(args[1].clone() + "/lib.rs"), "".to_string(), &mut libast);
+
+	let mut libtypes = CrateTypes { traits: HashMap::new(), trait_impls: HashMap::new(), structs: HashMap::new() };
+	walk_ast(&(args[1].clone() + "/lib.rs"), "".to_string(), &libast, &mut libtypes);
+
+	convert_file(&libast, &libtypes, &(args[1].clone() + "/lib.rs"), &(args[2].clone() + "lib.rs"), &args[3], "", &mut header_file);
 
 	header_file.flush().unwrap();
 }

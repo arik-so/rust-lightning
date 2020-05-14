@@ -46,6 +46,13 @@ pub struct ChannelMonitorUpdate {
 pub extern "C" fn ChannelMonitorUpdate_free(this_ptr: ChannelMonitorUpdate) {
 	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelMonitorUpdate) };
 }
+/// " The sequence number of this update. Updates *must* be replayed in-order according to this"
+/// " sequence number (and updates may panic if they are not). The update_id values are strictly"
+/// " increasing and increase by one for each new update."
+/// ""
+/// " This sequence number is also used to track up to which points updates which returned"
+/// " ChannelMonitorUpdateErr::TemporaryFailure have been applied to all copies of a given"
+/// " ChannelMonitor when ChannelManager::channel_monitor_updated is called."
 #[no_mangle]
 pub extern "C" fn ChannelMonitorUpdate_set_update_id(this_ptr: &mut ChannelMonitorUpdate, val: u64) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelMonitorUpdate) }.update_id = val;
@@ -227,7 +234,7 @@ impl std::ops::Deref for ManyChannelMonitor {
 /// " Gets the update_id from the latest ChannelMonitorUpdate which was applied to this"
 /// " ChannelMonitor."
 #[no_mangle]
-pub extern "C" fn ChannelMonitor_get_latest_update_id(this_arg: & ChannelMonitor) -> u64 {
+pub extern "C" fn ChannelMonitor_get_latest_update_id(this_arg: &ChannelMonitor) -> u64 {
 	unsafe { &*this_arg.inner }.get_latest_update_id()
 }
 

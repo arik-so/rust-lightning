@@ -9,7 +9,7 @@ OUT="$(pwd)/lightning-c-bindings/src"
 OUT_F="$(pwd)/lightning-c-bindings/include/rust_types.h"
 echo > $OUT_F
 
-RUST_BACKTRACE=1 $GEN $SRC/ $OUT/ lightning "" $OUT_F
+RUST_BACKTRACE=1 $GEN $SRC/ $OUT/ lightning $OUT_F
 
 cd lightning-c-bindings
 cargo build

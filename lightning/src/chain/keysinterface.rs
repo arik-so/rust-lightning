@@ -269,6 +269,7 @@ pub trait KeysInterface: Send + Sync {
 	/// Get node secret key (aka node_id or network_key)
 	fn get_node_secret(&self) -> SecretKey;
 	/// Get destination redeemScript to encumber static protocol exit points.
+	/// (C-not exported) due to underlying Vec
 	fn get_destination_script(&self) -> Script;
 	/// Get shutdown_pubkey to use as PublicKey at channel closure
 	fn get_shutdown_pubkey(&self) -> PublicKey;

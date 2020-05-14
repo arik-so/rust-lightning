@@ -53,7 +53,6 @@ pub enum ExportStatus {
 	Export,
 	NoExport,
 	TestOnly,
-	Rename(String),
 }
 pub fn export_status(attrs: &[syn::Attribute]) -> ExportStatus {
 	for attr in attrs.iter() {
@@ -84,11 +83,6 @@ pub fn export_status(attrs: &[syn::Attribute]) -> ExportStatus {
 				let line = format!("{}", lit);
 				if line.contains("(C-not exported)") {
 					return ExportStatus::NoExport;
-				} else {
-					let split: Vec<_> = line.split("(C-exported as ").collect();
-					if split.len() == 2 {
-						return ExportStatus::Rename(split[1].split(")").next().unwrap().to_string());
-					}
 				}
 			},
 			_ => unimplemented!(),
@@ -174,15 +168,23 @@ pub enum DeclType<'a> {
 	EnumIgnored,
 }
 
+pub struct CrateTypes<'a> {
+	pub structs: HashMap<String, &'a syn::ItemStruct>,
+	pub traits: HashMap<String, &'a syn::ItemTrait>,
+	pub trait_impls: HashMap<String, Vec<&'a syn::Ident>>,
+}
+
 pub struct TypeResolver<'a> {
-	module_path: &'a str,
+	pub orig_crate: &'a str,
+	pub module_path: &'a str,
 	imports: HashMap<syn::Ident, String>,
 	// ident -> is-mirrored-enum
 	declared: HashMap<syn::Ident, DeclType<'a>>,
+	pub crate_types: &'a CrateTypes<'a>,
 }
 
 impl<'a> TypeResolver<'a> {
-	pub fn new(module_path: &'a str) -> Self {
+	pub fn new(orig_crate: &'a str, module_path: &'a str, crate_types: &'a CrateTypes<'a>) -> Self {
 		let mut imports = HashMap::new();
 		// Add primitives to the "imports" list:
 		imports.insert(syn::Ident::new("bool", Span::call_site()), "bool".to_string());
@@ -196,7 +198,7 @@ impl<'a> TypeResolver<'a> {
 		// have C mappings:
 		imports.insert(syn::Ident::new("Result", Span::call_site()), "Result".to_string());
 		imports.insert(syn::Ident::new("Option", Span::call_site()), "Option".to_string());
-		Self { module_path, imports, declared: HashMap::new() }
+		Self { orig_crate, module_path, imports, declared: HashMap::new(), crate_types }
 	}
 
 	// *** Well know type definitions ***
@@ -274,6 +276,7 @@ impl<'a> TypeResolver<'a> {
 			return Some("");
 		}
 		match full_path {
+			"bitcoin::secp256k1::key::PublicKey" if is_ref => Some("&"),
 			"bitcoin::secp256k1::key::PublicKey" => Some(""),
 			"bitcoin::secp256k1::key::SecretKey" if is_ref => unimplemented!(),
 			"bitcoin::secp256k1::key::SecretKey" => Some(""),
@@ -338,7 +341,6 @@ impl<'a> TypeResolver<'a> {
 			return None;
 		}
 		match full_path {
-			"bitcoin::blockdata::script::Script" => Some(("::bitcoin::consensus::encode::serialize(", ")")),
 			"bitcoin::blockdata::transaction::Transaction" => Some(("::bitcoin::consensus::encode::serialize(", ")")),
 			"bitcoin::hash_types::Txid" => None,
 
@@ -356,8 +358,10 @@ impl<'a> TypeResolver<'a> {
 		match full_path {
 			"bitcoin::secp256k1::key::PublicKey" if is_ref => Some("crate::c_types::PublicKey::from_rust("),
 			"bitcoin::secp256k1::key::PublicKey" => Some("crate::c_types::PublicKey::from_rust(&"),
-			"bitcoin::blockdata::script::Script" => Some("crate::c_types::Script::from_slice(&c_"),
-			"bitcoin::blockdata::transaction::Transaction" => Some("crate::c_types::Transaction::from_slice(&c_"),
+			"bitcoin::secp256k1::key::SecretKey" if is_ref  => unimplemented!(),
+			"bitcoin::secp256k1::key::SecretKey" if !is_ref => Some("crate::c_types::SecretKey::from_rust("),
+			"bitcoin::blockdata::script::Script" if is_ref => Some("crate::c_types::Script::from_slice(&c_"),
+			"bitcoin::blockdata::transaction::Transaction" if is_ref => Some("crate::c_types::Transaction::from_slice(&c_"),
 			"bitcoin::hash_types::Txid" => Some(""),
 
 			// Override the default since Records contain an fmt with a lifetime:
@@ -382,6 +386,7 @@ impl<'a> TypeResolver<'a> {
 		}
 		match full_path {
 			"bitcoin::secp256k1::key::PublicKey" => Some(")"),
+			"bitcoin::secp256k1::key::SecretKey" => Some(")"),
 			"bitcoin::blockdata::script::Script" => Some(")"),
 			"bitcoin::blockdata::transaction::Transaction" => Some(")"),
 			"bitcoin::hash_types::Txid" => Some(".into_inner()"),
@@ -465,24 +470,24 @@ impl<'a> TypeResolver<'a> {
 		self.declared.get(ident)
 	}
 
+	pub fn maybe_resolve_ident(&self, id: &syn::Ident) -> Option<String> {
+		if let Some(imp) = self.imports.get(id) {
+			Some(imp.clone())
+		} else if self.declared.get(id).is_some() {
+			Some(self.module_path.to_string() + "::" + &format!("{}", id))
+		} else { None }
+	}
+
 	pub fn maybe_resolve_path(&self, p: &syn::Path) -> Option<String> {
 		if p.leading_colon.is_some() {
 			//format!("{}", p.segments);
 			return None;
 		} else if let Some(id) = p.get_ident() {
-			if let Some(imp) = self.imports.get(id) {
-				Some(imp.clone())
-			} else if self.declared.get(id).is_some() {
-				Some(self.module_path.to_string() + "::" + &format!("{}", id))
-			} else { None }
+			self.maybe_resolve_ident(id)
 		} else {
 			if p.segments.len() == 1 {
 				let seg = p.segments.iter().next().unwrap();
-				if let Some(imp) = self.imports.get(&seg.ident) {
-					return Some(imp.clone());
-				} else if self.declared.get(&seg.ident).is_some() {
-					return Some(self.module_path.to_string() + "::" + &format!("{}", seg.ident));
-				} else { return None; }
+				return self.maybe_resolve_ident(&seg.ident);
 			}
 			let mut seg_iter = p.segments.iter();
 			let first_seg = seg_iter.next().unwrap();
@@ -843,17 +848,18 @@ impl<'a> TypeResolver<'a> {
 						} else { unimplemented!(); }
 					} else { unimplemented!(); }
 					true
-				} else {
-					let ty_ident = single_ident_generic_path_to_ident(&p.path).unwrap();
-					if let Some(full_path) = self.imports.get(ty_ident) {
-						if let Some(rust_type) = self.from_c_conversion_new_var_from_path_prefix(&full_path) {
+				} else if self.is_primitive(&resolved_path) {
+					false
+				} else if let Some(ty_ident) = single_ident_generic_path_to_ident(&p.path) {
+					if let Some(rust_type) = self.from_c_conversion_new_var_from_path_prefix(&resolved_path) {
+						if let Some(_) = self.imports.get(ty_ident) {
 							write!(w, "let rust_{} = {}{});", ident, rust_type, ident).unwrap();
 							true
 						} else { false }
 					} else if self.declared.get(ty_ident).is_some() {
 						false
-					} else { unimplemented!(); }
-				}
+					} else { false }
+				} else { false }
 			},
 			syn::Type::Array(_) => {
 				// We assume all arrays contain only primitive types.
@@ -899,17 +905,22 @@ impl<'a> TypeResolver<'a> {
 				if self.is_known_container(&resolved_path) {
 					write!(w, "rust_").unwrap();
 				} else {
-					let ident = single_ident_generic_path_to_ident(&p.path).unwrap();
-					if let Some(full_path) = self.imports.get(ident) {
-						if let Some(c_type) = self.from_c_conversion_prefix_from_path(&full_path, is_ref) {
-							write!(w, "{}", c_type).unwrap();
+					if let Some(c_type) = self.from_c_conversion_prefix_from_path(&resolved_path, is_ref) {
+						write!(w, "{}", c_type).unwrap();
+					} else if let Some(ident) = single_ident_generic_path_to_ident(&p.path) {
+						if let Some(decl_type) = self.declared.get(ident) {
+							match decl_type {
+								DeclType::StructImported(_) if !is_ref => write!(w, "*unsafe {{ Box::from_raw(").unwrap(),
+								DeclType::StructImported(_) => {},
+								DeclType::MirroredEnum => {},
+								_ => unimplemented!(),
+							}
 						} else { unimplemented!(); }
-					} else if let Some(decl_type) = self.declared.get(ident) {
-						match decl_type {
-							DeclType::StructImported(_) if !is_ref => write!(w, "*unsafe {{ Box::from_raw(").unwrap(),
-							DeclType::StructImported(_) => {},
-							DeclType::MirroredEnum => {},
-							_ => unimplemented!(),
+					} else if self.crate_types.structs.get(&resolved_path).is_some() {
+						if !is_ref {
+							write!(w, "&unsafe {{ &*").unwrap();
+						} else {
+							write!(w, "unsafe {{ &*").unwrap();
 						}
 					} else { unimplemented!(); }
 				}
@@ -962,18 +973,19 @@ impl<'a> TypeResolver<'a> {
 				if self.is_known_container(&resolved_path) {
 					write!(w, "").unwrap();
 				} else {
-					let ident = single_ident_generic_path_to_ident(&p.path).unwrap();
-					if let Some(full_path) = self.imports.get(ident) {
-						if let Some(c_type) = self.from_c_conversion_suffix_from_path(&full_path) {
-							write!(w, "{}", c_type).unwrap();
+					if let Some(c_type) = self.from_c_conversion_suffix_from_path(&resolved_path) {
+						write!(w, "{}", c_type).unwrap();
+					} else if let Some(ident) = single_ident_generic_path_to_ident(&p.path) {
+						if let Some(decl_type) = self.declared.get(ident) {
+							match decl_type {
+								DeclType::StructImported(_) if !is_ref => write!(w, ".inner as *mut _) }}").unwrap(),
+								DeclType::StructImported(_) => {},
+								DeclType::MirroredEnum => write!(w, ".to_ln()").unwrap(),
+								_ => unimplemented!(),
+							}
 						} else { unimplemented!(); }
-					} else if let Some(decl_type) = self.declared.get(ident) {
-						match decl_type {
-							DeclType::StructImported(_) if !is_ref => write!(w, ".inner as *mut _) }}").unwrap(),
-							DeclType::StructImported(_) => {},
-							DeclType::MirroredEnum => write!(w, ".to_ln()").unwrap(),
-							_ => unimplemented!(),
-						}
+					} else if self.crate_types.structs.get(&resolved_path).is_some() {
+						write!(w, ".inner }}").unwrap();
 					} else { unimplemented!(); }
 				}
 			},
@@ -1029,6 +1041,34 @@ impl<'a> TypeResolver<'a> {
 			true
 		} else { false }
 	}
+
+	fn print_c_path_intern<W: std::io::Write>(&self, w: &mut W, path: &syn::Path, is_ref: bool, is_mut: bool, ptr_for_ref: bool) -> bool {
+		let full_path = match self.maybe_resolve_path(&path) {
+			Some(path) => path, None => return false };
+		if let Some(ident) = single_ident_generic_path_to_ident(&path) {
+			self.print_c_ident_intern(w, ident, is_ref, is_mut, ptr_for_ref)
+		} else if let Some(t) = self.crate_types.traits.get(&full_path) {
+			if is_ref && ptr_for_ref {
+				write!(w, "*const crate::{}", full_path).unwrap();
+			} else if is_ref {
+				write!(w, "&crate::{}", full_path).unwrap();
+			} else {
+				write!(w, "crate::{}", full_path).unwrap();
+			}
+			true
+		} else if let Some(s) = self.crate_types.structs.get(&full_path) {
+			if is_ref && ptr_for_ref {
+				write!(w, "*const crate::{}", full_path).unwrap();
+			} else if is_ref {
+				write!(w, "&crate::{}", full_path).unwrap();
+			} else {
+				write!(w, "crate::{}", full_path).unwrap();
+			}
+			true
+		} else {
+			false
+		}
+	}
 	fn print_c_type_intern<W: std::io::Write>(&self, generics: Option<&GenericTypes>, w: &mut W, t: &syn::Type, is_ref: bool, is_mut: bool, ptr_for_ref: bool) -> bool {
 		match t {
 			syn::Type::Path(p) => {
@@ -1052,9 +1092,7 @@ impl<'a> TypeResolver<'a> {
 					}
 				}
 				if p.path.leading_colon.is_some() { return false; }
-				if let Some(ident) = single_ident_generic_path_to_ident(&p.path) {
-					self.print_c_ident_intern(w, &ident, is_ref, is_mut, ptr_for_ref)
-				} else { false }
+				self.print_c_path_intern(w, &p.path, is_ref, is_mut, ptr_for_ref)
 			},
 			syn::Type::Reference(r) => {
 				if r.lifetime.is_some() { return false; }
