@@ -18,5 +18,7 @@ pub mod msgs;
 // pub mod peer_handler;
 pub mod chan_utils;
 pub mod features;
+
+pub mod channel_controller;
 pub mod socket_descriptor;
 pub mod peer_manager;

@@ -9,4 +9,5 @@ gen-wasm:
 
 export:
 	cp ./ldk_ffi.h "/Users/arik/Developer/rust-swift-ffi/ios/Swift Rust FFI/"
+	cp ./include/rust_types.h "/Users/arik/Developer/rust-swift-ffi/ios/Swift Rust FFI/"
 	cp ../target/universal/release/liblightning.a "/Users/arik/Developer/rust-swift-ffi/ios/Swift Rust FFI/libbindings.a"

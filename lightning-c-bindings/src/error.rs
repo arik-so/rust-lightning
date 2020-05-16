@@ -3,6 +3,7 @@
 use std::ffi::CString;
 use std::os::raw::c_char;
 use lightning::ln::peer_handler::PeerHandleError;
+use lightning::util::errors::APIError;
 
 #[repr(C)]
 pub struct Error {
@@ -13,6 +14,31 @@ pub struct Error {
 impl From<PeerHandleError> for Error {
 	fn from(error: PeerHandleError) -> Self {
 		let message = error.to_string();
+		let length = message.len();
+		let message = CString::new(message).unwrap().into_raw();
+		Self { message, length }
+	}
+}
+
+impl From<APIError> for Error {
+	fn from(error: APIError) -> Self {
+		let message = match error {
+			APIError::FeeRateTooHigh { err: _, feerate: rate } => {
+				format!("error: fee rate too high ({})", rate)
+			}
+			APIError::RouteError { err: _ } => {
+				"error: route error".to_string()
+			}
+			APIError::ChannelUnavailable { err: _ } => {
+				"error: channel unavailable".to_string()
+			}
+			APIError::MonitorUpdateFailed => {
+				"error: monitor update failed".to_string()
+			}
+			APIError::APIMisuseError { err: _ } => {
+				"error: api misuse".to_string()
+			}
+		};
 		let length = message.len();
 		let message = CString::new(message).unwrap().into_raw();
 		Self { message, length }
