@@ -2,6 +2,8 @@ use bitcoin::Script as BitcoinScript;
 use bitcoin::secp256k1::key::PublicKey as SecpPublicKey;
 use bitcoin::secp256k1::key::SecretKey as SecpSecretKey;
 
+pub mod channel_types;
+
 #[repr(C)]
 pub struct PublicKey {
 	pub compressed_form: [u8; 33],

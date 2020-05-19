@@ -35,8 +35,8 @@ impl From<APIError> for Error {
 			APIError::MonitorUpdateFailed => {
 				"error: monitor update failed".to_string()
 			}
-			APIError::APIMisuseError { err: _ } => {
-				"error: api misuse".to_string()
+			APIError::APIMisuseError { err: error } => {
+				format!("error: api misuse: {}", error)
 			}
 		};
 		let length = message.len();
