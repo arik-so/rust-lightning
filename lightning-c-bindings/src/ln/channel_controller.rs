@@ -8,75 +8,87 @@ use lightning::ln::msgs::UnsignedChannelAnnouncement;
 use bitcoin::{Transaction as RawTransaction, Transaction};
 use bitcoin::secp256k1 as secp256k1;
 use lightning::ln::chan_utils::{LocalCommitmentTransaction, TxCreationKeys, ChannelPublicKeys, HTLCOutputInCommitment};
-use crate::buffer::{BufferArgument, BufferResponse, BufferResponseArray};
+use crate::buffer::{BufferArgument, BufferResponse, BufferResponseArray, BufferArgumentArray};
 use bitcoin::consensus::{deserialize, serialize};
 use std::ffi::c_void;
-
-impl From<BufferArgument> for RawTransaction {
-	fn from(txBinary: BufferArgument) -> Self {
-		let tx_vec = unsafe { txBinary.to_vec() };
-		let tx: RawTransaction = deserialize(&tx_vec).unwrap();
-		tx
-	}
-}
-
-impl From<&RawTransaction> for BufferResponse {
-	fn from(tx: &Transaction) -> Self {
-		let serialization = serialize(tx);
-		let buffer: BufferResponse = serialization.into();
-		buffer
-	}
-}
-
-impl From<LocalCommitmentTransaction> for BufferResponse {
-	fn from(_: LocalCommitmentTransaction) -> Self {
-		unimplemented!()
-	}
-}
-
-impl From<&[&lightning::ln::chan_utils::HTLCOutputInCommitment]> for BufferResponseArray {
-	fn from(_: &[&HTLCOutputInCommitment]) -> Self {
-		unimplemented!()
-	}
-}
-
-impl From<&lightning::ln::chan_utils::TxCreationKeys> for BufferResponse {
-	fn from(_: &TxCreationKeys) -> Self {
-		unimplemented!()
-	}
-}
+use crate::c_types::tx_creation_keys::TxCreationKeySetResponse;
+use crate::c_types::htlc_commitment_output::HTLCOutputInCommitmentResponseArray;
+use crate::c_types::local_commitment_transaction::LocalCommitmentTransactionResponse;
 
 #[derive(Clone)]
-struct ChannelKeys {
+#[no_mangle]
+pub struct ChannelKeys {
 	pub host_instance_pointer: *mut c_void,
-	pub sign_remote_commitment: extern "C" fn (this_arg: *const c_void, feerate_per_kw: u64, commitment_tx: &BufferResponse, keys: &BufferResponse, htlcs: &BufferResponseArray, to_self_delay: u16, error: *mut Error) -> (Signature, Vec<Signature>),
+	pub funding_key: *const u8,
+	funding_key_cache: Option<SecretKey>,
+	pub revocation_base_key: *const u8,
+	pub payment_key: *const u8,
+	pub delayed_payment_base_key: *const u8,
+	pub htlc_base_key: *const u8,
+	pub commitment_seed: *const u8,
+	pub pubkeys: extern "C" fn (this_arg: *const c_void) -> BufferArgumentArray,
+	pub sign_remote_commitment: extern "C" fn (this_arg: *const c_void, feerate_per_kw: u64, commitment_tx: &BufferResponse, keys: &TxCreationKeySetResponse, htlcs: HTLCOutputInCommitmentResponseArray, to_self_delay: u16, error: *mut Error) -> (BufferArgument, BufferArgumentArray),
+	pub sign_local_commitment: extern "C" fn (this_arg: *const c_void, local_commitment_tx: LocalCommitmentTransactionResponse, error: *mut Error) -> BufferArgument,
+	pub sign_local_commitment_htlc_transactions: extern "C" fn (this_arg: *const c_void, local_commitment_tx: LocalCommitmentTransactionResponse, error: *mut Error) -> BufferArgument,
+	pub sign_closing_transaction: extern "C" fn (this_arg: *const c_void, closing_tx: BufferResponse, error: *mut Error) -> BufferArgument,
 }
 
 unsafe impl Send for ChannelKeys {}
 
 impl RawChannelKeys for ChannelKeys{
 	fn funding_key<'a>(&'a self) -> &'a SecretKey {
-		unimplemented!()
+		let private_key_slice = unsafe {
+			assert!(!self.funding_key.is_null());
+			slice::from_raw_parts(self.funding_key, 32)
+		};
+		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
+		&private_key_object
 	}
 
 	fn revocation_base_key<'a>(&'a self) -> &'a SecretKey {
-		unimplemented!()
+		let private_key_slice = unsafe {
+			assert!(!self.revocation_base_key.is_null());
+			slice::from_raw_parts(self.revocation_base_key, 32)
+		};
+		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
+		&private_key_object
 	}
 
 	fn payment_key<'a>(&'a self) -> &'a SecretKey {
-		unimplemented!()
+		let private_key_slice = unsafe {
+			assert!(!self.payment_key.is_null());
+			slice::from_raw_parts(self.payment_key, 32)
+		};
+		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
+		&private_key_object
 	}
 
 	fn delayed_payment_base_key<'a>(&'a self) -> &'a SecretKey {
-		unimplemented!()
+		let private_key_slice = unsafe {
+			assert!(!self.delayed_payment_base_key.is_null());
+			slice::from_raw_parts(self.delayed_payment_base_key, 32)
+		};
+		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
+		&private_key_object
 	}
 
 	fn htlc_base_key<'a>(&'a self) -> &'a SecretKey {
-		unimplemented!()
+		let private_key_slice = unsafe {
+			assert!(!self.htlc_base_key.is_null());
+			slice::from_raw_parts(self.htlc_base_key, 32)
+		};
+		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
+		&private_key_object
 	}
 
 	fn commitment_seed<'a>(&'a self) -> &'a [u8; 32] {
-		unimplemented!()
+		let commitment_seed_slice = unsafe {
+			assert!(!self.commitment_seed.is_null());
+			slice::from_raw_parts(self.commitment_seed, 32)
+		};
+		let mut commitment_seed = [0u8; 32];
+		commitment_seed.copy_from_slice(commitment_seed_slice);
+		&commitment_seed
 	}
 
 	fn pubkeys<'a>(&'a self) -> &'a ChannelPublicKeys {
@@ -86,20 +98,28 @@ impl RawChannelKeys for ChannelKeys{
 	fn sign_remote_commitment<T: secp256k1::Signing + secp256k1::Verification>(&self, feerate_per_kw: u64, commitment_tx: &RawTransaction, keys: &TxCreationKeys, htlcs: &[&HTLCOutputInCommitment], to_self_delay: u16, secp_ctx: &Secp256k1<T>) -> Result<(Signature, Vec<Signature>), ()> {
 		let callback = self.sign_remote_commitment;
 		let commitment_tx_buffer : BufferResponse = commitment_tx.into();
-		let keys_buffer : BufferResponse = keys.into();
-		let htlcs : BufferResponseArray = htlcs.into();
+		let keys: TxCreationKeySetResponse = keys.into();
+		let htlcs : HTLCOutputInCommitmentResponseArray = htlcs.into();
 		let error: *mut Error = std::ptr::null_mut();
-		let result = callback(self.host_instance_pointer, feerate_per_kw, &commitment_tx_buffer, &keys_buffer, &htlcs, to_self_delay, error);
+		let result = callback(self.host_instance_pointer, feerate_per_kw, &commitment_tx_buffer, &keys, htlcs, to_self_delay, error);
 		if(!error.is_null()){
 			let error = unsafe { Box::from_raw(error) };
 			return Err(());
 		}
-		// result
-		unimplemented!()
+		Ok((result.0.into(), result.1.into()))
+
 	}
 
 	fn sign_local_commitment<T: secp256k1::Signing + secp256k1::Verification>(&self, local_commitment_tx: &LocalCommitmentTransaction, secp_ctx: &Secp256k1<T>) -> Result<Signature, ()> {
-		unimplemented!()
+		let callback = self.sign_local_commitment;
+		let local_commitment_tx: LocalCommitmentTransactionResponse = (local_commitment_tx.clone()).into();
+		let error: *mut Error = std::ptr::null_mut();
+		let result = callback(self.host_instance_pointer, local_commitment_tx, error);
+		if(!error.is_null()){
+			let error = unsafe { Box::from_raw(error) };
+			return Err(());
+		};
+		Ok(result.into())
 	}
 
 	#[cfg(test)]

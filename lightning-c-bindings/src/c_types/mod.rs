@@ -2,7 +2,11 @@ use bitcoin::Script as BitcoinScript;
 use bitcoin::secp256k1::key::PublicKey as SecpPublicKey;
 use bitcoin::secp256k1::key::SecretKey as SecpSecretKey;
 
-pub mod channel_types;
+pub mod bitcoin_types;
+pub mod htlc_commitment;
+pub mod htlc_commitment_output;
+pub mod local_commitment_transaction;
+pub mod tx_creation_keys;
 
 #[repr(C)]
 pub struct PublicKey {
