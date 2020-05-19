@@ -29,7 +29,8 @@ use bitcoin::secp256k1::ecdh::SharedSecret as lnSharedSecret;
 use bitcoin::secp256k1 as lnsecp256k1;
 
 use lightning::ln::channelmanager::ChannelManager as lnChannelManagerImport;
-type lnChannelManager = lnChannelManagerImport<crate::chain::keysinterface::ChannelKeys, crate::ln::channelmonitor::ManyChannelMonitor, crate::chain::chaininterface::BroadcasterInterface, crate::chain::keysinterface::KeysInterface, crate::chain::chaininterface::FeeEstimator>;
+// type lnChannelManager = lnChannelManagerImport<crate::chain::keysinterface::ChannelKeys, crate::ln::channelmonitor::ManyChannelMonitor, crate::chain::chaininterface::BroadcasterInterface, crate::chain::keysinterface::KeysInterface, crate::chain::chaininterface::FeeEstimator>;
+type lnChannelManager = lnChannelManagerImport<lightning::chain::keysinterface::InMemoryChannelKeys, crate::ln::channelmonitor::ManyChannelMonitor, crate::chain::chaininterface::BroadcasterInterface, crate::chain::keysinterface::KeysInterface, crate::chain::chaininterface::FeeEstimator>;
 
 /// " Manager which keeps track of a number of channels and sends messages to the appropriate"
 /// " channel, also tracking HTLC preimages and forwarding onion packets appropriately."

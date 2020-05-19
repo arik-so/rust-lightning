@@ -3,7 +3,7 @@ use std::slice;
 use bitcoin::secp256k1::{PublicKey, SecretKey, Signature, Secp256k1};
 use crate::error::Error;
 
-use lightning::chain::keysinterface::ChannelKeys as RawChannelKeys;
+use lightning::chain::keysinterface::{ChannelKeys as RawChannelKeys, InMemoryChannelKeys as RawInMemoryChannelKeys};
 use lightning::ln::msgs::UnsignedChannelAnnouncement;
 use bitcoin::{Transaction as RawTransaction, Transaction};
 use bitcoin::secp256k1 as secp256k1;
@@ -35,6 +35,71 @@ pub struct ChannelKeys {
 
 unsafe impl Send for ChannelKeys {}
 
+pub struct InMemoryChannelKeys(pub(crate) RawInMemoryChannelKeys);
+
+#[no_mangle]
+pub extern "C" fn in_memory_channel_keys_create(
+	funding_key: *const u8, 
+	revocation_base_key: *const u8, 
+	payment_key: *const u8, 
+	delayed_payment_base_key: *const u8,
+	htlc_base_key: *const u8, 
+	commitment_seed: *const u8, 
+	channel_value_satoshis: u64 
+) -> *mut InMemoryChannelKeys{
+	let curve = secp256k1::Secp256k1::new();
+
+	let funding_key_slice = unsafe {
+		assert!(!funding_key.is_null());
+		slice::from_raw_parts(funding_key, 32)
+	};
+	let funding_key_object = SecretKey::from_slice(funding_key_slice).unwrap();
+
+	let revocation_base_key_slice = unsafe {
+		assert!(!revocation_base_key.is_null());
+		slice::from_raw_parts(revocation_base_key, 32)
+	};
+	let revocation_base_key_object = SecretKey::from_slice(revocation_base_key_slice).unwrap();
+
+	let payment_key_slice = unsafe {
+		assert!(!payment_key.is_null());
+		slice::from_raw_parts(payment_key, 32)
+	};
+	let payment_key_object = SecretKey::from_slice(payment_key_slice).unwrap();
+
+	let delayed_payment_key_slice = unsafe {
+		assert!(!delayed_payment_base_key.is_null());
+		slice::from_raw_parts(delayed_payment_base_key, 32)
+	};
+	let delayed_payment_key_object = SecretKey::from_slice(delayed_payment_key_slice).unwrap();
+
+	let htlc_key_slice = unsafe {
+		assert!(!htlc_base_key.is_null());
+		slice::from_raw_parts(htlc_base_key, 32)
+	};
+	let htlc_key_object = SecretKey::from_slice(htlc_key_slice).unwrap();
+
+	let commitment_seed_slice = unsafe {
+		assert!(!commitment_seed.is_null());
+		slice::from_raw_parts(commitment_seed, 32)
+	};
+	let mut commitment_seed = [0u8; 32];
+	commitment_seed.copy_from_slice(commitment_seed_slice);
+	
+	let channel_keys = RawInMemoryChannelKeys::new(
+		&curve, 
+		funding_key_object,
+		revocation_base_key_object,
+		payment_key_object,
+		delayed_payment_key_object,
+		htlc_key_object,
+		commitment_seed,
+		channel_value_satoshis
+	);
+	
+	Box::into_raw(Box::new(InMemoryChannelKeys(channel_keys)))
+}
+
 impl RawChannelKeys for ChannelKeys{
 	fn funding_key<'a>(&'a self) -> &'a SecretKey {
 		let private_key_slice = unsafe {
@@ -42,7 +107,8 @@ impl RawChannelKeys for ChannelKeys{
 			slice::from_raw_parts(self.funding_key, 32)
 		};
 		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
-		&private_key_object
+		&private_key_object;
+		unimplemented!()
 	}
 
 	fn revocation_base_key<'a>(&'a self) -> &'a SecretKey {
@@ -51,7 +117,8 @@ impl RawChannelKeys for ChannelKeys{
 			slice::from_raw_parts(self.revocation_base_key, 32)
 		};
 		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
-		&private_key_object
+		&private_key_object;
+		unimplemented!()
 	}
 
 	fn payment_key<'a>(&'a self) -> &'a SecretKey {
@@ -60,7 +127,8 @@ impl RawChannelKeys for ChannelKeys{
 			slice::from_raw_parts(self.payment_key, 32)
 		};
 		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
-		&private_key_object
+		&private_key_object;
+		unimplemented!()
 	}
 
 	fn delayed_payment_base_key<'a>(&'a self) -> &'a SecretKey {
@@ -69,7 +137,8 @@ impl RawChannelKeys for ChannelKeys{
 			slice::from_raw_parts(self.delayed_payment_base_key, 32)
 		};
 		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
-		&private_key_object
+		&private_key_object;
+		unimplemented!()
 	}
 
 	fn htlc_base_key<'a>(&'a self) -> &'a SecretKey {
@@ -78,7 +147,8 @@ impl RawChannelKeys for ChannelKeys{
 			slice::from_raw_parts(self.htlc_base_key, 32)
 		};
 		let private_key_object = SecretKey::from_slice(private_key_slice).unwrap();
-		&private_key_object
+		&private_key_object;
+		unimplemented!()
 	}
 
 	fn commitment_seed<'a>(&'a self) -> &'a [u8; 32] {
@@ -88,7 +158,8 @@ impl RawChannelKeys for ChannelKeys{
 		};
 		let mut commitment_seed = [0u8; 32];
 		commitment_seed.copy_from_slice(commitment_seed_slice);
-		&commitment_seed
+		&commitment_seed;
+		unimplemented!()
 	}
 
 	fn pubkeys<'a>(&'a self) -> &'a ChannelPublicKeys {

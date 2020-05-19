@@ -151,27 +151,42 @@ pub struct KeysInterface {
 	/// " transaction is created, at which point they will use the outpoint in the funding"
 	/// " transaction."
 	pub get_channel_id: extern "C" fn (this_arg: *const c_void) -> crate::c_types::ThirtyTwoBytes,
+
+	pub channel_keys: *mut crate::ln::channel_controller::InMemoryChannelKeys,
 }
 unsafe impl Send for KeysInterface {}
 unsafe impl Sync for KeysInterface {}
 
 use lightning::chain::keysinterface::KeysInterface as lnKeysInterface;
 impl lnKeysInterface for KeysInterface {
-	type ChanKeySigner = crate::chain::keysinterface::ChannelKeys;
+	// type ChanKeySigner = crate::chain::keysinterface::ChannelKeys;
+	type ChanKeySigner = lightning::chain::keysinterface::InMemoryChannelKeys;
 	fn get_node_secret(&self) -> bitcoin::secp256k1::key::SecretKey {
 		(self.get_node_secret)(self.this_arg).into_rust()
 	}
 	fn get_destination_script(&self) -> bitcoin::blockdata::script::Script {
-		unimplemented!();
+
+		bitcoin::blockdata::script::Script::new()
+
+		//unimplemented!();
 	}
 	fn get_shutdown_pubkey(&self) -> bitcoin::secp256k1::key::PublicKey {
 		(self.get_shutdown_pubkey)(self.this_arg).into_rust()
 	}
 	fn get_channel_keys(&self, inbound: bool, channel_value_satoshis: u64) -> Self::ChanKeySigner {
-		unimplemented!();
+		let keys = unsafe {
+			assert!(!self.channel_keys.is_null());
+			Box::from_raw(self.channel_keys)
+		};
+		let signer = keys.as_ref().0.clone();
+		signer
 	}
 	fn get_onion_rand(&self) -> (bitcoin::secp256k1::key::SecretKey, [u8; 32]) {
-		unimplemented!();
+		let secret_key = (self.get_node_secret)(self.this_arg).into_rust();
+		let channel_id = (self.get_channel_id)(self.this_arg).data;
+		(secret_key, channel_id)
+
+		//unimplemented!();
 	}
 	fn get_channel_id(&self) -> [u8; 32] {
 		(self.get_channel_id)(self.this_arg).data
@@ -277,6 +292,7 @@ pub extern "C" fn KeysManager_as_KeysInterface(this_arg: *const KeysManager) -> 
 		//XXX: Need to export get_channel_keys
 		//XXX: Need to export get_onion_rand
 		get_channel_id: KeysManager_KeysInterface_get_channel_id,
+		channel_keys: std::ptr::null_mut()
 	}
 }
 use lightning::chain::keysinterface::KeysInterface as KeysInterfaceTraitImport;

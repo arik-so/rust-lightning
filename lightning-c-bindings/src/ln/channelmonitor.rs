@@ -211,7 +211,8 @@ unsafe impl Sync for ManyChannelMonitor {}
 
 use lightning::ln::channelmonitor::ManyChannelMonitor as lnManyChannelMonitor;
 impl lnManyChannelMonitor for ManyChannelMonitor {
-	type Keys = crate::chain::keysinterface::ChannelKeys;
+	// type Keys = crate::chain::keysinterface::ChannelKeys;
+	type Keys = lightning::chain::keysinterface::InMemoryChannelKeys;
 	fn add_monitor(&self, funding_txo: lightning::chain::transaction::OutPoint, monitor: lightning::ln::channelmonitor::ChannelMonitor<Self::Keys>) -> Result<(), lightning::ln::channelmonitor::ChannelMonitorUpdateErr> {
 		unimplemented!();
 	}
