@@ -21,7 +21,6 @@ use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry as BtreeEntry;
-use std;
 use std::ops::Deref;
 
 /// Receives and validates network updates from peers,
@@ -126,10 +125,10 @@ impl<C: Deref + Sync + Send, L: Deref + Sync + Send> RoutingMessageHandler for N
 				let _ = self.network_graph.write().unwrap().update_channel(msg, Some(&self.secp_ctx));
 			},
 			&msgs::HTLCFailChannelUpdate::ChannelClosed { ref short_channel_id, ref is_permanent } => {
-				self.network_graph.write().unwrap().close_channel_from_update(short_channel_id, &is_permanent);
+				self.network_graph.write().unwrap().close_channel_from_update(*short_channel_id, *is_permanent);
 			},
 			&msgs::HTLCFailChannelUpdate::NodeFailure { ref node_id, ref is_permanent } => {
-				self.network_graph.write().unwrap().fail_node(node_id, &is_permanent);
+				self.network_graph.write().unwrap().fail_node(node_id, *is_permanent);
 			},
 		}
 	}
@@ -616,10 +615,10 @@ impl NetworkGraph {
 	/// If permanent, removes a channel from the local storage.
 	/// May cause the removal of nodes too, if this was their last channel.
 	/// If not permanent, makes channels unavailable for routing.
-	pub fn close_channel_from_update(&mut self, short_channel_id: &u64, is_permanent: &bool) {
-		if *is_permanent {
-			if let Some(chan) = self.channels.remove(short_channel_id) {
-				Self::remove_channel_in_nodes(&mut self.nodes, &chan, *short_channel_id);
+	pub fn close_channel_from_update(&mut self, short_channel_id: u64, is_permanent: bool) {
+		if is_permanent {
+			if let Some(chan) = self.channels.remove(&short_channel_id) {
+				Self::remove_channel_in_nodes(&mut self.nodes, &chan, short_channel_id);
 			}
 		} else {
 			if let Some(chan) = self.channels.get_mut(&short_channel_id) {
@@ -633,8 +632,8 @@ impl NetworkGraph {
 		}
 	}
 
-	fn fail_node(&mut self, _node_id: &PublicKey, is_permanent: &bool) {
-		if *is_permanent {
+	fn fail_node(&mut self, _node_id: &PublicKey, is_permanent: bool) {
+		if is_permanent {
 			// TODO: Wholly remove the node
 		} else {
 			// TODO: downgrade the node
