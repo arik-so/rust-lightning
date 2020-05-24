@@ -16,12 +16,11 @@ use ln::msgs;
 use util::ser::{Writeable, Readable, Writer};
 use util::logger::Logger;
 
-use std::cmp;
+use std::{cmp, fmt};
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry as BtreeEntry;
-use std;
 use std::ops::Deref;
 
 /// Receives and validates network updates from peers,
@@ -126,10 +125,10 @@ impl<C: Deref + Sync + Send, L: Deref + Sync + Send> RoutingMessageHandler for N
 				let _ = self.network_graph.write().unwrap().update_channel(msg, Some(&self.secp_ctx));
 			},
 			&msgs::HTLCFailChannelUpdate::ChannelClosed { ref short_channel_id, ref is_permanent } => {
-				self.network_graph.write().unwrap().close_channel_from_update(short_channel_id, &is_permanent);
+				self.network_graph.write().unwrap().close_channel_from_update(*short_channel_id, *is_permanent);
 			},
 			&msgs::HTLCFailChannelUpdate::NodeFailure { ref node_id, ref is_permanent } => {
-				self.network_graph.write().unwrap().fail_node(node_id, &is_permanent);
+				self.network_graph.write().unwrap().fail_node(node_id, *is_permanent);
 			},
 		}
 	}
@@ -224,8 +223,8 @@ pub struct DirectionalChannelInfo {
 	pub last_update_message: Option<msgs::ChannelUpdate>,
 }
 
-impl std::fmt::Display for DirectionalChannelInfo {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+impl fmt::Display for DirectionalChannelInfo {
+	fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
 		write!(f, "last_update {}, enabled {}, cltv_expiry_delta {}, htlc_minimum_msat {}, fees {:?}", self.last_update, self.enabled, self.cltv_expiry_delta, self.htlc_minimum_msat, self.fees)?;
 		Ok(())
 	}
@@ -261,8 +260,8 @@ pub struct ChannelInfo {
 	pub announcement_message: Option<msgs::ChannelAnnouncement>,
 }
 
-impl std::fmt::Display for ChannelInfo {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+impl fmt::Display for ChannelInfo {
+	fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
 		write!(f, "features: {}, node_one: {}, one_to_two: {:?}, node_two: {}, two_to_one: {:?}",
 		   log_bytes!(self.features.encode()), log_pubkey!(self.node_one), self.one_to_two, log_pubkey!(self.node_two), self.two_to_one)?;
 		Ok(())
@@ -389,8 +388,8 @@ pub struct NodeInfo {
 	pub announcement_info: Option<NodeAnnouncementInfo>
 }
 
-impl std::fmt::Display for NodeInfo {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+impl fmt::Display for NodeInfo {
+	fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
 		write!(f, "lowest_inbound_channel_fees: {:?}, channels: {:?}, announcement_info: {:?}",
 		   self.lowest_inbound_channel_fees, &self.channels[..], self.announcement_info)?;
 		Ok(())
@@ -474,8 +473,8 @@ impl Readable for NetworkGraph {
 	}
 }
 
-impl std::fmt::Display for NetworkGraph {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+impl fmt::Display for NetworkGraph {
+	fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
 		write!(f, "Network map\n[Channels]\n")?;
 		for (key, val) in self.channels.iter() {
 			write!(f, " {}: {}\n", key, val)?;
@@ -616,10 +615,10 @@ impl NetworkGraph {
 	/// If permanent, removes a channel from the local storage.
 	/// May cause the removal of nodes too, if this was their last channel.
 	/// If not permanent, makes channels unavailable for routing.
-	pub fn close_channel_from_update(&mut self, short_channel_id: &u64, is_permanent: &bool) {
-		if *is_permanent {
-			if let Some(chan) = self.channels.remove(short_channel_id) {
-				Self::remove_channel_in_nodes(&mut self.nodes, &chan, *short_channel_id);
+	pub fn close_channel_from_update(&mut self, short_channel_id: u64, is_permanent: bool) {
+		if is_permanent {
+			if let Some(chan) = self.channels.remove(&short_channel_id) {
+				Self::remove_channel_in_nodes(&mut self.nodes, &chan, short_channel_id);
 			}
 		} else {
 			if let Some(chan) = self.channels.get_mut(&short_channel_id) {
@@ -633,8 +632,8 @@ impl NetworkGraph {
 		}
 	}
 
-	fn fail_node(&mut self, _node_id: &PublicKey, is_permanent: &bool) {
-		if *is_permanent {
+	fn fail_node(&mut self, _node_id: &PublicKey, is_permanent: bool) {
+		if is_permanent {
 			// TODO: Wholly remove the node
 		} else {
 			// TODO: downgrade the node
