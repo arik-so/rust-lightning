@@ -785,7 +785,6 @@ pub trait ManyChannelMonitor: Send + Sync {
 	///
 	/// Any spends of outputs which should have been registered which aren't passed to
 	/// ChannelMonitors via block_connected may result in FUNDS LOSS.
-	/// (C-not exported) due to Result
 	fn add_monitor(&self, funding_txo: OutPoint, monitor: ChannelMonitor<Self::Keys>) -> Result<(), ChannelMonitorUpdateErr>;
 
 	/// Updates a monitor for the given `funding_txo`.
@@ -800,7 +799,6 @@ pub trait ManyChannelMonitor: Send + Sync {
 	///
 	/// Any spends of outputs which should have been registered which aren't passed to
 	/// ChannelMonitors via block_connected may result in FUNDS LOSS.
-	/// (C-not exported) due to Result
 	fn update_monitor(&self, funding_txo: OutPoint, monitor: ChannelMonitorUpdate) -> Result<(), ChannelMonitorUpdateErr>;
 
 	/// Used by ChannelManager to get list of HTLC resolved onchain and which needed to be updated
@@ -1358,7 +1356,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	/// Generally useful when deserializing as during normal operation the return values of
 	/// block_connected are sufficient to ensure all relevant outpoints are being monitored (note
 	/// that the get_funding_txo outpoint and transaction must also be monitored for!).
-	/// (C-not exported) due to Vec
+	/// (C-not exported) due to tuple in a Vec
 	pub fn get_monitored_outpoints(&self) -> Vec<(Txid, u32, &Script)> {
 		let mut res = Vec::with_capacity(self.remote_commitment_txn_on_chain.len() * 2);
 		for (ref txid, &(_, ref outputs)) in self.remote_commitment_txn_on_chain.iter() {
@@ -1756,7 +1754,7 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	/// substantial amount of time (a month or even a year) to get back funds. Best may be to contact
 	/// out-of-band the other node operator to coordinate with him if option is available to you.
 	/// In any-case, choice is up to the user.
-	/// (C-not exported) due to Vec
+	/// (C-not exported) due to a where clause on an fn
 	pub fn get_latest_local_commitment_txn<L: Deref>(&mut self, logger: &L) -> Vec<Transaction> where L::Target: Logger {
 		log_trace!(logger, "Getting signed latest local commitment transaction!");
 		self.local_tx_signed = true;
@@ -1787,7 +1785,6 @@ impl<ChanSigner: ChannelKeys> ChannelMonitor<ChanSigner> {
 	/// Unsafe test-only version of get_latest_local_commitment_txn used by our test framework
 	/// to bypass LocalCommitmentTransaction state update lockdown after signature and generate
 	/// revoked commitment transaction.
-	/// (C-not exported) because its test-only
 	#[cfg(test)]
 	pub fn unsafe_get_latest_local_commitment_txn<L: Deref>(&mut self, logger: &L) -> Vec<Transaction> where L::Target: Logger {
 		log_trace!(logger, "Getting signed copy of latest local commitment transaction!");

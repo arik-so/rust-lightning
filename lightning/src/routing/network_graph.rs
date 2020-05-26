@@ -21,7 +21,6 @@ use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry as BtreeEntry;
-use std;
 use std::ops::Deref;
 
 /// Receives and validates network updates from peers,
@@ -44,6 +43,7 @@ impl<C: Deref, L: Deref> NetGraphMsgHandler<C, L> where C::Target: ChainWatchInt
 	/// Chain monitor is used to make sure announced channels exist on-chain,
 	/// channel data is correct, and that the announcement is signed with
 	/// channel owners' keys.
+	/// (C-not exported) cause buggy
 	pub fn new(chain_monitor: C, logger: L) -> Self {
 		NetGraphMsgHandler {
 			secp_ctx: Secp256k1::verification_only(),
@@ -59,6 +59,7 @@ impl<C: Deref, L: Deref> NetGraphMsgHandler<C, L> where C::Target: ChainWatchInt
 
 	/// Creates a new tracker of the actual state of the network of channels and nodes,
 	/// assuming an existing Network Graph.
+	/// (C-not exported) due to RwLock
 	pub fn from_net_graph(chain_monitor: C, logger: L, network_graph: RwLock<NetworkGraph>) -> Self {
 		NetGraphMsgHandler {
 			secp_ctx: Secp256k1::verification_only(),
@@ -126,10 +127,10 @@ impl<C: Deref + Sync + Send, L: Deref + Sync + Send> RoutingMessageHandler for N
 				let _ = self.network_graph.write().unwrap().update_channel(msg, Some(&self.secp_ctx));
 			},
 			&msgs::HTLCFailChannelUpdate::ChannelClosed { ref short_channel_id, ref is_permanent } => {
-				self.network_graph.write().unwrap().close_channel_from_update(short_channel_id, &is_permanent);
+				self.network_graph.write().unwrap().close_channel_from_update(*short_channel_id, *is_permanent);
 			},
 			&msgs::HTLCFailChannelUpdate::NodeFailure { ref node_id, ref is_permanent } => {
-				self.network_graph.write().unwrap().fail_node(node_id, &is_permanent);
+				self.network_graph.write().unwrap().fail_node(node_id, *is_permanent);
 			},
 		}
 	}
@@ -221,6 +222,7 @@ pub struct DirectionalChannelInfo {
 	/// Mostly redundant with the data we store in fields explicitly.
 	/// Everything else is useful only for sending out for initial routing sync.
 	/// Not stored if contains excess data to prevent DoS.
+	/// (C-not exported) due to bugz
 	pub last_update_message: Option<msgs::ChannelUpdate>,
 }
 
@@ -258,6 +260,7 @@ pub struct ChannelInfo {
 	/// Mostly redundant with the data we store in fields explicitly.
 	/// Everything else is useful only for sending out for initial routing sync.
 	/// Not stored if contains excess data to prevent DoS.
+	/// (C-not exported) due to bugz
 	pub announcement_message: Option<msgs::ChannelAnnouncement>,
 }
 
@@ -328,6 +331,7 @@ pub struct NodeAnnouncementInfo {
 	/// Mostly redundant with the data we store in fields explicitly.
 	/// Everything else is useful only for sending out for initial routing sync.
 	/// Not stored if contains excess data to prevent DoS.
+	/// (C-not exported) due to bugz
 	pub announcement_message: Option<msgs::NodeAnnouncement>
 }
 
@@ -490,13 +494,16 @@ impl std::fmt::Display for NetworkGraph {
 
 impl NetworkGraph {
 	/// Returns all known valid channels' short ids along with announced channel info.
+	/// (C-not exported) due to BTreeMap
 	pub fn get_channels<'a>(&'a self) -> &'a BTreeMap<u64, ChannelInfo> { &self.channels }
 	/// Returns all known nodes' public keys along with announced node info.
+	/// (C-not exported) due to BTreeMap
 	pub fn get_nodes<'a>(&'a self) -> &'a BTreeMap<PublicKey, NodeInfo> { &self.nodes }
 
 	/// Get network addresses by node id.
 	/// Returns None if the requested node is completely unknown,
 	/// or if node announcement for the node was never received.
+	/// (C-not exported) due to Vec in Option
 	pub fn get_addresses<'a>(&'a self, pubkey: &PublicKey) -> Option<&'a Vec<NetAddress>> {
 		if let Some(node) = self.nodes.get(pubkey) {
 			if let Some(node_info) = node.announcement_info.as_ref() {
@@ -616,10 +623,10 @@ impl NetworkGraph {
 	/// If permanent, removes a channel from the local storage.
 	/// May cause the removal of nodes too, if this was their last channel.
 	/// If not permanent, makes channels unavailable for routing.
-	pub fn close_channel_from_update(&mut self, short_channel_id: &u64, is_permanent: &bool) {
-		if *is_permanent {
-			if let Some(chan) = self.channels.remove(short_channel_id) {
-				Self::remove_channel_in_nodes(&mut self.nodes, &chan, *short_channel_id);
+	pub fn close_channel_from_update(&mut self, short_channel_id: u64, is_permanent: bool) {
+		if is_permanent {
+			if let Some(chan) = self.channels.remove(&short_channel_id) {
+				Self::remove_channel_in_nodes(&mut self.nodes, &chan, short_channel_id);
 			}
 		} else {
 			if let Some(chan) = self.channels.get_mut(&short_channel_id) {
@@ -633,8 +640,8 @@ impl NetworkGraph {
 		}
 	}
 
-	fn fail_node(&mut self, _node_id: &PublicKey, is_permanent: &bool) {
-		if *is_permanent {
+	fn fail_node(&mut self, _node_id: &PublicKey, is_permanent: bool) {
+		if is_permanent {
 			// TODO: Wholly remove the node
 		} else {
 			// TODO: downgrade the node

@@ -2,5 +2,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
+use crate::c_types::TakePointer;
 
 pub mod router;
+pub mod network_graph;

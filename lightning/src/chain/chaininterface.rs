@@ -73,7 +73,6 @@ pub trait BroadcasterInterface: Sync + Send {
 }
 
 /// A trait indicating a desire to listen for events from the chain
-/// (C-not exported)
 pub trait ChainListener: Sync + Send {
 	/// Notifies a listener that a block was connected.
 	///
@@ -90,6 +89,7 @@ pub trait ChainListener: Sync + Send {
 	///
 	/// This also means those counting confirmations using block_connected callbacks should watch
 	/// for duplicate headers and not count them towards confirmations!
+	/// (C-not exported) due to slice
 	fn block_connected(&self, header: &BlockHeader, height: u32, txn_matched: &[&Transaction], indexes_of_txn_matched: &[u32]);
 	/// Notifies a listener that a block was disconnected.
 	/// Unlike block_connected, this *must* never be called twice for the same disconnect event.
@@ -130,7 +130,6 @@ pub trait FeeEstimator: Sync + Send {
 pub const MIN_RELAY_FEE_SAT_PER_1000_WEIGHT: u64 = 4000;
 
 /// Utility for tracking registered txn/outpoints and checking for matches
-/// (C-not exported)
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ChainWatchedUtil {
 	watch_all: bool,
@@ -243,14 +242,15 @@ pub type BlockNotifierRef<'a, C> = BlockNotifier<'a, &'a ChainListener, C>;
 /// or a BlockNotifierRef for conciseness. See their documentation for more details, but essentially
 /// you should default to using a BlockNotifierRef, and use a BlockNotifierArc instead when you
 /// require ChainListeners with static lifetimes, such as when you're using lightning-net-tokio.
-/// (C-not exported) due to ChainListener not being exported
-pub struct BlockNotifier<'a, CL: Deref<Target = ChainListener + 'a> + 'a, C: Deref> where C::Target: ChainWatchInterface {
+pub struct BlockNotifier<'a, CL: Deref + 'a, C: Deref>
+		where CL::Target: ChainListener + 'a, C::Target: ChainWatchInterface {
 	listeners: Mutex<Vec<CL>>,
 	chain_monitor: C,
 	phantom: PhantomData<&'a ()>,
 }
 
-impl<'a, CL: Deref<Target = ChainListener + 'a> + 'a, C: Deref> BlockNotifier<'a, CL, C> where C::Target: ChainWatchInterface {
+impl<'a, CL: Deref + 'a, C: Deref> BlockNotifier<'a, CL, C>
+		where CL::Target: ChainListener + 'a, C::Target: ChainWatchInterface {
 	/// Constructs a new BlockNotifier without any listeners.
 	pub fn new(chain_monitor: C) -> BlockNotifier<'a, CL, C> {
 		BlockNotifier {
@@ -271,6 +271,7 @@ impl<'a, CL: Deref<Target = ChainListener + 'a> + 'a, C: Deref> BlockNotifier<'a
 	/// If the same listener is registered multiple times, unregistering
 	/// will remove ALL occurrences of that listener. Comparison is done using
 	/// the pointer returned by the Deref trait implementation.
+	/// (C-not exported) because the equality check would always fail
 	pub fn unregister_listener(&self, listener: CL) {
 		let mut vec = self.listeners.lock().unwrap();
 		// item is a ref to an abstract thing that dereferences to a ChainListener,
@@ -282,6 +283,7 @@ impl<'a, CL: Deref<Target = ChainListener + 'a> + 'a, C: Deref> BlockNotifier<'a
 	///
 	/// Handles re-scanning the block and calling block_connected again if listeners register new
 	/// watch data during the callbacks for you (see ChainListener::block_connected for more info).
+	/// (C-not exported) due to Block
 	pub fn block_connected<'b>(&self, block: &'b Block, height: u32) {
 		let mut reentered = true;
 		while reentered {
@@ -296,6 +298,7 @@ impl<'a, CL: Deref<Target = ChainListener + 'a> + 'a, C: Deref> BlockNotifier<'a
 	/// Returns true if notified listeners registered additional watch data (implying that the
 	/// block must be re-scanned and this function called again prior to further block_connected
 	/// calls, see ChainListener::block_connected for more info).
+	/// (C-not exported) due to slice
 	pub fn block_connected_checked(&self, header: &BlockHeader, height: u32, txn_matched: &[&Transaction], indexes_of_txn_matched: &[u32]) -> bool {
 		let last_seen = self.chain_monitor.reentered();
 

@@ -102,6 +102,9 @@ impl u8slice {
 			datalen: s.len(),
 		}
 	}
+	pub(crate) fn to_slice(&self) -> &[u8] {
+		unsafe { std::slice::from_raw_parts(self.data, self.datalen) }
+	}
 }
 
 #[repr(C)]
@@ -118,8 +121,8 @@ pub struct ThreeBytes {
 
 #[repr(C)]
 pub union CResultPtr<O, E> {
-	pub result: *const O,
-	pub err: *const E,
+	pub result: *mut O,
+	pub err: *mut E,
 }
 #[repr(C)]
 pub struct CResultTempl<O, E> {
@@ -127,7 +130,7 @@ pub struct CResultTempl<O, E> {
 	pub result_good: bool,
 }
 impl<O, E> CResultTempl<O, E> {
-	pub(crate) fn good(o: O) -> Self {
+	pub(crate) extern "C" fn good(o: O) -> Self {
 		CResultTempl {
 			contents: CResultPtr {
 				result: Box::into_raw(Box::new(o)),
@@ -135,7 +138,7 @@ impl<O, E> CResultTempl<O, E> {
 			result_good: true,
 		}
 	}
-	pub(crate) fn err(e: E) -> Self {
+	pub(crate) extern "C" fn err(e: E) -> Self {
 		CResultTempl {
 			contents: CResultPtr {
 				err: Box::into_raw(Box::new(e)),
@@ -148,9 +151,9 @@ pub extern "C" fn CResultTempl_free<O, E>(_res: CResultTempl<O, E>) { }
 impl<O, E> Drop for CResultTempl<O, E> {
 	fn drop(&mut self) {
 		if self.result_good {
-			unsafe { Box::from_raw(self.contents.result as *mut O) };
+			unsafe { Box::from_raw(self.contents.result) };
 		} else {
-			unsafe { Box::from_raw(self.contents.err as *mut E) };
+			unsafe { Box::from_raw(self.contents.err) };
 		}
 	}
 }
@@ -174,6 +177,29 @@ pub static CResultNonePaymentSendFailure_free: extern "C" fn(CResultNonePaymentS
 pub type CResultboolLightningError = CResultTempl<bool, crate::ln::msgs::LightningError>;
 #[no_mangle]
 pub static CResultboolLightningError_free: extern "C" fn(CResultboolLightningError) = CResultTempl_free::<bool, crate::ln::msgs::LightningError>;
+
+#[no_mangle]
+pub type CResultSignatureNone = CResultTempl<Signature, u8>;
+#[no_mangle]
+pub static CResultSignatureNone_free: extern "C" fn(CResultSignatureNone) = CResultTempl_free::<Signature, u8>;
+
+#[no_mangle]
+pub type CResultboolPeerHandleError = CResultTempl<bool, crate::ln::peer_handler::PeerHandleError>;
+#[no_mangle]
+pub static CResultboolPeerHandleError_free: extern "C" fn(CResultboolPeerHandleError) = CResultTempl_free::<bool, crate::ln::peer_handler::PeerHandleError>;
+
+#[no_mangle]
+pub type CResultNoneChannelMonitorUpdateErr = CResultTempl<u8, crate::ln::channelmonitor::ChannelMonitorUpdateErr>;
+#[no_mangle]
+pub static CResultNoneChannelMonitorUpdateErr_free: extern "C" fn(CResultNoneChannelMonitorUpdateErr) = CResultTempl_free::<u8, crate::ln::channelmonitor::ChannelMonitorUpdateErr>;
+#[no_mangle]
+pub extern "C" fn CResultNoneChannelMonitorUpdateErr_good() -> CResultNoneChannelMonitorUpdateErr {
+	CResultTempl::good(0)
+}
+#[no_mangle]
+pub static CResultNoneChannelMonitorUpdateErr_err:
+	extern"C" fn(crate::ln::channelmonitor::ChannelMonitorUpdateErr) -> CResultNoneChannelMonitorUpdateErr =
+	CResultTempl::<u8, crate::ln::channelmonitor::ChannelMonitorUpdateErr>::err;
 
 
 
@@ -240,3 +266,20 @@ pub static CVecNetAddress_free: extern "C" fn(CVecNetAddress) = CVecTempl_free::
 pub type CVecPublicKey = CVecTempl<PublicKey>;
 #[no_mangle]
 pub static CVecPublicKey_free: extern "C" fn(CVecPublicKey) = CVecTempl_free::<PublicKey>;
+
+#[no_mangle]
+pub type CVecu64 = CVecTempl<u64>;
+#[no_mangle]
+pub static CVecu64_free: extern "C" fn(CVecu64) = CVecTempl_free::<u64>;
+
+
+pub(crate) trait TakePointer<T> {
+	fn take_ptr(&mut self) -> *const T;
+}
+impl<T> TakePointer<T> for *const T {
+	fn take_ptr(&mut self) -> *const T {
+		let ret = *self;
+		*self = std::ptr::null();
+		ret
+	}
+}

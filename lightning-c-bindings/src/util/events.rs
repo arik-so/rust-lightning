@@ -7,6 +7,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
+use crate::c_types::TakePointer;
 
 use bitcoin::blockdata::script::Script as lnScript;
 use bitcoin::secp256k1::key::PublicKey as lnPublicKey;
@@ -26,10 +27,15 @@ pub struct Event {
 	pub inner: *const lnEvent,
 }
 
-#[no_mangle]
-pub extern "C" fn Event_free(this_ptr: Event) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnEvent) };
+impl Drop for Event {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnEvent) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn Event_free(this_ptr: Event) { }
 
 use lightning::util::events::MessageSendEvent as lnMessageSendEventImport;
 type lnMessageSendEvent = lnMessageSendEventImport;
@@ -44,10 +50,15 @@ pub struct MessageSendEvent {
 	pub inner: *const lnMessageSendEvent,
 }
 
-#[no_mangle]
-pub extern "C" fn MessageSendEvent_free(this_ptr: MessageSendEvent) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnMessageSendEvent) };
+impl Drop for MessageSendEvent {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnMessageSendEvent) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn MessageSendEvent_free(this_ptr: MessageSendEvent) { }
 /// " A trait indicating an object may generate message send events"
 #[repr(C)]
 pub struct MessageSendEventsProvider {

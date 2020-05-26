@@ -4,6 +4,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
+use crate::c_types::TakePointer;
 
 use bitcoin::blockdata::transaction::Transaction as lnTransaction;
 use bitcoin::blockdata::transaction::OutPoint as lnOutPoint;
@@ -41,10 +42,15 @@ pub struct SpendableOutputDescriptor {
 	pub inner: *const lnSpendableOutputDescriptor,
 }
 
-#[no_mangle]
-pub extern "C" fn SpendableOutputDescriptor_free(this_ptr: SpendableOutputDescriptor) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnSpendableOutputDescriptor) };
+impl Drop for SpendableOutputDescriptor {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnSpendableOutputDescriptor) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn SpendableOutputDescriptor_free(this_ptr: SpendableOutputDescriptor) { }
 /// " Set of lightning keys needed to operate a channel as described in BOLT 3."
 /// ""
 /// " Signing services could be implemented on a hardware wallet. In this case,"
@@ -81,7 +87,11 @@ pub struct ChannelKeys {
 	//XXX: Need to export sign_remote_commitment
 	//XXX: Need to export sign_local_commitment
 	//XXX: Need to export sign_local_commitment_htlc_transactions
-	//XXX: Need to export sign_closing_transaction
+	/// " Create a signature for a (proposed) closing transaction."
+	/// ""
+	/// " Note that, due to rounding, there may be one \"missing\" satoshi, and either party may have"
+	/// " chosen to forgo their output as dust."
+	pub sign_closing_transaction: extern "C" fn (this_arg: *const c_void, closing_tx: crate::c_types::Transaction) -> crate::c_types::CResultSignatureNone,
 	//XXX: Need to export sign_channel_announcement
 	//XXX: Need to export set_remote_channel_pubkeys
 }
@@ -120,7 +130,10 @@ impl lnChannelKeys for ChannelKeys {
 		unimplemented!();
 	}
 	fn sign_closing_transaction<T:bitcoin::secp256k1::Signing>(&self, closing_tx: &bitcoin::blockdata::transaction::Transaction, _secp_ctx: &bitcoin::secp256k1::Secp256k1<T>) -> Result<bitcoin::secp256k1::Signature, ()> {
-		unimplemented!();
+		let local_closing_tx = ::bitcoin::consensus::encode::serialize(closing_tx);
+		let mut ret = (self.sign_closing_transaction)(self.this_arg, crate::c_types::Transaction::from_slice(&local_closing_tx));
+		let mut local_ret = match ret.result_good { true => Ok((*unsafe { &mut *ret.contents.result }).into_rust()), false => Err(() /*(*unsafe { &mut *ret.contents.err })*/)};
+		local_ret
 	}
 	fn sign_channel_announcement<T:bitcoin::secp256k1::Signing>(&self, msg: &lightning::ln::msgs::UnsignedChannelAnnouncement, _secp_ctx: &bitcoin::secp256k1::Secp256k1<T>) -> Result<bitcoin::secp256k1::Signature, ()> {
 		unimplemented!();
@@ -203,10 +216,22 @@ pub struct InMemoryChannelKeys {
 	pub inner: *const lnInMemoryChannelKeys,
 }
 
-#[no_mangle]
-pub extern "C" fn InMemoryChannelKeys_free(this_ptr: InMemoryChannelKeys) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnInMemoryChannelKeys) };
+impl Drop for InMemoryChannelKeys {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnInMemoryChannelKeys) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn InMemoryChannelKeys_free(this_ptr: InMemoryChannelKeys) { }
+/// " Create a new InMemoryChannelKeys"
+#[no_mangle]
+pub extern "C" fn InMemoryChannelKeys_new(mut funding_key: crate::c_types::SecretKey, mut revocation_base_key: crate::c_types::SecretKey, mut payment_key: crate::c_types::SecretKey, mut delayed_payment_base_key: crate::c_types::SecretKey, mut htlc_base_key: crate::c_types::SecretKey, mut commitment_seed: crate::c_types::ThirtyTwoBytes, mut channel_value_satoshis: u64) -> InMemoryChannelKeys {
+	let mut ret = lightning::chain::keysinterface::InMemoryChannelKeys::new(&bitcoin::secp256k1::Secp256k1::new(), funding_key.into_rust(), revocation_base_key.into_rust(), payment_key.into_rust(), delayed_payment_base_key.into_rust(), htlc_base_key.into_rust(), commitment_seed.data, channel_value_satoshis);
+	crate::chain::keysinterface::InMemoryChannelKeys { inner: Box::into_raw(Box::new(ret)) }
+}
+
 #[no_mangle]
 pub extern "C" fn InMemoryChannelKeys_as_ChannelKeys(this_arg: *const InMemoryChannelKeys) -> crate::chain::keysinterface::ChannelKeys {
 	crate::chain::keysinterface::ChannelKeys {
@@ -221,12 +246,17 @@ pub extern "C" fn InMemoryChannelKeys_as_ChannelKeys(this_arg: *const InMemoryCh
 		//XXX: Need to export sign_remote_commitment
 		//XXX: Need to export sign_local_commitment
 		//XXX: Need to export sign_local_commitment_htlc_transactions
-		//XXX: Need to export sign_closing_transaction
+		sign_closing_transaction: InMemoryChannelKeys_ChannelKeys_sign_closing_transaction,
 		//XXX: Need to export sign_channel_announcement
 		//XXX: Need to export set_remote_channel_pubkeys
 	}
 }
 use lightning::chain::keysinterface::ChannelKeys as ChannelKeysTraitImport;
+extern "C" fn InMemoryChannelKeys_ChannelKeys_sign_closing_transaction(this_arg: *const c_void, closing_tx: crate::c_types::Transaction) -> crate::c_types::CResultSignatureNone {
+	let mut ret = unsafe { &*(*(this_arg as *const InMemoryChannelKeys)).inner }.sign_closing_transaction(&closing_tx.into_bitcoin(), &bitcoin::secp256k1::Secp256k1::new());
+	let mut local_ret = match ret{ Ok(o) => crate::c_types::CResultTempl::good(crate::c_types::Signature::from_rust(&o)), Err(e) => crate::c_types::CResultTempl::err(0u8 /*e*/) };
+	local_ret
+}
 
 
 use lightning::chain::keysinterface::KeysManager as lnKeysManagerImport;
@@ -246,10 +276,15 @@ pub struct KeysManager {
 	pub inner: *const lnKeysManager,
 }
 
-#[no_mangle]
-pub extern "C" fn KeysManager_free(this_ptr: KeysManager) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnKeysManager) };
+impl Drop for KeysManager {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnKeysManager) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn KeysManager_free(this_ptr: KeysManager) { }
 /// " Constructs a KeysManager from a 32-byte seed. If the seed is in some way biased (eg your"
 /// " RNG is busted) this may panic (but more importantly, you will possibly lose funds)."
 /// " starting_time isn't strictly required to actually be a time, but it must absolutely,"
@@ -270,7 +305,7 @@ pub extern "C" fn KeysManager_free(this_ptr: KeysManager) {
 /// " versions. Once the library is more fully supported, the docs will be updated to include a"
 /// " detailed description of the guarantee."
 #[no_mangle]
-pub extern "C" fn KeysManager_new(seed: *const [u8; 32], network: crate::bitcoin::network::Network, starting_time_secs: u64, starting_time_nanos: u32) -> KeysManager {
+pub extern "C" fn KeysManager_new(seed: *const [u8; 32], mut network: crate::bitcoin::network::Network, mut starting_time_secs: u64, mut starting_time_nanos: u32) -> KeysManager {
 	let mut ret = lightning::chain::keysinterface::KeysManager::new(unsafe { &*seed}, network.into_bitcoin(), starting_time_secs, starting_time_nanos);
 	KeysManager { inner: Box::into_raw(Box::new(ret)) }
 }

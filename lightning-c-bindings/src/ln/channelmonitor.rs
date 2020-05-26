@@ -13,6 +13,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
+use crate::c_types::TakePointer;
 
 use bitcoin::blockdata::block::BlockHeader as lnBlockHeader;
 use bitcoin::blockdata::transaction::TxOut as lnTxOut;
@@ -44,9 +45,26 @@ pub struct ChannelMonitorUpdate {
 	pub inner: *const lnChannelMonitorUpdate,
 }
 
+impl Drop for ChannelMonitorUpdate {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelMonitorUpdate) };
+		}
+	}
+}
 #[no_mangle]
-pub extern "C" fn ChannelMonitorUpdate_free(this_ptr: ChannelMonitorUpdate) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelMonitorUpdate) };
+pub extern "C" fn ChannelMonitorUpdate_free(this_ptr: ChannelMonitorUpdate) { }
+/// " The sequence number of this update. Updates *must* be replayed in-order according to this"
+/// " sequence number (and updates may panic if they are not). The update_id values are strictly"
+/// " increasing and increase by one for each new update."
+/// ""
+/// " This sequence number is also used to track up to which points updates which returned"
+/// " ChannelMonitorUpdateErr::TemporaryFailure have been applied to all copies of a given"
+/// " ChannelMonitor when ChannelManager::channel_monitor_updated is called."
+#[no_mangle]
+pub extern "C" fn ChannelMonitorUpdate_get_update_id(this_ptr: &ChannelMonitorUpdate) -> u64 {
+	let inner_val = &unsafe { &*this_ptr.inner }.update_id;
+	(*inner_val)
 }
 /// " The sequence number of this update. Updates *must* be replayed in-order according to this"
 /// " sequence number (and updates may panic if they are not). The update_id values are strictly"
@@ -56,7 +74,7 @@ pub extern "C" fn ChannelMonitorUpdate_free(this_ptr: ChannelMonitorUpdate) {
 /// " ChannelMonitorUpdateErr::TemporaryFailure have been applied to all copies of a given"
 /// " ChannelMonitor when ChannelManager::channel_monitor_updated is called."
 #[no_mangle]
-pub extern "C" fn ChannelMonitorUpdate_set_update_id(this_ptr: &mut ChannelMonitorUpdate, val: u64) {
+pub extern "C" fn ChannelMonitorUpdate_set_update_id(this_ptr: &mut ChannelMonitorUpdate, mut val: u64) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelMonitorUpdate) }.update_id = val;
 }
 /// " An error enum representing a failure to persist a channel monitor update."
@@ -139,10 +157,15 @@ pub struct MonitorUpdateError {
 	pub inner: *const lnMonitorUpdateError,
 }
 
-#[no_mangle]
-pub extern "C" fn MonitorUpdateError_free(this_ptr: MonitorUpdateError) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnMonitorUpdateError) };
+impl Drop for MonitorUpdateError {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnMonitorUpdateError) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn MonitorUpdateError_free(this_ptr: MonitorUpdateError) { }
 
 use lightning::ln::channelmonitor::HTLCUpdate as lnHTLCUpdateImport;
 type lnHTLCUpdate = lnHTLCUpdateImport;
@@ -156,10 +179,15 @@ pub struct HTLCUpdate {
 	pub inner: *const lnHTLCUpdate,
 }
 
-#[no_mangle]
-pub extern "C" fn HTLCUpdate_free(this_ptr: HTLCUpdate) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnHTLCUpdate) };
+impl Drop for HTLCUpdate {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnHTLCUpdate) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn HTLCUpdate_free(this_ptr: HTLCUpdate) { }
 
 use lightning::ln::channelmonitor::ChannelMonitor as lnChannelMonitorImport;
 type lnChannelMonitor = lnChannelMonitorImport<crate::chain::keysinterface::ChannelKeys>;
@@ -181,10 +209,15 @@ pub struct ChannelMonitor {
 	pub inner: *const lnChannelMonitor,
 }
 
-#[no_mangle]
-pub extern "C" fn ChannelMonitor_free(this_ptr: ChannelMonitor) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelMonitor) };
+impl Drop for ChannelMonitor {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelMonitor) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn ChannelMonitor_free(this_ptr: ChannelMonitor) { }
 /// " Simple trait indicating ability to track a set of ChannelMonitors and multiplex events between"
 /// " them. Generally should be implemented by keeping a local SimpleManyChannelMonitor and passing"
 /// " events to it, while also taking any add/update_monitor events and passing them to some remote"
@@ -210,8 +243,32 @@ pub extern "C" fn ChannelMonitor_free(this_ptr: ChannelMonitor) {
 #[repr(C)]
 pub struct ManyChannelMonitor {
 	pub this_arg: *mut c_void,
-	//XXX: Need to export add_monitor
-	//XXX: Need to export update_monitor
+	/// " Adds a monitor for the given `funding_txo`."
+	/// ""
+	/// " Implementer must also ensure that the funding_txo txid *and* outpoint are registered with"
+	/// " any relevant ChainWatchInterfaces such that the provided monitor receives block_connected"
+	/// " callbacks with the funding transaction, or any spends of it."
+	/// ""
+	/// " Further, the implementer must also ensure that each output returned in"
+	/// " monitor.get_outputs_to_watch() is registered to ensure that the provided monitor learns about"
+	/// " any spends of any of the outputs."
+	/// ""
+	/// " Any spends of outputs which should have been registered which aren't passed to"
+	/// " ChannelMonitors via block_connected may result in FUNDS LOSS."
+	pub add_monitor: extern "C" fn (this_arg: *const c_void, funding_txo: crate::chain::transaction::OutPoint, monitor: ChannelMonitor) -> crate::c_types::CResultNoneChannelMonitorUpdateErr,
+	/// " Updates a monitor for the given `funding_txo`."
+	/// ""
+	/// " Implementer must also ensure that the funding_txo txid *and* outpoint are registered with"
+	/// " any relevant ChainWatchInterfaces such that the provided monitor receives block_connected"
+	/// " callbacks with the funding transaction, or any spends of it."
+	/// ""
+	/// " Further, the implementer must also ensure that each output returned in"
+	/// " monitor.get_watch_outputs() is registered to ensure that the provided monitor learns about"
+	/// " any spends of any of the outputs."
+	/// ""
+	/// " Any spends of outputs which should have been registered which aren't passed to"
+	/// " ChannelMonitors via block_connected may result in FUNDS LOSS."
+	pub update_monitor: extern "C" fn (this_arg: *const c_void, funding_txo: crate::chain::transaction::OutPoint, monitor: ChannelMonitorUpdate) -> crate::c_types::CResultNoneChannelMonitorUpdateErr,
 	/// " Used by ChannelManager to get list of HTLC resolved onchain and which needed to be updated"
 	/// " with success or failure."
 	/// ""
@@ -227,14 +284,18 @@ use lightning::ln::channelmonitor::ManyChannelMonitor as lnManyChannelMonitor;
 impl lnManyChannelMonitor for ManyChannelMonitor {
 	type Keys = crate::chain::keysinterface::ChannelKeys;
 	fn add_monitor(&self, funding_txo: lightning::chain::transaction::OutPoint, monitor: lightning::ln::channelmonitor::ChannelMonitor<Self::Keys>) -> Result<(), lightning::ln::channelmonitor::ChannelMonitorUpdateErr> {
-		unimplemented!();
+		let mut ret = (self.add_monitor)(self.this_arg, crate::chain::transaction::OutPoint { inner: Box::into_raw(Box::new(funding_txo)) }, crate::ln::channelmonitor::ChannelMonitor { inner: Box::into_raw(Box::new(monitor)) });
+		let mut local_ret = match ret.result_good { true => Ok(() /*(*unsafe { &mut *ret.contents.result })*/), false => Err((*unsafe { &mut *ret.contents.err }).to_ln())};
+		local_ret
 	}
 	fn update_monitor(&self, funding_txo: lightning::chain::transaction::OutPoint, monitor: lightning::ln::channelmonitor::ChannelMonitorUpdate) -> Result<(), lightning::ln::channelmonitor::ChannelMonitorUpdateErr> {
-		unimplemented!();
+		let mut ret = (self.update_monitor)(self.this_arg, crate::chain::transaction::OutPoint { inner: Box::into_raw(Box::new(funding_txo)) }, crate::ln::channelmonitor::ChannelMonitorUpdate { inner: Box::into_raw(Box::new(monitor)) });
+		let mut local_ret = match ret.result_good { true => Ok(() /*(*unsafe { &mut *ret.contents.result })*/), false => Err((*unsafe { &mut *ret.contents.err }).to_ln())};
+		local_ret
 	}
 	fn get_and_clear_pending_htlcs_updated(&self) -> Vec<lightning::ln::channelmonitor::HTLCUpdate> {
 		let mut ret = (self.get_and_clear_pending_htlcs_updated)(self.this_arg);
-		let mut local_ret = Vec::new(); for item in ret.into_rust().drain(..) { local_ret.push(*unsafe { Box::from_raw(item.inner as *mut _) }); };
+		let mut local_ret = Vec::new(); for mut item in ret.into_rust().drain(..) { local_ret.push(*unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) }); };
 		local_ret
 	}
 }

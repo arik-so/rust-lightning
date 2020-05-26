@@ -17,6 +17,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
+use crate::c_types::TakePointer;
 
 use bitcoin::secp256k1::key::PublicKey as lnPublicKey;
 use bitcoin::secp256k1::Signature as lnSignature;
@@ -36,10 +37,15 @@ pub struct DecodeError {
 	pub inner: *const lnDecodeError,
 }
 
-#[no_mangle]
-pub extern "C" fn DecodeError_free(this_ptr: DecodeError) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnDecodeError) };
+impl Drop for DecodeError {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnDecodeError) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn DecodeError_free(this_ptr: DecodeError) { }
 
 use lightning::ln::msgs::Init as lnInitImport;
 type lnInit = lnInitImport;
@@ -52,10 +58,15 @@ pub struct Init {
 	pub inner: *const lnInit,
 }
 
-#[no_mangle]
-pub extern "C" fn Init_free(this_ptr: Init) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnInit) };
+impl Drop for Init {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnInit) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn Init_free(this_ptr: Init) { }
 
 use lightning::ln::msgs::ErrorMessage as lnErrorMessageImport;
 type lnErrorMessage = lnErrorMessageImport;
@@ -68,10 +79,15 @@ pub struct ErrorMessage {
 	pub inner: *const lnErrorMessage,
 }
 
-#[no_mangle]
-pub extern "C" fn ErrorMessage_free(this_ptr: ErrorMessage) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnErrorMessage) };
+impl Drop for ErrorMessage {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnErrorMessage) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn ErrorMessage_free(this_ptr: ErrorMessage) { }
 
 use lightning::ln::msgs::Ping as lnPingImport;
 type lnPing = lnPingImport;
@@ -84,10 +100,15 @@ pub struct Ping {
 	pub inner: *const lnPing,
 }
 
-#[no_mangle]
-pub extern "C" fn Ping_free(this_ptr: Ping) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnPing) };
+impl Drop for Ping {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnPing) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn Ping_free(this_ptr: Ping) { }
 
 use lightning::ln::msgs::Pong as lnPongImport;
 type lnPong = lnPongImport;
@@ -100,10 +121,15 @@ pub struct Pong {
 	pub inner: *const lnPong,
 }
 
-#[no_mangle]
-pub extern "C" fn Pong_free(this_ptr: Pong) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnPong) };
+impl Drop for Pong {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnPong) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn Pong_free(this_ptr: Pong) { }
 
 use lightning::ln::msgs::OpenChannel as lnOpenChannelImport;
 type lnOpenChannel = lnOpenChannelImport;
@@ -116,10 +142,15 @@ pub struct OpenChannel {
 	pub inner: *const lnOpenChannel,
 }
 
-#[no_mangle]
-pub extern "C" fn OpenChannel_free(this_ptr: OpenChannel) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnOpenChannel) };
+impl Drop for OpenChannel {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnOpenChannel) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn OpenChannel_free(this_ptr: OpenChannel) { }
 
 use lightning::ln::msgs::AcceptChannel as lnAcceptChannelImport;
 type lnAcceptChannel = lnAcceptChannelImport;
@@ -132,10 +163,15 @@ pub struct AcceptChannel {
 	pub inner: *const lnAcceptChannel,
 }
 
-#[no_mangle]
-pub extern "C" fn AcceptChannel_free(this_ptr: AcceptChannel) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnAcceptChannel) };
+impl Drop for AcceptChannel {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnAcceptChannel) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn AcceptChannel_free(this_ptr: AcceptChannel) { }
 
 use lightning::ln::msgs::FundingCreated as lnFundingCreatedImport;
 type lnFundingCreated = lnFundingCreatedImport;
@@ -148,10 +184,15 @@ pub struct FundingCreated {
 	pub inner: *const lnFundingCreated,
 }
 
-#[no_mangle]
-pub extern "C" fn FundingCreated_free(this_ptr: FundingCreated) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnFundingCreated) };
+impl Drop for FundingCreated {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnFundingCreated) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn FundingCreated_free(this_ptr: FundingCreated) { }
 
 use lightning::ln::msgs::FundingSigned as lnFundingSignedImport;
 type lnFundingSigned = lnFundingSignedImport;
@@ -164,10 +205,15 @@ pub struct FundingSigned {
 	pub inner: *const lnFundingSigned,
 }
 
-#[no_mangle]
-pub extern "C" fn FundingSigned_free(this_ptr: FundingSigned) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnFundingSigned) };
+impl Drop for FundingSigned {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnFundingSigned) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn FundingSigned_free(this_ptr: FundingSigned) { }
 
 use lightning::ln::msgs::FundingLocked as lnFundingLockedImport;
 type lnFundingLocked = lnFundingLockedImport;
@@ -180,17 +226,22 @@ pub struct FundingLocked {
 	pub inner: *const lnFundingLocked,
 }
 
-#[no_mangle]
-pub extern "C" fn FundingLocked_free(this_ptr: FundingLocked) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnFundingLocked) };
+impl Drop for FundingLocked {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnFundingLocked) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn FundingLocked_free(this_ptr: FundingLocked) { }
 #[no_mangle]
 pub extern "C" fn FundingLocked_get_channel_id(this_ptr: &FundingLocked) -> *const [u8; 32] {
 	let inner_val = &unsafe { &*this_ptr.inner }.channel_id;
 	&(*inner_val)
 }
 #[no_mangle]
-pub extern "C" fn FundingLocked_set_channel_id(this_ptr: &mut FundingLocked, val: crate::c_types::ThirtyTwoBytes) {
+pub extern "C" fn FundingLocked_set_channel_id(this_ptr: &mut FundingLocked, mut val: crate::c_types::ThirtyTwoBytes) {
 	unsafe { &mut *(this_ptr.inner as *mut lnFundingLocked) }.channel_id = val.data;
 }
 #[no_mangle]
@@ -199,11 +250,11 @@ pub extern "C" fn FundingLocked_get_next_per_commitment_point(this_ptr: &Funding
 	crate::c_types::PublicKey::from_rust(&(*inner_val))
 }
 #[no_mangle]
-pub extern "C" fn FundingLocked_set_next_per_commitment_point(this_ptr: &mut FundingLocked, val: crate::c_types::PublicKey) {
+pub extern "C" fn FundingLocked_set_next_per_commitment_point(this_ptr: &mut FundingLocked, mut val: crate::c_types::PublicKey) {
 	unsafe { &mut *(this_ptr.inner as *mut lnFundingLocked) }.next_per_commitment_point = val.into_rust();
 }
 #[no_mangle]
-pub extern "C" fn FundingLocked_new(channel_id_arg: crate::c_types::ThirtyTwoBytes, next_per_commitment_point_arg: crate::c_types::PublicKey) -> FundingLocked {
+pub extern "C" fn FundingLocked_new(mut channel_id_arg: crate::c_types::ThirtyTwoBytes, mut next_per_commitment_point_arg: crate::c_types::PublicKey) -> FundingLocked {
 	FundingLocked { inner: Box::into_raw(Box::new(lnFundingLocked {
 		channel_id: channel_id_arg.data,
 		next_per_commitment_point: next_per_commitment_point_arg.into_rust(),
@@ -221,10 +272,15 @@ pub struct Shutdown {
 	pub inner: *const lnShutdown,
 }
 
-#[no_mangle]
-pub extern "C" fn Shutdown_free(this_ptr: Shutdown) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnShutdown) };
+impl Drop for Shutdown {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnShutdown) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn Shutdown_free(this_ptr: Shutdown) { }
 
 use lightning::ln::msgs::ClosingSigned as lnClosingSignedImport;
 type lnClosingSigned = lnClosingSignedImport;
@@ -237,10 +293,15 @@ pub struct ClosingSigned {
 	pub inner: *const lnClosingSigned,
 }
 
-#[no_mangle]
-pub extern "C" fn ClosingSigned_free(this_ptr: ClosingSigned) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnClosingSigned) };
+impl Drop for ClosingSigned {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnClosingSigned) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn ClosingSigned_free(this_ptr: ClosingSigned) { }
 
 use lightning::ln::msgs::UpdateAddHTLC as lnUpdateAddHTLCImport;
 type lnUpdateAddHTLC = lnUpdateAddHTLCImport;
@@ -253,10 +314,15 @@ pub struct UpdateAddHTLC {
 	pub inner: *const lnUpdateAddHTLC,
 }
 
-#[no_mangle]
-pub extern "C" fn UpdateAddHTLC_free(this_ptr: UpdateAddHTLC) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnUpdateAddHTLC) };
+impl Drop for UpdateAddHTLC {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnUpdateAddHTLC) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn UpdateAddHTLC_free(this_ptr: UpdateAddHTLC) { }
 
 use lightning::ln::msgs::UpdateFulfillHTLC as lnUpdateFulfillHTLCImport;
 type lnUpdateFulfillHTLC = lnUpdateFulfillHTLCImport;
@@ -269,10 +335,15 @@ pub struct UpdateFulfillHTLC {
 	pub inner: *const lnUpdateFulfillHTLC,
 }
 
-#[no_mangle]
-pub extern "C" fn UpdateFulfillHTLC_free(this_ptr: UpdateFulfillHTLC) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnUpdateFulfillHTLC) };
+impl Drop for UpdateFulfillHTLC {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnUpdateFulfillHTLC) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn UpdateFulfillHTLC_free(this_ptr: UpdateFulfillHTLC) { }
 
 use lightning::ln::msgs::UpdateFailHTLC as lnUpdateFailHTLCImport;
 type lnUpdateFailHTLC = lnUpdateFailHTLCImport;
@@ -285,10 +356,15 @@ pub struct UpdateFailHTLC {
 	pub inner: *const lnUpdateFailHTLC,
 }
 
-#[no_mangle]
-pub extern "C" fn UpdateFailHTLC_free(this_ptr: UpdateFailHTLC) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnUpdateFailHTLC) };
+impl Drop for UpdateFailHTLC {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnUpdateFailHTLC) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn UpdateFailHTLC_free(this_ptr: UpdateFailHTLC) { }
 
 use lightning::ln::msgs::UpdateFailMalformedHTLC as lnUpdateFailMalformedHTLCImport;
 type lnUpdateFailMalformedHTLC = lnUpdateFailMalformedHTLCImport;
@@ -301,10 +377,15 @@ pub struct UpdateFailMalformedHTLC {
 	pub inner: *const lnUpdateFailMalformedHTLC,
 }
 
-#[no_mangle]
-pub extern "C" fn UpdateFailMalformedHTLC_free(this_ptr: UpdateFailMalformedHTLC) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnUpdateFailMalformedHTLC) };
+impl Drop for UpdateFailMalformedHTLC {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnUpdateFailMalformedHTLC) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn UpdateFailMalformedHTLC_free(this_ptr: UpdateFailMalformedHTLC) { }
 
 use lightning::ln::msgs::CommitmentSigned as lnCommitmentSignedImport;
 type lnCommitmentSigned = lnCommitmentSignedImport;
@@ -317,10 +398,15 @@ pub struct CommitmentSigned {
 	pub inner: *const lnCommitmentSigned,
 }
 
-#[no_mangle]
-pub extern "C" fn CommitmentSigned_free(this_ptr: CommitmentSigned) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnCommitmentSigned) };
+impl Drop for CommitmentSigned {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnCommitmentSigned) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn CommitmentSigned_free(this_ptr: CommitmentSigned) { }
 
 use lightning::ln::msgs::RevokeAndACK as lnRevokeAndACKImport;
 type lnRevokeAndACK = lnRevokeAndACKImport;
@@ -333,10 +419,15 @@ pub struct RevokeAndACK {
 	pub inner: *const lnRevokeAndACK,
 }
 
-#[no_mangle]
-pub extern "C" fn RevokeAndACK_free(this_ptr: RevokeAndACK) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnRevokeAndACK) };
+impl Drop for RevokeAndACK {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnRevokeAndACK) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn RevokeAndACK_free(this_ptr: RevokeAndACK) { }
 
 use lightning::ln::msgs::UpdateFee as lnUpdateFeeImport;
 type lnUpdateFee = lnUpdateFeeImport;
@@ -349,10 +440,15 @@ pub struct UpdateFee {
 	pub inner: *const lnUpdateFee,
 }
 
-#[no_mangle]
-pub extern "C" fn UpdateFee_free(this_ptr: UpdateFee) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnUpdateFee) };
+impl Drop for UpdateFee {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnUpdateFee) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn UpdateFee_free(this_ptr: UpdateFee) { }
 
 use lightning::ln::msgs::ChannelReestablish as lnChannelReestablishImport;
 type lnChannelReestablish = lnChannelReestablishImport;
@@ -365,10 +461,15 @@ pub struct ChannelReestablish {
 	pub inner: *const lnChannelReestablish,
 }
 
-#[no_mangle]
-pub extern "C" fn ChannelReestablish_free(this_ptr: ChannelReestablish) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelReestablish) };
+impl Drop for ChannelReestablish {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelReestablish) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn ChannelReestablish_free(this_ptr: ChannelReestablish) { }
 
 use lightning::ln::msgs::AnnouncementSignatures as lnAnnouncementSignaturesImport;
 type lnAnnouncementSignatures = lnAnnouncementSignaturesImport;
@@ -381,10 +482,15 @@ pub struct AnnouncementSignatures {
 	pub inner: *const lnAnnouncementSignatures,
 }
 
-#[no_mangle]
-pub extern "C" fn AnnouncementSignatures_free(this_ptr: AnnouncementSignatures) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnAnnouncementSignatures) };
+impl Drop for AnnouncementSignatures {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnAnnouncementSignatures) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn AnnouncementSignatures_free(this_ptr: AnnouncementSignatures) { }
 
 use lightning::ln::msgs::NetAddress as lnNetAddressImport;
 type lnNetAddress = lnNetAddressImport;
@@ -397,10 +503,15 @@ pub struct NetAddress {
 	pub inner: *const lnNetAddress,
 }
 
-#[no_mangle]
-pub extern "C" fn NetAddress_free(this_ptr: NetAddress) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnNetAddress) };
+impl Drop for NetAddress {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnNetAddress) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn NetAddress_free(this_ptr: NetAddress) { }
 
 use lightning::ln::msgs::UnsignedNodeAnnouncement as lnUnsignedNodeAnnouncementImport;
 type lnUnsignedNodeAnnouncement = lnUnsignedNodeAnnouncementImport;
@@ -413,10 +524,15 @@ pub struct UnsignedNodeAnnouncement {
 	pub inner: *const lnUnsignedNodeAnnouncement,
 }
 
-#[no_mangle]
-pub extern "C" fn UnsignedNodeAnnouncement_free(this_ptr: UnsignedNodeAnnouncement) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnUnsignedNodeAnnouncement) };
+impl Drop for UnsignedNodeAnnouncement {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnUnsignedNodeAnnouncement) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn UnsignedNodeAnnouncement_free(this_ptr: UnsignedNodeAnnouncement) { }
 /// " The node_id this announcement originated from (don't rebroadcast the node_announcement back"
 /// " to this node)."
 #[no_mangle]
@@ -427,7 +543,7 @@ pub extern "C" fn UnsignedNodeAnnouncement_get_node_id(this_ptr: &UnsignedNodeAn
 /// " The node_id this announcement originated from (don't rebroadcast the node_announcement back"
 /// " to this node)."
 #[no_mangle]
-pub extern "C" fn UnsignedNodeAnnouncement_set_node_id(this_ptr: &mut UnsignedNodeAnnouncement, val: crate::c_types::PublicKey) {
+pub extern "C" fn UnsignedNodeAnnouncement_set_node_id(this_ptr: &mut UnsignedNodeAnnouncement, mut val: crate::c_types::PublicKey) {
 	unsafe { &mut *(this_ptr.inner as *mut lnUnsignedNodeAnnouncement) }.node_id = val.into_rust();
 }
 
@@ -442,10 +558,15 @@ pub struct NodeAnnouncement {
 	pub inner: *const lnNodeAnnouncement,
 }
 
-#[no_mangle]
-pub extern "C" fn NodeAnnouncement_free(this_ptr: NodeAnnouncement) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnNodeAnnouncement) };
+impl Drop for NodeAnnouncement {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnNodeAnnouncement) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn NodeAnnouncement_free(this_ptr: NodeAnnouncement) { }
 
 use lightning::ln::msgs::UnsignedChannelAnnouncement as lnUnsignedChannelAnnouncementImport;
 type lnUnsignedChannelAnnouncement = lnUnsignedChannelAnnouncementImport;
@@ -458,10 +579,15 @@ pub struct UnsignedChannelAnnouncement {
 	pub inner: *const lnUnsignedChannelAnnouncement,
 }
 
-#[no_mangle]
-pub extern "C" fn UnsignedChannelAnnouncement_free(this_ptr: UnsignedChannelAnnouncement) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnUnsignedChannelAnnouncement) };
+impl Drop for UnsignedChannelAnnouncement {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnUnsignedChannelAnnouncement) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn UnsignedChannelAnnouncement_free(this_ptr: UnsignedChannelAnnouncement) { }
 /// " One of the two node_ids which are endpoints of this channel"
 #[no_mangle]
 pub extern "C" fn UnsignedChannelAnnouncement_get_node_id_1(this_ptr: &UnsignedChannelAnnouncement) -> crate::c_types::PublicKey {
@@ -470,7 +596,7 @@ pub extern "C" fn UnsignedChannelAnnouncement_get_node_id_1(this_ptr: &UnsignedC
 }
 /// " One of the two node_ids which are endpoints of this channel"
 #[no_mangle]
-pub extern "C" fn UnsignedChannelAnnouncement_set_node_id_1(this_ptr: &mut UnsignedChannelAnnouncement, val: crate::c_types::PublicKey) {
+pub extern "C" fn UnsignedChannelAnnouncement_set_node_id_1(this_ptr: &mut UnsignedChannelAnnouncement, mut val: crate::c_types::PublicKey) {
 	unsafe { &mut *(this_ptr.inner as *mut lnUnsignedChannelAnnouncement) }.node_id_1 = val.into_rust();
 }
 /// " The other of the two node_ids which are endpoints of this channel"
@@ -481,7 +607,7 @@ pub extern "C" fn UnsignedChannelAnnouncement_get_node_id_2(this_ptr: &UnsignedC
 }
 /// " The other of the two node_ids which are endpoints of this channel"
 #[no_mangle]
-pub extern "C" fn UnsignedChannelAnnouncement_set_node_id_2(this_ptr: &mut UnsignedChannelAnnouncement, val: crate::c_types::PublicKey) {
+pub extern "C" fn UnsignedChannelAnnouncement_set_node_id_2(this_ptr: &mut UnsignedChannelAnnouncement, mut val: crate::c_types::PublicKey) {
 	unsafe { &mut *(this_ptr.inner as *mut lnUnsignedChannelAnnouncement) }.node_id_2 = val.into_rust();
 }
 
@@ -496,10 +622,15 @@ pub struct ChannelAnnouncement {
 	pub inner: *const lnChannelAnnouncement,
 }
 
-#[no_mangle]
-pub extern "C" fn ChannelAnnouncement_free(this_ptr: ChannelAnnouncement) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelAnnouncement) };
+impl Drop for ChannelAnnouncement {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelAnnouncement) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn ChannelAnnouncement_free(this_ptr: ChannelAnnouncement) { }
 
 use lightning::ln::msgs::ChannelUpdate as lnChannelUpdateImport;
 type lnChannelUpdate = lnChannelUpdateImport;
@@ -512,10 +643,15 @@ pub struct ChannelUpdate {
 	pub inner: *const lnChannelUpdate,
 }
 
-#[no_mangle]
-pub extern "C" fn ChannelUpdate_free(this_ptr: ChannelUpdate) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelUpdate) };
+impl Drop for ChannelUpdate {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelUpdate) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn ChannelUpdate_free(this_ptr: ChannelUpdate) { }
 
 use lightning::ln::msgs::LightningError as lnLightningErrorImport;
 type lnLightningError = lnLightningErrorImport;
@@ -528,10 +664,15 @@ pub struct LightningError {
 	pub inner: *const lnLightningError,
 }
 
-#[no_mangle]
-pub extern "C" fn LightningError_free(this_ptr: LightningError) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnLightningError) };
+impl Drop for LightningError {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnLightningError) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn LightningError_free(this_ptr: LightningError) { }
 
 use lightning::ln::msgs::CommitmentUpdate as lnCommitmentUpdateImport;
 type lnCommitmentUpdate = lnCommitmentUpdateImport;
@@ -545,32 +686,37 @@ pub struct CommitmentUpdate {
 	pub inner: *const lnCommitmentUpdate,
 }
 
-#[no_mangle]
-pub extern "C" fn CommitmentUpdate_free(this_ptr: CommitmentUpdate) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnCommitmentUpdate) };
+impl Drop for CommitmentUpdate {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnCommitmentUpdate) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn CommitmentUpdate_free(this_ptr: CommitmentUpdate) { }
 /// " update_add_htlc messages which should be sent"
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_set_update_add_htlcs(this_ptr: &mut CommitmentUpdate, val: crate::c_types::CVecUpdateAddHTLC) {
-	let mut local_val = Vec::new(); for item in val.into_rust().drain(..) { local_val.push(*unsafe { Box::from_raw(item.inner as *mut _) }); };
+pub extern "C" fn CommitmentUpdate_set_update_add_htlcs(this_ptr: &mut CommitmentUpdate, mut val: crate::c_types::CVecUpdateAddHTLC) {
+	let mut local_val = Vec::new(); for mut item in val.into_rust().drain(..) { local_val.push(*unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) }); };
 	unsafe { &mut *(this_ptr.inner as *mut lnCommitmentUpdate) }.update_add_htlcs = local_val;
 }
 /// " update_fulfill_htlc messages which should be sent"
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_set_update_fulfill_htlcs(this_ptr: &mut CommitmentUpdate, val: crate::c_types::CVecUpdateFulfillHTLC) {
-	let mut local_val = Vec::new(); for item in val.into_rust().drain(..) { local_val.push(*unsafe { Box::from_raw(item.inner as *mut _) }); };
+pub extern "C" fn CommitmentUpdate_set_update_fulfill_htlcs(this_ptr: &mut CommitmentUpdate, mut val: crate::c_types::CVecUpdateFulfillHTLC) {
+	let mut local_val = Vec::new(); for mut item in val.into_rust().drain(..) { local_val.push(*unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) }); };
 	unsafe { &mut *(this_ptr.inner as *mut lnCommitmentUpdate) }.update_fulfill_htlcs = local_val;
 }
 /// " update_fail_htlc messages which should be sent"
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_set_update_fail_htlcs(this_ptr: &mut CommitmentUpdate, val: crate::c_types::CVecUpdateFailHTLC) {
-	let mut local_val = Vec::new(); for item in val.into_rust().drain(..) { local_val.push(*unsafe { Box::from_raw(item.inner as *mut _) }); };
+pub extern "C" fn CommitmentUpdate_set_update_fail_htlcs(this_ptr: &mut CommitmentUpdate, mut val: crate::c_types::CVecUpdateFailHTLC) {
+	let mut local_val = Vec::new(); for mut item in val.into_rust().drain(..) { local_val.push(*unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) }); };
 	unsafe { &mut *(this_ptr.inner as *mut lnCommitmentUpdate) }.update_fail_htlcs = local_val;
 }
 /// " update_fail_malformed_htlc messages which should be sent"
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_set_update_fail_malformed_htlcs(this_ptr: &mut CommitmentUpdate, val: crate::c_types::CVecUpdateFailMalformedHTLC) {
-	let mut local_val = Vec::new(); for item in val.into_rust().drain(..) { local_val.push(*unsafe { Box::from_raw(item.inner as *mut _) }); };
+pub extern "C" fn CommitmentUpdate_set_update_fail_malformed_htlcs(this_ptr: &mut CommitmentUpdate, mut val: crate::c_types::CVecUpdateFailMalformedHTLC) {
+	let mut local_val = Vec::new(); for mut item in val.into_rust().drain(..) { local_val.push(*unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) }); };
 	unsafe { &mut *(this_ptr.inner as *mut lnCommitmentUpdate) }.update_fail_malformed_htlcs = local_val;
 }
 /// " An update_fee message which should be sent"
@@ -582,8 +728,8 @@ pub extern "C" fn CommitmentUpdate_get_update_fee(this_ptr: &CommitmentUpdate) -
 }
 /// " An update_fee message which should be sent"
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_set_update_fee(this_ptr: &mut CommitmentUpdate, val: UpdateFee) {
-	let mut local_val = if val.inner.is_null() { None } else { Some(*unsafe { Box::from_raw(val.inner as *mut _) }) };
+pub extern "C" fn CommitmentUpdate_set_update_fee(this_ptr: &mut CommitmentUpdate, mut val: UpdateFee) {
+	let mut local_val = if val.inner.is_null() { None } else { Some(*unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) }) };
 	unsafe { &mut *(this_ptr.inner as *mut lnCommitmentUpdate) }.update_fee = local_val;
 }
 /// " Finally, the commitment_signed message which should be sent"
@@ -594,23 +740,23 @@ pub extern "C" fn CommitmentUpdate_get_commitment_signed(this_ptr: &CommitmentUp
 }
 /// " Finally, the commitment_signed message which should be sent"
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_set_commitment_signed(this_ptr: &mut CommitmentUpdate, val: CommitmentSigned) {
-	unsafe { &mut *(this_ptr.inner as *mut lnCommitmentUpdate) }.commitment_signed = *unsafe { Box::from_raw(val.inner as *mut _) };
+pub extern "C" fn CommitmentUpdate_set_commitment_signed(this_ptr: &mut CommitmentUpdate, mut val: CommitmentSigned) {
+	unsafe { &mut *(this_ptr.inner as *mut lnCommitmentUpdate) }.commitment_signed = *unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) };
 }
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_new(update_add_htlcs_arg: crate::c_types::CVecUpdateAddHTLC, update_fulfill_htlcs_arg: crate::c_types::CVecUpdateFulfillHTLC, update_fail_htlcs_arg: crate::c_types::CVecUpdateFailHTLC, update_fail_malformed_htlcs_arg: crate::c_types::CVecUpdateFailMalformedHTLC, update_fee_arg: UpdateFee, commitment_signed_arg: CommitmentSigned) -> CommitmentUpdate {
-	let mut local_update_add_htlcs_arg = Vec::new(); for item in update_add_htlcs_arg.into_rust().drain(..) { local_update_add_htlcs_arg.push(*unsafe { Box::from_raw(item.inner as *mut _) }); };
-	let mut local_update_fulfill_htlcs_arg = Vec::new(); for item in update_fulfill_htlcs_arg.into_rust().drain(..) { local_update_fulfill_htlcs_arg.push(*unsafe { Box::from_raw(item.inner as *mut _) }); };
-	let mut local_update_fail_htlcs_arg = Vec::new(); for item in update_fail_htlcs_arg.into_rust().drain(..) { local_update_fail_htlcs_arg.push(*unsafe { Box::from_raw(item.inner as *mut _) }); };
-	let mut local_update_fail_malformed_htlcs_arg = Vec::new(); for item in update_fail_malformed_htlcs_arg.into_rust().drain(..) { local_update_fail_malformed_htlcs_arg.push(*unsafe { Box::from_raw(item.inner as *mut _) }); };
-	let mut local_update_fee_arg = if update_fee_arg.inner.is_null() { None } else { Some(*unsafe { Box::from_raw(update_fee_arg.inner as *mut _) }) };
+pub extern "C" fn CommitmentUpdate_new(mut update_add_htlcs_arg: crate::c_types::CVecUpdateAddHTLC, mut update_fulfill_htlcs_arg: crate::c_types::CVecUpdateFulfillHTLC, mut update_fail_htlcs_arg: crate::c_types::CVecUpdateFailHTLC, mut update_fail_malformed_htlcs_arg: crate::c_types::CVecUpdateFailMalformedHTLC, mut update_fee_arg: UpdateFee, mut commitment_signed_arg: CommitmentSigned) -> CommitmentUpdate {
+	let mut local_update_add_htlcs_arg = Vec::new(); for mut item in update_add_htlcs_arg.into_rust().drain(..) { local_update_add_htlcs_arg.push(*unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) }); };
+	let mut local_update_fulfill_htlcs_arg = Vec::new(); for mut item in update_fulfill_htlcs_arg.into_rust().drain(..) { local_update_fulfill_htlcs_arg.push(*unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) }); };
+	let mut local_update_fail_htlcs_arg = Vec::new(); for mut item in update_fail_htlcs_arg.into_rust().drain(..) { local_update_fail_htlcs_arg.push(*unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) }); };
+	let mut local_update_fail_malformed_htlcs_arg = Vec::new(); for mut item in update_fail_malformed_htlcs_arg.into_rust().drain(..) { local_update_fail_malformed_htlcs_arg.push(*unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) }); };
+	let mut local_update_fee_arg = if update_fee_arg.inner.is_null() { None } else { Some(*unsafe { Box::from_raw(update_fee_arg.inner.take_ptr() as *mut _) }) };
 	CommitmentUpdate { inner: Box::into_raw(Box::new(lnCommitmentUpdate {
 		update_add_htlcs: local_update_add_htlcs_arg,
 		update_fulfill_htlcs: local_update_fulfill_htlcs_arg,
 		update_fail_htlcs: local_update_fail_htlcs_arg,
 		update_fail_malformed_htlcs: local_update_fail_malformed_htlcs_arg,
 		update_fee: local_update_fee_arg,
-		commitment_signed: *unsafe { Box::from_raw(commitment_signed_arg.inner as *mut _) },
+		commitment_signed: *unsafe { Box::from_raw(commitment_signed_arg.inner.take_ptr() as *mut _) },
 	}))}
 }
 
@@ -627,10 +773,15 @@ pub struct HTLCFailChannelUpdate {
 	pub inner: *const lnHTLCFailChannelUpdate,
 }
 
-#[no_mangle]
-pub extern "C" fn HTLCFailChannelUpdate_free(this_ptr: HTLCFailChannelUpdate) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnHTLCFailChannelUpdate) };
+impl Drop for HTLCFailChannelUpdate {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnHTLCFailChannelUpdate) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn HTLCFailChannelUpdate_free(this_ptr: HTLCFailChannelUpdate) { }
 /// " A trait to describe an object which can receive channel messages."
 /// ""
 /// " Messages MAY be called in parallel when they originate from different their_node_ids, however"
@@ -785,17 +936,17 @@ use lightning::ln::msgs::RoutingMessageHandler as lnRoutingMessageHandler;
 impl lnRoutingMessageHandler for RoutingMessageHandler {
 	fn handle_node_announcement(&self, msg: &lightning::ln::msgs::NodeAnnouncement) -> Result<bool, lightning::ln::msgs::LightningError> {
 		let mut ret = (self.handle_node_announcement)(self.this_arg, &crate::ln::msgs::NodeAnnouncement { inner: msg });
-		let mut local_ret = match ret.result_good { true => Ok((*unsafe { &*ret.contents.result })), false => Err(*unsafe { Box::from_raw((*unsafe { &*ret.contents.err }).inner as *mut _) })};
+		let mut local_ret = match ret.result_good { true => Ok((*unsafe { &mut *ret.contents.result })), false => Err(*unsafe { Box::from_raw((*unsafe { &mut *ret.contents.err }).inner.take_ptr() as *mut _) })};
 		local_ret
 	}
 	fn handle_channel_announcement(&self, msg: &lightning::ln::msgs::ChannelAnnouncement) -> Result<bool, lightning::ln::msgs::LightningError> {
 		let mut ret = (self.handle_channel_announcement)(self.this_arg, &crate::ln::msgs::ChannelAnnouncement { inner: msg });
-		let mut local_ret = match ret.result_good { true => Ok((*unsafe { &*ret.contents.result })), false => Err(*unsafe { Box::from_raw((*unsafe { &*ret.contents.err }).inner as *mut _) })};
+		let mut local_ret = match ret.result_good { true => Ok((*unsafe { &mut *ret.contents.result })), false => Err(*unsafe { Box::from_raw((*unsafe { &mut *ret.contents.err }).inner.take_ptr() as *mut _) })};
 		local_ret
 	}
 	fn handle_channel_update(&self, msg: &lightning::ln::msgs::ChannelUpdate) -> Result<bool, lightning::ln::msgs::LightningError> {
 		let mut ret = (self.handle_channel_update)(self.this_arg, &crate::ln::msgs::ChannelUpdate { inner: msg });
-		let mut local_ret = match ret.result_good { true => Ok((*unsafe { &*ret.contents.result })), false => Err(*unsafe { Box::from_raw((*unsafe { &*ret.contents.err }).inner as *mut _) })};
+		let mut local_ret = match ret.result_good { true => Ok((*unsafe { &mut *ret.contents.result })), false => Err(*unsafe { Box::from_raw((*unsafe { &mut *ret.contents.err }).inner.take_ptr() as *mut _) })};
 		local_ret
 	}
 	fn handle_htlc_fail_channel_update(&self, update: &lightning::ln::msgs::HTLCFailChannelUpdate) {

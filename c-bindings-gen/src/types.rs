@@ -119,16 +119,23 @@ impl<'a> GenericTypes<'a> {
 		for generic in generics.params.iter() {
 			match generic {
 				syn::GenericParam::Type(type_param) => {
-					if type_param.bounds.len() > 1 { return false; }
-					let bound = type_param.bounds.iter().next().unwrap();
-					if let syn::TypeParamBound::Trait(trait_bound) = bound {
-						assert_simple_bound(&trait_bound);
-						let mut path = types.resolve_path(&trait_bound.path);
-						let new_ident = if path != "std::ops::Deref" {
-							path = "crate::".to_string() + &path;
-							Some(assert_single_path_seg(&trait_bound.path))
-						} else { None };
-						self.typed_generics.insert(&type_param.ident, (path, new_ident));
+					let mut non_lifetimes_processed = false;
+					for bound in type_param.bounds.iter() {
+						if let syn::TypeParamBound::Trait(trait_bound) = bound {
+							if let Some(ident) = single_ident_generic_path_to_ident(&trait_bound.path) {
+								match &format!("{}", ident) as &str { "Send" => continue, "Sync" => continue, _ => {} }
+							}
+							if non_lifetimes_processed { return false; }
+							non_lifetimes_processed = true;
+
+							assert_simple_bound(&trait_bound);
+							let mut path = types.resolve_path(&trait_bound.path);
+							let new_ident = if path != "std::ops::Deref" {
+								path = "crate::".to_string() + &path;
+								Some(assert_single_path_seg(&trait_bound.path))
+							} else { None };
+							self.typed_generics.insert(&type_param.ident, (path, new_ident));
+						}
 					}
 				},
 				_ => {},
@@ -144,11 +151,16 @@ impl<'a> GenericTypes<'a> {
 						let gen = self.typed_generics.get_mut(&p_iter.next().unwrap().ident).unwrap();
 						if gen.0 != "std::ops::Deref" { return false; }
 						if &format!("{}", p_iter.next().unwrap().ident) != "Target" { return false; }
-						if t.bounds.len() != 1 { return false; }
-						if let syn::TypeParamBound::Trait(trait_bound) = t.bounds.iter().next().unwrap() {
-							assert_simple_bound(&trait_bound);
-							*gen = ("crate::".to_string() + &types.resolve_path(&trait_bound.path),
-								Some(single_ident_generic_path_to_ident(&trait_bound.path).unwrap()));
+
+						let mut non_lifetimes_processed = false;
+						for bound in t.bounds.iter() {
+							if let syn::TypeParamBound::Trait(trait_bound) = bound {
+								if non_lifetimes_processed { return false; }
+								non_lifetimes_processed = true;
+								assert_simple_bound(&trait_bound);
+								*gen = ("crate::".to_string() + &types.resolve_path(&trait_bound.path),
+									Some(single_ident_generic_path_to_ident(&trait_bound.path).unwrap()));
+							}
 						}
 					} else { return false; }
 				}
@@ -181,7 +193,7 @@ pub enum DeclType<'a> {
 }
 
 pub struct CrateTypes<'a> {
-	pub structs: HashMap<String, &'a syn::ItemStruct>,
+	pub opaques: HashMap<String, &'a syn::Ident>, // Both structs and enums, but all opque
 	pub traits: HashMap<String, &'a syn::ItemTrait>,
 	pub trait_impls: HashMap<String, Vec<&'a syn::Ident>>,
 }
@@ -241,10 +253,10 @@ impl<'a> TypeResolver<'a> {
 		}
 	}
 	fn c_type_from_path<'b>(&self, full_path: &'b str, is_ref: bool) -> Option<&'b str> {
-		if !is_ref && self.is_primitive(full_path) {
+		if self.is_primitive(full_path) {
 			return Some(full_path);
 		}
-eprintln!("ctfp: {}", full_path);
+//eprintln!("ctfp: {}", full_path);
 		match full_path {
 			"Result" => Some("crate::c_types::CResult"),
 			"Vec" if !is_ref => Some("crate::c_types::CVec"),
@@ -280,24 +292,21 @@ eprintln!("ctfp: {}", full_path);
 			// Override the default since Records contain an fmt with a lifetime:
 			"util::logger::Record" => Some("*const std::os::raw::c_char"),
 
-			// List of structs we map (possibly during processing of other files):
+			// List of structs we map that aren't detected:
 			"ln::features::InitFeatures" if is_ref => Some("*const crate::ln::features::InitFeatures"),
 			"ln::features::InitFeatures" => Some("crate::ln::features::InitFeatures"),
-			"util::config::UserConfig" if !is_ref => Some("crate::util::config::UserConfig"),
-			"util::errors::APIError" if !is_ref => Some("crate::util::errors::APIError"),
-			"chain::transaction::OutPoint" => Some("crate::chain::transaction::OutPoint"),
-			"ln::msgs::NetAddress" => Some("crate::ln::msgs::NetAddress"),
 
-			// List of traits we map (possibly during processing of other files):
+			// List of traits we map:
 			"util::logger::Logger" => Some("crate::util::logger::Logger"),
 			"chain::chaininterface::BroadcasterInterface" => Some("crate::chain::chaininterface::BroadcasterInterface"),
 			"chain::chaininterface::FeeEstimator" => Some("crate::chain::chaininterface::FeeEstimator"),
 			"chain::keysinterface::KeysInterface" => Some("crate::chain::keysinterface::KeysInterface"),
 			"ln::channelmonitor::ManyChannelMonitor" => Some("crate::ln::channelmonitor::ManyChannelMonitor"),
+			"chain::chaininterface::ChainListener" if !is_ref => Some("crate::chain::chaininterface::ChainListener"),
 			"ln::msgs::ChannelMessageHandler" if is_ref => Some("*const crate::ln::msgs::ChannelMessageHandler"),
-			"ln::msgs::ChannelMessageHandler" => Some("crate::ln::msgs::ChannelMessageHandler"),
+			"ln::msgs::ChannelMessageHandler" if !is_ref => Some("crate::ln::msgs::ChannelMessageHandler"),
 			"ln::msgs::RoutingMessageHandler" if is_ref => Some("*const crate::ln::msgs::RoutingMessageHandler"),
-			"ln::msgs::RoutingMessageHandler" => Some("crate::ln::msgs::RoutingMessageHandler"),
+			"ln::msgs::RoutingMessageHandler" if !is_ref => Some("crate::ln::msgs::RoutingMessageHandler"),
 			_ => {
 				eprintln!("    Type {} (ref: {}) unresolvable in C", full_path, is_ref);
 				None
@@ -339,12 +348,12 @@ eprintln!("fccc: {:?}", full_path);
 		match full_path {
 			"Result" if !is_ref => {
 				Some(("match ",
-						vec![(".result_good { true => Ok(".to_string(), format!("(*unsafe {{ &*{}.contents.result }})", var_name)),
-						     ("), false => Err(".to_string(), format!("(*unsafe {{ &*{}.contents.err }})", var_name))],
+						vec![(".result_good { true => Ok(".to_string(), format!("(*unsafe {{ &mut *{}.contents.result }})", var_name)),
+						     ("), false => Err(".to_string(), format!("(*unsafe {{ &mut *{}.contents.err }})", var_name))],
 						")}"))
 			},
 			"Vec" if !is_ref => {
-				Some(("Vec::new(); for item in ", vec![(format!(".into_rust().drain(..) {{ local_{}.push(", var_name), "item".to_string())], "); }"))
+				Some(("Vec::new(); for mut item in ", vec![(format!(".into_rust().drain(..) {{ local_{}.push(", var_name), "item".to_string())], "); }"))
 			},
 			"Option" if is_ref => {
 				if let syn::GenericArgument::Type(syn::Type::Path(pa)) = args.next().unwrap() {
@@ -378,6 +387,7 @@ eprintln!("fccc: {:?}", full_path);
 			"[u8; 32]" if is_ref => Some("unsafe { &*"),
 			"[u8; 32]" if !is_ref => Some(""),
 			"[u8; 3]" if !is_ref => Some(""),
+			"[u8]" if is_ref => Some(""),
 
 			"bitcoin::secp256k1::key::PublicKey" if is_ref => Some("&"),
 			"bitcoin::secp256k1::key::PublicKey" => Some(""),
@@ -390,7 +400,7 @@ eprintln!("fccc: {:?}", full_path);
 			"bitcoin::blockdata::transaction::Transaction" if is_ref => Some("&"),
 			"bitcoin::blockdata::transaction::Transaction" => Some(""),
 			"bitcoin::network::constants::Network" => Some(""),
-			"bitcoin::blockdata::block::BlockHeader" => Some("::bitcoin::consensus::encode::deserialize(&"),
+			"bitcoin::blockdata::block::BlockHeader" => Some("&::bitcoin::consensus::encode::deserialize(unsafe { &*"),
 
 			// Newtypes that we just expose in their original form.
 			"bitcoin::hash_types::Txid" if is_ref => Some("&::bitcoin::hash_types::Txid::from_slice(&unsafe { &*"),
@@ -405,9 +415,6 @@ eprintln!("fccc: {:?}", full_path);
 
 			// List of structs we map (possibly during processing of other files):
 			"ln::features::InitFeatures" if !is_ref => Some("*unsafe { Box::from_raw("),
-			"util::config::UserConfig" if !is_ref => Some("*unsafe { Box::from_raw("),
-			"chain::transaction::OutPoint" if !is_ref => Some("*unsafe { Box::from_raw("),
-			"ln::msgs::NetAddress" if !is_ref => Some("*unsafe { Box::from_raw("),
 
 			// List of traits we map (possibly during processing of other files):
 			"crate::util::logger::Logger" => Some(""),
@@ -435,6 +442,7 @@ eprintln!("fccc: {:?}", full_path);
 			"[u8; 32]" if is_ref => Some("}"),
 			"[u8; 32]" if !is_ref => Some(".data"),
 			"[u8; 3]" if !is_ref => Some(".data"),
+			"[u8]" if is_ref => Some(".to_slice()"),
 
 			"bitcoin::secp256k1::key::PublicKey" => Some(".into_rust()"),
 			"bitcoin::secp256k1::Signature" => Some(".into_rust()"),
@@ -443,7 +451,7 @@ eprintln!("fccc: {:?}", full_path);
 			"bitcoin::blockdata::script::Script" => Some(".into_bitcoin()"),
 			"bitcoin::blockdata::transaction::Transaction" => Some(".into_bitcoin()"),
 			"bitcoin::network::constants::Network" => Some(".into_bitcoin()"),
-			"bitcoin::blockdata::block::BlockHeader" => Some("[..]).unwrap()"),
+			"bitcoin::blockdata::block::BlockHeader" => Some(" }).unwrap()"),
 
 			// Newtypes that we just expose in their original form.
 			"bitcoin::hash_types::Txid" if is_ref => Some(" }[..]).unwrap()"),
@@ -457,10 +465,8 @@ eprintln!("fccc: {:?}", full_path);
 			"ln::channelmanager::PaymentSecret" if is_ref=> Some(" })"),
 
 			// List of structs we map (possibly during processing of other files):
-			"ln::features::InitFeatures" => Some(".inner as *mut _) }"),
-			"util::config::UserConfig" => Some(".inner as *mut lightning::util::config::UserConfig) }"),
-			"chain::transaction::OutPoint" if !is_ref => Some(".inner as *mut _) }"),
-			"ln::msgs::NetAddress" if !is_ref => Some(".inner as *mut _) }"),
+			"ln::features::InitFeatures" if is_ref => Some(".inner as *mut _) }"),
+			"ln::features::InitFeatures" if !is_ref => Some(".inner.take_ptr() as *mut _) }"),
 
 			// List of traits we map (possibly during processing of other files):
 			"crate::util::logger::Logger" => Some(""),
@@ -485,6 +491,7 @@ eprintln!("fccc: {:?}", full_path);
 			"[u8]" if is_ref => Some(("crate::c_types::u8slice::from_slice(", ")")),
 
 			"bitcoin::blockdata::transaction::Transaction" if is_ref => Some(("::bitcoin::consensus::encode::serialize(", ")")),
+			"bitcoin::blockdata::block::BlockHeader" if is_ref => Some(("{ let mut s = [0u8; 80]; s[..].copy_from_slice(&::bitcoin::consensus::encode::serialize(", ")); s }")),
 			"bitcoin::hash_types::Txid" => None,
 
 			// Override the default since Records contain an fmt with a lifetime:
@@ -504,6 +511,7 @@ eprintln!("fccc: {:?}", full_path);
 
 			"[u8; 32]" if !is_ref => Some("crate::c_types::ThirtyTwoBytes { data: "),
 			"[u8; 32]" if is_ref => Some("&"),
+			"[u8; 3]" if is_ref => Some("&"),
 			"[u8]" if is_ref => Some("local_"),
 
 			"bitcoin::secp256k1::key::PublicKey" => Some("crate::c_types::PublicKey::from_rust(&"),
@@ -512,6 +520,7 @@ eprintln!("fccc: {:?}", full_path);
 			"bitcoin::secp256k1::key::SecretKey" if !is_ref => Some("crate::c_types::SecretKey::from_rust("),
 			"bitcoin::blockdata::script::Script" if is_ref => Some("crate::c_types::Script::from_bitcoin(&"),
 			"bitcoin::blockdata::transaction::Transaction" if is_ref => Some("crate::c_types::Transaction::from_slice(&local_"),
+			"bitcoin::blockdata::block::BlockHeader" if is_ref => Some("&local_"),
 
 			// Newtypes that we just expose in their original form.
 			"bitcoin::hash_types::Txid" => Some(""),
@@ -524,9 +533,6 @@ eprintln!("fccc: {:?}", full_path);
 			// List of structs we map (possibly during processing of other files):
 			"ln::features::InitFeatures" if is_ref => Some("Box::into_raw(Box::new(crate::ln::features::InitFeatures { inner: &"),
 			"ln::features::InitFeatures" if !is_ref => Some("crate::ln::features::InitFeatures { inner: Box::into_raw(Box::new("),
-			"ln::msgs::NetAddress" if !is_ref => Some("crate::ln::msgs::NetAddress { inner: Box::into_raw(Box::new("),
-
-			"util::errors::APIError" if !is_ref => Some("crate::util::errors::APIError { inner: Box::into_raw(Box::new("),
 
 			// List of traits we map (possibly during processing of other files):
 			"crate::ln::msgs::ChannelMessageHandler" if is_ref => Some("&"),
@@ -548,6 +554,7 @@ eprintln!("fccc: {:?}", full_path);
 
 			"[u8; 32]" if !is_ref => Some(" }"),
 			"[u8; 32]" if is_ref => Some(""),
+			"[u8; 3]" if is_ref => Some(""),
 			"[u8]" if is_ref => Some(""),
 
 			"bitcoin::secp256k1::key::PublicKey" => Some(")"),
@@ -555,6 +562,7 @@ eprintln!("fccc: {:?}", full_path);
 			"bitcoin::secp256k1::key::SecretKey" => Some(")"),
 			"bitcoin::blockdata::script::Script" => Some(")"),
 			"bitcoin::blockdata::transaction::Transaction" => Some(")"),
+			"bitcoin::blockdata::block::BlockHeader" if is_ref => Some(""),
 
 			// Newtypes that we just expose in their original form.
 			"bitcoin::hash_types::Txid" if !is_ref => Some(".into_inner()"),
@@ -567,9 +575,6 @@ eprintln!("fccc: {:?}", full_path);
 			// List of structs we map (possibly during processing of other files):
 			"ln::features::InitFeatures" if is_ref => Some(" }))"),
 			"ln::features::InitFeatures" => Some(")) }"),
-			"ln::msgs::NetAddress" if !is_ref => Some(")) }"),
-
-			"util::errors::APIError" if !is_ref => Some(")) }"),
 
 			// List of traits we map (possibly during processing of other files):
 			"crate::ln::msgs::ChannelMessageHandler" => Some(""),
@@ -864,12 +869,12 @@ eprintln!("fccc: {:?}", full_path);
 	}
 
 	fn print_conversion_inline_intern<W: std::io::Write, LP: Fn(&str, bool) -> Option<&str>, DL: Fn(&mut W, &DeclType, &syn::Ident, bool)>
-			(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool, prefix: bool,
+			(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool, tupleconv: &str,
 			 path_lookup: LP, decl_lookup: DL) {
 		match t {
 			syn::Type::Reference(r) => {
 				if r.lifetime.is_some() { unimplemented!(); }
-				self.print_conversion_inline_intern(w, &*r.elem, generics, true, ptr_for_ref, prefix, path_lookup, decl_lookup);
+				self.print_conversion_inline_intern(w, &*r.elem, generics, true, ptr_for_ref, tupleconv, path_lookup, decl_lookup);
 			},
 			syn::Type::Path(p) => {
 				if p.qself.is_some() || p.path.leading_colon.is_some() {
@@ -892,8 +897,8 @@ eprintln!("fccc: {:?}", full_path);
 				let resolved_path = self.resolve_path(&p.path);
 				if let Some(c_type) = path_lookup(&resolved_path, is_ref) {
 					write!(w, "{}", c_type).unwrap();
-				} else if let Some(stuct) = self.crate_types.structs.get(&resolved_path) {
-					decl_lookup(w, &DeclType::StructImported(format!("crate::{}", resolved_path)), &stuct.ident, is_ref);
+				} else if let Some(ident) = self.crate_types.opaques.get(&resolved_path) {
+					decl_lookup(w, &DeclType::StructImported(format!("crate::{}", resolved_path)), &ident, is_ref);
 				} else if let Some(ident) = single_ident_generic_path_to_ident(&p.path) {
 					if let Some(_) = self.imports.get(ident) {
 						// prefix_lookup has to have succeeded:
@@ -925,18 +930,14 @@ eprintln!("fccc: {:?}", full_path);
 				if t.elems.len() != 0 { unimplemented!(); }
 				// cbindgen has poor support for (), see, eg https://github.com/eqrion/cbindgen/issues/527
 				// so work around it by just pretending its a 0u8
-				if prefix {
-					write!(w, "0u8 /*").unwrap();
-				} else {
-					write!(w, "*/").unwrap();
-				}
+				write!(w, "{}", tupleconv).unwrap();
 			},
 			_ => unimplemented!(),
 		}
 	}
 
 	fn print_to_c_conversion_inline_prefix_inner<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool) {
-		self.print_conversion_inline_intern(w, t, generics, is_ref, ptr_for_ref, true,
+		self.print_conversion_inline_intern(w, t, generics, is_ref, ptr_for_ref, "0u8 /*",
 				|a, b| self.to_c_conversion_inline_prefix_from_path(a, b),
 				|w, decl_type, ident, is_ref| {
 					let decl_path = self.maybe_resolve_ident(ident).unwrap();
@@ -956,7 +957,7 @@ eprintln!("fccc: {:?}", full_path);
 		self.print_to_c_conversion_inline_prefix_inner(w, t, generics, false, ptr_for_ref);
 	}
 	pub fn print_to_c_conversion_inline_suffix_inner<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool) {
-		self.print_conversion_inline_intern(w, t, generics, is_ref, ptr_for_ref, false,
+		self.print_conversion_inline_intern(w, t, generics, is_ref, ptr_for_ref, "*/",
 				|a, b| self.to_c_conversion_inline_suffix_from_path(a, b),
 				|w, decl_type, _ident, is_ref| match decl_type {
 					DeclType::MirroredEnum => write!(w, ")").unwrap(),
@@ -971,7 +972,7 @@ eprintln!("fccc: {:?}", full_path);
 	}
 
 	pub fn print_from_c_conversion_prefix_inner<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool) {
-		self.print_conversion_inline_intern(w, t, generics, is_ref, false, true,
+		self.print_conversion_inline_intern(w, t, generics, is_ref, false, "() /*",
 				|a, b| self.from_c_conversion_prefix_from_path(a, b),
 				|w, decl_type, _ident, is_ref| match decl_type {
 					DeclType::StructImported(_) if !is_ref => write!(w, "*unsafe {{ Box::from_raw(").unwrap(),
@@ -985,12 +986,12 @@ eprintln!("fccc: {:?}", full_path);
 		self.print_from_c_conversion_prefix_inner(w, t, generics, false);
 	}
 	pub fn print_from_c_conversion_suffix_inner<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool) {
-		self.print_conversion_inline_intern(w, t, generics, is_ref, false, false,
+		self.print_conversion_inline_intern(w, t, generics, is_ref, false, "*/",
 				|a, b| self.from_c_conversion_suffix_from_path(a, b),
 				|w, decl_type, _ident, is_ref| match decl_type {
-					DeclType::StructImported(_) if !is_ref => write!(w, ".inner as *mut _) }}").unwrap(),
+					DeclType::StructImported(_) if !is_ref => write!(w, ".inner.take_ptr() as *mut _) }}").unwrap(),
 					DeclType::StructImported(_) => write!(w, ".inner }}").unwrap(),
-					DeclType::MirroredEnum => {},
+					DeclType::MirroredEnum => write!(w, ".to_ln()").unwrap(),
 					DeclType::Trait(_) => {},
 					_ => unimplemented!(),
 				});
@@ -1155,7 +1156,7 @@ eprintln!("fccc: {:?}", full_path);
 				write!(w, "crate::{}", full_path).unwrap();
 			}
 			true
-		} else if let Some(s) = self.crate_types.structs.get(&full_path) {
+		} else if self.crate_types.opaques.get(&full_path).is_some() {
 			if is_ref && ptr_for_ref {
 				write!(w, "*const crate::{}", full_path).unwrap();
 			} else if is_ref {

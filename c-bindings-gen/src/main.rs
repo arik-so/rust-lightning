@@ -48,7 +48,7 @@ fn println_docs<W: std::io::Write>(w: &mut W, attrs: &[syn::Attribute], prefix: 
 	}
 }
 
-fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, associated_types: &HashMap<&syn::Ident, &syn::Ident>, this_param: &str, types: &TypeResolver, generics: Option<&GenericTypes>, self_ptr: bool) {
+fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, associated_types: &HashMap<&syn::Ident, &syn::Ident>, this_param: &str, types: &TypeResolver, generics: Option<&GenericTypes>, self_ptr: bool, fn_decl: bool) {
 	if sig.constness.is_some() || sig.asyncness.is_some() || sig.unsafety.is_some() ||
 			sig.abi.is_some() || sig.variadic.is_some() || sig.generics.where_clause.is_some() {
 		unimplemented!();
@@ -66,6 +66,7 @@ fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, assoc
 	}
 
 	let mut first_arg = true;
+	let mut num_unused = 0;
 	for inp in sig.inputs.iter() {
 		match inp {
 			syn::FnArg::Receiver(recv) => {
@@ -84,15 +85,21 @@ fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, assoc
 			syn::FnArg::Typed(arg) => {
 				if types.skip_arg(&*arg.ty, generics) { continue; }
 				if !arg.attrs.is_empty() { unimplemented!(); }
+				let is_ref = if let syn::Type::Reference(_) = *arg.ty { true } else { false };
 				match &*arg.pat {
 					syn::Pat::Ident(ident) => {
 						if !ident.attrs.is_empty() || ident.by_ref.is_some() ||
 								ident.mutability.is_some() || ident.subpat.is_some() {
 							unimplemented!();
 						}
-						write!(w, "{}{}: ", if first_arg { "" } else { ", " }, ident.ident).unwrap();
+						write!(w, "{}{}{}: ", if first_arg { "" } else { ", " }, if is_ref || !fn_decl { "" } else { "mut " }, ident.ident).unwrap();
 						first_arg = false;
-					}
+					},
+					syn::Pat::Wild(wild) => {
+						if !wild.attrs.is_empty() { unimplemented!(); }
+						write!(w, "{}unused_{}: ", if first_arg { "" } else { ", " }, num_unused).unwrap();
+						num_unused += 1;
+					},
 					_ => unimplemented!(),
 				}
 				types.print_c_type(w, &*arg.ty, generics, false);
@@ -124,28 +131,39 @@ fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, assoc
 }
 
 fn print_method_var_decl_body<W: std::io::Write>(w: &mut W, sig: &syn::Signature, extra_indent: &str, types: &TypeResolver, generics: Option<&GenericTypes>, to_c: bool) {
+	let mut num_unused = 0;
 	for inp in sig.inputs.iter() {
 		match inp {
 			syn::FnArg::Receiver(_) => {},
 			syn::FnArg::Typed(arg) => {
 				if types.skip_arg(&*arg.ty, generics) { continue; }
 				if !arg.attrs.is_empty() { unimplemented!(); }
+				macro_rules! write_new_var {
+					($ident: expr, $ty: expr) => {
+						if to_c {
+							if types.print_to_c_conversion_new_var(w, &$ident, &$ty, generics, false) {
+								write!(w, "\n\t{}", extra_indent).unwrap();
+							}
+						} else {
+							if types.print_from_c_conversion_new_var(w, &$ident, &$ty, generics) {
+								write!(w, "\n\t{}", extra_indent).unwrap();
+							}
+						}
+					}
+				}
 				match &*arg.pat {
 					syn::Pat::Ident(ident) => {
 						if !ident.attrs.is_empty() || ident.by_ref.is_some() ||
 								ident.mutability.is_some() || ident.subpat.is_some() {
 							unimplemented!();
 						}
-						if to_c {
-							if types.print_to_c_conversion_new_var(w, &ident.ident, &*arg.ty, generics, false) {
-								write!(w, "\n\t{}", extra_indent).unwrap();
-							}
-						} else {
-							if types.print_from_c_conversion_new_var(w, &ident.ident, &*arg.ty, generics) {
-								write!(w, "\n\t{}", extra_indent).unwrap();
-							}
-						}
-					}
+						write_new_var!(ident.ident, *arg.ty);
+					},
+					syn::Pat::Wild(w) => {
+						if !w.attrs.is_empty() { unimplemented!(); }
+						write_new_var!(syn::Ident::new(&format!("unused_{}", num_unused), Span::call_site()), *arg.ty);
+						num_unused += 1;
+					},
 					_ => unimplemented!(),
 				}
 			}
@@ -161,6 +179,7 @@ fn print_method_var_decl_body<W: std::io::Write>(w: &mut W, sig: &syn::Signature
 
 fn print_method_call_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, extra_indent: &str, types: &TypeResolver, generics: Option<&GenericTypes>, this_type: &str, to_c: bool) {
 	let mut first_arg = true;
+	let mut num_unused = 0;
 	for inp in sig.inputs.iter() {
 		match inp {
 			syn::FnArg::Receiver(recv) => {
@@ -183,26 +202,36 @@ fn print_method_call_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, 
 					continue;
 				}
 				if !arg.attrs.is_empty() { unimplemented!(); }
-				match &*arg.pat {
-					syn::Pat::Ident(ident) => {
-						if !ident.attrs.is_empty() || ident.by_ref.is_some() ||
-								ident.mutability.is_some() || ident.subpat.is_some() {
-							unimplemented!();
-						}
+				macro_rules! write_ident {
+					($ident: expr) => {
 						if !first_arg {
 							write!(w, ", ").unwrap();
 						}
 						first_arg = false;
 						if to_c {
 							types.print_to_c_conversion_inline_prefix(w, &*arg.ty, generics, false);
-							write!(w, "{}", ident.ident).unwrap();
+							write!(w, "{}", $ident).unwrap();
 							types.print_to_c_conversion_inline_suffix(w, &*arg.ty, generics, false);
 						} else {
 							types.print_from_c_conversion_prefix(w, &*arg.ty, generics);
-							write!(w, "{}", ident.ident).unwrap();
+							write!(w, "{}", $ident).unwrap();
 							types.print_from_c_conversion_suffix(w, &*arg.ty, generics);
 						}
 					}
+				}
+				match &*arg.pat {
+					syn::Pat::Ident(ident) => {
+						if !ident.attrs.is_empty() || ident.by_ref.is_some() ||
+								ident.mutability.is_some() || ident.subpat.is_some() {
+							unimplemented!();
+						}
+						write_ident!(ident.ident);
+					},
+					syn::Pat::Wild(w) => {
+						if !w.attrs.is_empty() { unimplemented!(); }
+						write_ident!(format!("unused_{}", num_unused));
+						num_unused += 1;
+					},
 					_ => unimplemented!(),
 				}
 			}
@@ -236,7 +265,7 @@ fn print_method_call_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, 
 	}
 }
 
-fn maybe_print_generics<W: std::io::Write>(w: &mut W, generics: &syn::Generics, types: &TypeResolver) {
+fn maybe_print_generics<W: std::io::Write>(w: &mut W, generics: &syn::Generics, types: &TypeResolver, concrete_lifetimes: bool) {
 	let mut gen_types = GenericTypes::new();
 	assert!(gen_types.learn_generics(generics, types));
 	if !generics.params.is_empty() {
@@ -251,7 +280,11 @@ fn maybe_print_generics<W: std::io::Write>(w: &mut W, generics: &syn::Generics, 
 					}
 				},
 				syn::GenericParam::Lifetime(lt) => {
-					write!(w, "{}'{}", if idx != 0 { ", " } else { "" }, lt.lifetime.ident).unwrap();
+					if concrete_lifetimes {
+						write!(w, "'static").unwrap();
+					} else {
+						write!(w, "{}'{}", if idx != 0 { ", " } else { "" }, lt.lifetime.ident).unwrap();
+					}
 				},
 				_ => unimplemented!(),
 			}
@@ -319,7 +352,7 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types:
 				if m.default.is_some() { unimplemented!(); }
 				println_docs(w, &m.attrs, "\t");
 				write!(w, "\tpub {}: extern \"C\" fn (", m.sig.ident).unwrap();
-				print_method_params(w, &m.sig, &associated_types, "c_void", types, None, true);
+				print_method_params(w, &m.sig, &associated_types, "c_void", types, None, true, false);
 				writeln!(w, ",").unwrap();
 			},
 			&syn::TraitItem::Type(ref t) => {
@@ -372,7 +405,7 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types:
 	) );
 	writeln!(w, "\nuse {}::{}::{} as ln{};", types.orig_crate, types.module_path, t.ident, trait_name).unwrap();
 	write!(w, "impl ln{}", t.ident).unwrap();
-	maybe_print_generics(w, &t.generics, types);
+	maybe_print_generics(w, &t.generics, types, false);
 	writeln!(w, " for {} {{", trait_name).unwrap();
 	for item in t.items.iter() {
 		match item {
@@ -465,15 +498,17 @@ fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name:
 	// https://github.com/eqrion/cbindgen/issues/286 Thus, instead, we import it as a temporary
 	// name and then reference it by that name, which works around the issue.
 	write!(w, "\nuse {}::{}::{} as ln{}Import;\ntype ln{} = ln{}Import", types.orig_crate, types.module_path, ident, ident, ident, ident).unwrap();
-	maybe_print_generics(w, &generics, &types);
+	maybe_print_generics(w, &generics, &types, true);
 	writeln!(w, ";\n").unwrap();
 	writeln!(extra_headers, "struct ln{}Opaque;\ntypedef struct ln{}Opaque LDKln{};", ident, ident, ident).unwrap();
 	println_docs(w, &attrs, "");
 	writeln!(w, "#[repr(C)]\npub struct {} {{\n\t/// Nearly everyhwere, inner must be non-null, however in places where", struct_name).unwrap();
 	writeln!(w, "\t///the Rust equivalent takes an Option, it may be set to null to indicate None.").unwrap();
 	writeln!(w, "\tpub inner: *const ln{},\n}}\n", ident).unwrap();
-	writeln!(w, "#[no_mangle]\npub extern \"C\" fn {}_free(this_ptr: {}) {{", struct_name, struct_name).unwrap();
-	writeln!(w, "\tlet _ = unsafe {{ Box::from_raw(this_ptr.inner as *mut ln{}) }};\n}}", struct_name).unwrap();
+	writeln!(w, "impl Drop for {} {{\n\tfn drop(&mut self) {{", struct_name).unwrap();
+	writeln!(w, "\t\tif !self.inner.is_null() {{").unwrap();
+	writeln!(w, "\t\t\tlet _ = unsafe {{ Box::from_raw(self.inner as *mut ln{}) }};\n\t\t}}\n\t}}\n}}", struct_name).unwrap();
+	writeln!(w, "#[no_mangle]\npub extern \"C\" fn {}_free(this_ptr: {}) {{ }}", struct_name, struct_name).unwrap();
 }
 
 fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, types: &mut TypeResolver, extra_headers: &mut File) {
@@ -486,12 +521,6 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, types: &mut
 			types.struct_ignored(&s.ident);
 			return;
 		}
-	}
-
-	//XXX: Stupid hack:
-	if &struct_name as &str == "Record" {
-		types.struct_imported(&s.ident, struct_name.clone());
-		return;
 	}
 
 	println_opaque(w, &s.ident, struct_name, &s.generics, &s.attrs, types, extra_headers);
@@ -536,7 +565,7 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, types: &mut
 
 					if types.understood_c_type(&field.ty, Some(&gen_types)) {
 						println_docs(w, &field.attrs, "");
-						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_set_{}(this_ptr: &mut {}, val: ", struct_name, ident, struct_name).unwrap();
+						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_set_{}(this_ptr: &mut {}, mut val: ", struct_name, ident, struct_name).unwrap();
 						types.print_c_type(w, &field.ty, Some(&gen_types), false);
 						write!(w, ") {{\n\t").unwrap();
 						let local_var = types.print_from_c_conversion_new_var(w, &syn::Ident::new("val", Span::call_site()), &field.ty, Some(&gen_types));
@@ -556,7 +585,7 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, types: &mut
 			write!(w, "#[no_mangle]\npub extern \"C\" fn {}_new(", struct_name).unwrap();
 			for (idx, field) in fields.named.iter().enumerate() {
 				if idx != 0 { write!(w, ", ").unwrap(); }
-				write!(w, "{}_arg: ", field.ident.as_ref().unwrap()).unwrap();
+				write!(w, "mut {}_arg: ", field.ident.as_ref().unwrap()).unwrap();
 				types.print_c_type(w, &field.ty, Some(&gen_types), false);
 			}
 			write!(w, ") -> {} {{\n\t", struct_name).unwrap();
@@ -648,7 +677,7 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 										ExportStatus::NoExport|ExportStatus::TestOnly => continue,
 									}
 									write!(w, "extern \"C\" fn {}_{}_{}(", ident, trait_obj.ident, m.sig.ident).unwrap();
-									print_method_params(w, &m.sig, &HashMap::new(), "c_void", types, Some(&gen_types), true);
+									print_method_params(w, &m.sig, &HashMap::new(), "c_void", types, Some(&gen_types), true, true);
 									write!(w, " {{\n\t").unwrap();
 									print_method_var_decl_body(w, &m.sig, "", types, Some(&gen_types), false);
 									let mut takes_self = false;
@@ -702,7 +731,7 @@ eprintln!("GOOOOOO {}", ident);
 										DeclType::StructImported(newname) => format!("{}", newname),
 										_ => unimplemented!(),
 									};
-									print_method_params(w, &m.sig, &HashMap::new(), &ret_type, types, Some(&gen_types), false);
+									print_method_params(w, &m.sig, &HashMap::new(), &ret_type, types, Some(&gen_types), false, true);
 									write!(w, " {{\n\t").unwrap();
 									print_method_var_decl_body(w, &m.sig, "", types, Some(&gen_types), false);
 									let mut takes_self = false;
@@ -735,19 +764,26 @@ eprintln!("GOOOOOO {}", ident);
 	}
 }
 
+fn is_enum_opaque(e: &syn::ItemEnum) -> bool {
+	for var in e.variants.iter() {
+		if let syn::Fields::Unit = var.fields {} else {
+			return true;
+		}
+	}
+	false
+}
+
 fn println_enum<W: std::io::Write>(w: &mut W, e: &syn::ItemEnum, types: &mut TypeResolver, extra_headers: &mut File) {
 	match export_status(&e.attrs) {
 		ExportStatus::Export => {},
 		ExportStatus::NoExport|ExportStatus::TestOnly => return,
 	}
 
-	for var in e.variants.iter() {
-		if let syn::Fields::Unit = var.fields {} else {
-			eprintln!("Skipping enum {} as it contains non-unit fields", e.ident);
-			println_opaque(w, &e.ident, &format!("{}", e.ident), &e.generics, &e.attrs, types, extra_headers);
-			types.enum_ignored(&e.ident);
-			return;
-		}
+	if is_enum_opaque(e) {
+		eprintln!("Skipping enum {} as it contains non-unit fields", e.ident);
+		println_opaque(w, &e.ident, &format!("{}", e.ident), &e.generics, &e.attrs, types, extra_headers);
+		types.enum_ignored(&e.ident);
+		return;
 	}
 	println_docs(w, &e.attrs, "");
 
@@ -806,7 +842,7 @@ fn convert_file(libast: &FullLibraryAST, crate_types: &CrateTypes, path: &str, o
 		writeln!(out, "mod c_types;").unwrap();
 		writeln!(out, "mod bitcoin;").unwrap();
 	} else {
-		writeln!(out, "\nuse std::ffi::c_void;\nuse bitcoin::hashes::Hash;\n").unwrap();
+		writeln!(out, "\nuse std::ffi::c_void;\nuse bitcoin::hashes::Hash;\nuse crate::c_types::TakePointer;\n").unwrap();
 	}
 
 	for item in syntax.items.iter() {
@@ -949,7 +985,7 @@ fn walk_ast<'a>(path: &str, module: String, ast_storage: &'a FullLibraryAST, cra
 						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
 					}
 					let struct_path = format!("{}::{}", module, s.ident);
-					crate_types.structs.insert(struct_path, &s);
+					crate_types.opaques.insert(struct_path, &s.ident);
 				}
 			},
 			syn::Item::Trait(t) => {
@@ -960,6 +996,16 @@ fn walk_ast<'a>(path: &str, module: String, ast_storage: &'a FullLibraryAST, cra
 					}
 					let trait_path = format!("{}::{}", module, t.ident);
 					crate_types.traits.insert(trait_path, &t);
+				}
+			},
+			syn::Item::Enum(e) if is_enum_opaque(e) => {
+				if let syn::Visibility::Public(_) = e.vis {
+					match export_status(&e.attrs) {
+						ExportStatus::Export => {},
+						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+					}
+					let enum_path = format!("{}::{}", module, e.ident);
+					crate_types.opaques.insert(enum_path, &e.ident);
 				}
 			},
 			syn::Item::Impl(i) => {
@@ -995,7 +1041,7 @@ fn main() {
 	let mut libast = FullLibraryAST { files: HashMap::new() };
 	load_ast(&(args[1].clone() + "/lib.rs"), "".to_string(), &mut libast);
 
-	let mut libtypes = CrateTypes { traits: HashMap::new(), trait_impls: HashMap::new(), structs: HashMap::new() };
+	let mut libtypes = CrateTypes { traits: HashMap::new(), trait_impls: HashMap::new(), opaques: HashMap::new() };
 	walk_ast(&(args[1].clone() + "/lib.rs"), "".to_string(), &libast, &mut libtypes);
 
 	convert_file(&libast, &libtypes, &(args[1].clone() + "/lib.rs"), &(args[2].clone() + "lib.rs"), &args[3], "", &mut header_file);

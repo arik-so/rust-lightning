@@ -6,6 +6,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
+use crate::c_types::TakePointer;
 
 use bitcoin::blockdata::block::Block as lnBlock;
 use bitcoin::blockdata::block::BlockHeader as lnBlockHeader;
@@ -126,6 +127,38 @@ impl std::ops::Deref for BroadcasterInterface {
 		self
 	}
 }
+/// " A trait indicating a desire to listen for events from the chain"
+#[repr(C)]
+pub struct ChainListener {
+	pub this_arg: *mut c_void,
+	//XXX: Need to export block_connected
+	/// " Notifies a listener that a block was disconnected."
+	/// " Unlike block_connected, this *must* never be called twice for the same disconnect event."
+	/// " Height must be the one of the block which was disconnected (not new height of the best chain)"
+	pub block_disconnected: extern "C" fn (this_arg: *const c_void, header: *const [u8; 80], disconnected_height: u32),
+}
+unsafe impl Sync for ChainListener {}
+unsafe impl Send for ChainListener {}
+
+use lightning::chain::chaininterface::ChainListener as lnChainListener;
+impl lnChainListener for ChainListener {
+	fn block_connected(&self, header: &bitcoin::blockdata::block::BlockHeader, height: u32, txn_matched: &[&bitcoin::blockdata::transaction::Transaction], indexes_of_txn_matched: &[u32]) {
+		unimplemented!();
+	}
+	fn block_disconnected(&self, header: &bitcoin::blockdata::block::BlockHeader, disconnected_height: u32) {
+		let local_header = { let mut s = [0u8; 80]; s[..].copy_from_slice(&::bitcoin::consensus::encode::serialize(header)); s };
+		(self.block_disconnected)(self.this_arg, &local_header, disconnected_height)
+	}
+}
+
+// We're essentially a pointer already, or at least a set of pointers, so allow us to be used
+// directly as a Deref trait in higher-level structs:
+impl std::ops::Deref for ChainListener {
+	type Target = Self;
+	fn deref(&self) -> &Self {
+		self
+	}
+}
 /// " An enum that represents the speed at which we want a transaction to confirm used for feerate"
 /// " estimation."
 #[repr(C)]
@@ -195,6 +228,103 @@ impl std::ops::Deref for FeeEstimator {
 	}
 }
 
+use lightning::chain::chaininterface::ChainWatchedUtil as lnChainWatchedUtilImport;
+type lnChainWatchedUtil = lnChainWatchedUtilImport;
+
+/// " Utility for tracking registered txn/outpoints and checking for matches"
+#[repr(C)]
+pub struct ChainWatchedUtil {
+	/// Nearly everyhwere, inner must be non-null, however in places where
+	///the Rust equivalent takes an Option, it may be set to null to indicate None.
+	pub inner: *const lnChainWatchedUtil,
+}
+
+impl Drop for ChainWatchedUtil {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnChainWatchedUtil) };
+		}
+	}
+}
+#[no_mangle]
+pub extern "C" fn ChainWatchedUtil_free(this_ptr: ChainWatchedUtil) { }
+/// " Constructs an empty (watches nothing) ChainWatchedUtil"
+#[no_mangle]
+pub extern "C" fn ChainWatchedUtil_new() -> ChainWatchedUtil {
+	let mut ret = lightning::chain::chaininterface::ChainWatchedUtil::new();
+	ChainWatchedUtil { inner: Box::into_raw(Box::new(ret)) }
+}
+
+/// " Registers a tx for monitoring, returning true if it was a new tx and false if we'd already"
+/// " been watching for it."
+#[no_mangle]
+pub extern "C" fn ChainWatchedUtil_register_tx(this_arg: &mut ChainWatchedUtil, txid: *const [u8; 32], script_pub_key: crate::c_types::Script) -> bool {
+	let mut ret = unsafe { &mut (*(this_arg.inner as *mut lnChainWatchedUtil)) }.register_tx(&::bitcoin::hash_types::Txid::from_slice(&unsafe { &*txid }[..]).unwrap(), &script_pub_key.into_bitcoin());
+	ret
+}
+
+/// " Sets us to match all transactions, returning true if this is a new setting and false if"
+/// " we'd already been set to match everything."
+#[no_mangle]
+pub extern "C" fn ChainWatchedUtil_watch_all(this_arg: &mut ChainWatchedUtil) -> bool {
+	let mut ret = unsafe { &mut (*(this_arg.inner as *mut lnChainWatchedUtil)) }.watch_all();
+	ret
+}
+
+/// " Checks if a given transaction matches the current filter."
+#[no_mangle]
+pub extern "C" fn ChainWatchedUtil_does_match_tx(this_arg: &ChainWatchedUtil, tx: crate::c_types::Transaction) -> bool {
+	let mut ret = unsafe { &*this_arg.inner }.does_match_tx(&tx.into_bitcoin());
+	ret
+}
+
+
+use lightning::chain::chaininterface::BlockNotifier as lnBlockNotifierImport;
+type lnBlockNotifier = lnBlockNotifierImport<'static, crate::chain::chaininterface::ChainListener, crate::chain::chaininterface::ChainWatchInterface>;
+
+/// " Utility for notifying listeners about new blocks, and handling block rescans if new watch"
+/// " data is registered."
+/// ""
+/// " Rather than using a plain BlockNotifier, it is preferable to use either a BlockNotifierArc"
+/// " or a BlockNotifierRef for conciseness. See their documentation for more details, but essentially"
+/// " you should default to using a BlockNotifierRef, and use a BlockNotifierArc instead when you"
+/// " require ChainListeners with static lifetimes, such as when you're using lightning-net-tokio."
+#[repr(C)]
+pub struct BlockNotifier {
+	/// Nearly everyhwere, inner must be non-null, however in places where
+	///the Rust equivalent takes an Option, it may be set to null to indicate None.
+	pub inner: *const lnBlockNotifier,
+}
+
+impl Drop for BlockNotifier {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnBlockNotifier) };
+		}
+	}
+}
+#[no_mangle]
+pub extern "C" fn BlockNotifier_free(this_ptr: BlockNotifier) { }
+/// " Constructs a new BlockNotifier without any listeners."
+#[no_mangle]
+pub extern "C" fn BlockNotifier_new(mut chain_monitor: ChainWatchInterface) -> BlockNotifier {
+	let mut ret = lightning::chain::chaininterface::BlockNotifier::new(chain_monitor);
+	crate::chain::chaininterface::BlockNotifier { inner: Box::into_raw(Box::new(ret)) }
+}
+
+/// " Register the given listener to receive events."
+#[no_mangle]
+pub extern "C" fn BlockNotifier_register_listener(this_arg: &BlockNotifier, mut listener: crate::chain::chaininterface::ChainListener) {
+	unsafe { &*this_arg.inner }.register_listener(listener)
+}
+
+/// " Notify listeners that a block was disconnected."
+#[no_mangle]
+pub extern "C" fn BlockNotifier_block_disconnected(this_arg: &BlockNotifier, header: *const [u8; 80], mut disconnected_height: u32) {
+	unsafe { &*this_arg.inner }.block_disconnected(&::bitcoin::consensus::encode::deserialize(unsafe { &*header }).unwrap(), disconnected_height)
+}
+
+
 use lightning::chain::chaininterface::ChainWatchInterfaceUtil as lnChainWatchInterfaceUtilImport;
 type lnChainWatchInterfaceUtil = lnChainWatchInterfaceUtilImport;
 
@@ -208,10 +338,15 @@ pub struct ChainWatchInterfaceUtil {
 	pub inner: *const lnChainWatchInterfaceUtil,
 }
 
-#[no_mangle]
-pub extern "C" fn ChainWatchInterfaceUtil_free(this_ptr: ChainWatchInterfaceUtil) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChainWatchInterfaceUtil) };
+impl Drop for ChainWatchInterfaceUtil {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnChainWatchInterfaceUtil) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn ChainWatchInterfaceUtil_free(this_ptr: ChainWatchInterfaceUtil) { }
 #[no_mangle]
 pub extern "C" fn ChainWatchInterfaceUtil_as_ChainWatchInterface(this_arg: *const ChainWatchInterfaceUtil) -> crate::chain::chaininterface::ChainWatchInterface {
 	crate::chain::chaininterface::ChainWatchInterface {
@@ -238,7 +373,7 @@ extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_reentered(this_arg: *c
 
 /// " Creates a new ChainWatchInterfaceUtil for the given network"
 #[no_mangle]
-pub extern "C" fn ChainWatchInterfaceUtil_new(network: crate::bitcoin::network::Network) -> ChainWatchInterfaceUtil {
+pub extern "C" fn ChainWatchInterfaceUtil_new(mut network: crate::bitcoin::network::Network) -> ChainWatchInterfaceUtil {
 	let mut ret = lightning::chain::chaininterface::ChainWatchInterfaceUtil::new(network.into_bitcoin());
 	crate::chain::chaininterface::ChainWatchInterfaceUtil { inner: Box::into_raw(Box::new(ret)) }
 }

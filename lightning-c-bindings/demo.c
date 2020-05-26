@@ -1,6 +1,7 @@
 #include "include/rust_types.h"
 #include "include/lightning.h"
 
+#include <assert.h>
 #include <stdio.h>
 
 void print_log(const void *this_arg, const char *record) {
@@ -19,6 +20,19 @@ void broadcast_tx(const void *this_arg, LDKTransaction tx) {
 	//TODO
 }
 
+LDKCResultNoneChannelMonitorUpdateErr add_channel_monitor(const void *this_arg, LDKOutPoint funding_txo, LDKChannelMonitor monitor) {
+	return CResultNoneChannelMonitorUpdateErr_good();
+}
+LDKCResultNoneChannelMonitorUpdateErr update_channel_monitor(const void *this_arg, LDKOutPoint funding_txo, LDKChannelMonitorUpdate monitor) {
+	return CResultNoneChannelMonitorUpdateErr_good();
+}
+LDKCVecHTLCUpdate monitors_pending_htlcs_updated(const void *this_arg) {
+	LDKCVecHTLCUpdate empty_htlc_vec;
+	empty_htlc_vec.data = NULL;
+	empty_htlc_vec.datalen = 0;
+	return empty_htlc_vec;
+}
+
 int main() {
 	uint8_t node_seed[32];
 
@@ -33,7 +47,10 @@ int main() {
 	fee_est.get_est_sat_per_1000_weight = get_fee;
 
 	LDKManyChannelMonitor mon;
-	//TODO: need to export monitor update functions
+	mon.this_arg = NULL;
+	mon.add_monitor = add_channel_monitor;
+	mon.update_monitor = update_channel_monitor;
+	mon.get_and_clear_pending_htlcs_updated = monitors_pending_htlcs_updated;
 
 	LDKBroadcasterInterface broadcast;
 	broadcast.this_arg = NULL;
@@ -47,8 +64,15 @@ int main() {
 	LDKChannelManager cm = ChannelManager_new(net, fee_est, mon, broadcast, logger, keys_source, config, 0);
 
 	LDKCVecChannelDetails channels = ChannelManager_list_channels(&cm);
+	assert(channels.datalen == 0);
 	CVecChannelDetails_free(channels);
 
 	ChannelManager_free(cm);
 	KeysManager_free(keys);
+
+	// Check that passing empty vecs to rust doesn't blow it up:
+	LDKCVecHTLCUpdate empty_htlc_vec;
+	empty_htlc_vec.data = NULL;
+	empty_htlc_vec.datalen = 0;
+	CVecHTLCUpdate_free(empty_htlc_vec);
 }

@@ -2,6 +2,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
+use crate::c_types::TakePointer;
 
 use bitcoin::hash_types::Txid as lnTxid;
 
@@ -19,10 +20,15 @@ pub struct OutPoint {
 	pub inner: *const lnOutPoint,
 }
 
-#[no_mangle]
-pub extern "C" fn OutPoint_free(this_ptr: OutPoint) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnOutPoint) };
+impl Drop for OutPoint {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnOutPoint) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn OutPoint_free(this_ptr: OutPoint) { }
 /// " The referenced transaction's txid."
 #[no_mangle]
 pub extern "C" fn OutPoint_get_txid(this_ptr: &OutPoint) -> *const [u8; 32] {
@@ -31,16 +37,22 @@ pub extern "C" fn OutPoint_get_txid(this_ptr: &OutPoint) -> *const [u8; 32] {
 }
 /// " The referenced transaction's txid."
 #[no_mangle]
-pub extern "C" fn OutPoint_set_txid(this_ptr: &mut OutPoint, val: [u8; 32]) {
+pub extern "C" fn OutPoint_set_txid(this_ptr: &mut OutPoint, mut val: [u8; 32]) {
 	unsafe { &mut *(this_ptr.inner as *mut lnOutPoint) }.txid = ::bitcoin::hash_types::Txid::from_slice(&val[..]).unwrap();
 }
 /// " The index of the referenced output in its transaction's vout."
 #[no_mangle]
-pub extern "C" fn OutPoint_set_index(this_ptr: &mut OutPoint, val: u16) {
+pub extern "C" fn OutPoint_get_index(this_ptr: &OutPoint) -> u16 {
+	let inner_val = &unsafe { &*this_ptr.inner }.index;
+	(*inner_val)
+}
+/// " The index of the referenced output in its transaction's vout."
+#[no_mangle]
+pub extern "C" fn OutPoint_set_index(this_ptr: &mut OutPoint, mut val: u16) {
 	unsafe { &mut *(this_ptr.inner as *mut lnOutPoint) }.index = val;
 }
 #[no_mangle]
-pub extern "C" fn OutPoint_new(txid_arg: [u8; 32], index_arg: u16) -> OutPoint {
+pub extern "C" fn OutPoint_new(mut txid_arg: [u8; 32], mut index_arg: u16) -> OutPoint {
 	OutPoint { inner: Box::into_raw(Box::new(lnOutPoint {
 		txid: ::bitcoin::hash_types::Txid::from_slice(&txid_arg[..]).unwrap(),
 		index: index_arg,

@@ -7,6 +7,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
+use crate::c_types::TakePointer;
 
 /// " An enum representing the available verbosity levels of the logger."
 #[repr(C)]

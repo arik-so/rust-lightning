@@ -86,6 +86,7 @@ impl Level {
 
 /// A Record, unit of logging output with Metadata to enable filtering
 /// Module_path, file, line to inform on log's source
+/// (C-not exported) - we convert to a const char* instead
 #[derive(Clone,Debug)]
 pub struct Record<'a> {
 	/// The verbosity level of the message.

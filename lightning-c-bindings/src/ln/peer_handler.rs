@@ -8,6 +8,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
+use crate::c_types::TakePointer;
 
 use bitcoin::secp256k1::key::SecretKey as lnSecretKey;
 use bitcoin::secp256k1::key::PublicKey as lnPublicKey;
@@ -25,10 +26,15 @@ pub struct MessageHandler {
 	pub inner: *const lnMessageHandler,
 }
 
-#[no_mangle]
-pub extern "C" fn MessageHandler_free(this_ptr: MessageHandler) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnMessageHandler) };
+impl Drop for MessageHandler {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnMessageHandler) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn MessageHandler_free(this_ptr: MessageHandler) { }
 /// " A message handler which handles messages specific to channels. Usually this is just a"
 /// " ChannelManager object."
 #[no_mangle]
@@ -39,7 +45,7 @@ pub extern "C" fn MessageHandler_get_chan_handler(this_ptr: &MessageHandler) -> 
 /// " A message handler which handles messages specific to channels. Usually this is just a"
 /// " ChannelManager object."
 #[no_mangle]
-pub extern "C" fn MessageHandler_set_chan_handler(this_ptr: &mut MessageHandler, val: crate::ln::msgs::ChannelMessageHandler) {
+pub extern "C" fn MessageHandler_set_chan_handler(this_ptr: &mut MessageHandler, mut val: crate::ln::msgs::ChannelMessageHandler) {
 	unsafe { &mut *(this_ptr.inner as *mut lnMessageHandler) }.chan_handler = val;
 }
 /// " A message handler which handles messages updating our knowledge of the network channel"
@@ -52,11 +58,11 @@ pub extern "C" fn MessageHandler_get_route_handler(this_ptr: &MessageHandler) ->
 /// " A message handler which handles messages updating our knowledge of the network channel"
 /// " graph. Usually this is just a NetGraphMsgHandlerMonitor object."
 #[no_mangle]
-pub extern "C" fn MessageHandler_set_route_handler(this_ptr: &mut MessageHandler, val: crate::ln::msgs::RoutingMessageHandler) {
+pub extern "C" fn MessageHandler_set_route_handler(this_ptr: &mut MessageHandler, mut val: crate::ln::msgs::RoutingMessageHandler) {
 	unsafe { &mut *(this_ptr.inner as *mut lnMessageHandler) }.route_handler = val;
 }
 #[no_mangle]
-pub extern "C" fn MessageHandler_new(chan_handler_arg: crate::ln::msgs::ChannelMessageHandler, route_handler_arg: crate::ln::msgs::RoutingMessageHandler) -> MessageHandler {
+pub extern "C" fn MessageHandler_new(mut chan_handler_arg: crate::ln::msgs::ChannelMessageHandler, mut route_handler_arg: crate::ln::msgs::RoutingMessageHandler) -> MessageHandler {
 	MessageHandler { inner: Box::into_raw(Box::new(lnMessageHandler {
 		chan_handler: chan_handler_arg,
 		route_handler: route_handler_arg,
@@ -145,18 +151,30 @@ pub struct PeerHandleError {
 	pub inner: *const lnPeerHandleError,
 }
 
+impl Drop for PeerHandleError {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnPeerHandleError) };
+		}
+	}
+}
 #[no_mangle]
-pub extern "C" fn PeerHandleError_free(this_ptr: PeerHandleError) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnPeerHandleError) };
+pub extern "C" fn PeerHandleError_free(this_ptr: PeerHandleError) { }
+/// " Used to indicate that we probably can't make any future connections to this peer, implying"
+/// " we should go ahead and force-close any channels we have with it."
+#[no_mangle]
+pub extern "C" fn PeerHandleError_get_no_connection_possible(this_ptr: &PeerHandleError) -> bool {
+	let inner_val = &unsafe { &*this_ptr.inner }.no_connection_possible;
+	(*inner_val)
 }
 /// " Used to indicate that we probably can't make any future connections to this peer, implying"
 /// " we should go ahead and force-close any channels we have with it."
 #[no_mangle]
-pub extern "C" fn PeerHandleError_set_no_connection_possible(this_ptr: &mut PeerHandleError, val: bool) {
+pub extern "C" fn PeerHandleError_set_no_connection_possible(this_ptr: &mut PeerHandleError, mut val: bool) {
 	unsafe { &mut *(this_ptr.inner as *mut lnPeerHandleError) }.no_connection_possible = val;
 }
 #[no_mangle]
-pub extern "C" fn PeerHandleError_new(no_connection_possible_arg: bool) -> PeerHandleError {
+pub extern "C" fn PeerHandleError_new(mut no_connection_possible_arg: bool) -> PeerHandleError {
 	PeerHandleError { inner: Box::into_raw(Box::new(lnPeerHandleError {
 		no_connection_possible: no_connection_possible_arg,
 	}))}
@@ -180,16 +198,21 @@ pub struct PeerManager {
 	pub inner: *const lnPeerManager,
 }
 
-#[no_mangle]
-pub extern "C" fn PeerManager_free(this_ptr: PeerManager) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnPeerManager) };
+impl Drop for PeerManager {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnPeerManager) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn PeerManager_free(this_ptr: PeerManager) { }
 /// " Constructs a new PeerManager with the given message handlers and node_id secret key"
 /// " ephemeral_random_data is used to derive per-connection ephemeral keys and must be"
 /// " cryptographically secure random bytes."
 #[no_mangle]
-pub extern "C" fn PeerManager_new(message_handler: MessageHandler, our_node_secret: crate::c_types::SecretKey, ephemeral_random_data: *const [u8; 32], logger: crate::util::logger::Logger) -> PeerManager {
-	let mut ret = lightning::ln::peer_handler::PeerManager::new(*unsafe { Box::from_raw(message_handler.inner as *mut _) }, our_node_secret.into_rust(), unsafe { &*ephemeral_random_data}, logger);
+pub extern "C" fn PeerManager_new(mut message_handler: MessageHandler, mut our_node_secret: crate::c_types::SecretKey, ephemeral_random_data: *const [u8; 32], mut logger: crate::util::logger::Logger) -> PeerManager {
+	let mut ret = lightning::ln::peer_handler::PeerManager::new(*unsafe { Box::from_raw(message_handler.inner.take_ptr() as *mut _) }, our_node_secret.into_rust(), unsafe { &*ephemeral_random_data}, logger);
 	PeerManager { inner: Box::into_raw(Box::new(ret)) }
 }
 
@@ -215,7 +238,7 @@ pub extern "C" fn PeerManager_get_peer_node_ids(this_arg: &PeerManager) -> crate
 /// " Panics if descriptor is duplicative with some other descriptor which has not yet had"
 /// " socket_disconnected called."
 #[no_mangle]
-pub extern "C" fn PeerManager_new_inbound_connection(this_arg: &PeerManager, descriptor: SocketDescriptor) -> crate::c_types::CResultNonePeerHandleError {
+pub extern "C" fn PeerManager_new_inbound_connection(this_arg: &PeerManager, mut descriptor: SocketDescriptor) -> crate::c_types::CResultNonePeerHandleError {
 	let mut ret = unsafe { &*this_arg.inner }.new_inbound_connection(descriptor);
 	let mut local_ret = match ret{ Ok(o) => crate::c_types::CResultTempl::good(0u8 /*o*/), Err(e) => crate::c_types::CResultTempl::err(crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)) }) };
 	local_ret
@@ -235,6 +258,25 @@ pub extern "C" fn PeerManager_new_inbound_connection(this_arg: &PeerManager, des
 pub extern "C" fn PeerManager_write_buffer_space_avail(this_arg: &PeerManager, descriptor: &mut SocketDescriptor) -> crate::c_types::CResultNonePeerHandleError {
 	let mut ret = unsafe { &*this_arg.inner }.write_buffer_space_avail(descriptor);
 	let mut local_ret = match ret{ Ok(o) => crate::c_types::CResultTempl::good(0u8 /*o*/), Err(e) => crate::c_types::CResultTempl::err(crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)) }) };
+	local_ret
+}
+
+/// " Indicates that data was read from the given socket descriptor."
+/// ""
+/// " May return an Err to indicate that the connection should be closed."
+/// ""
+/// " Will *not* call back into send_data on any descriptors to avoid reentrancy complexity."
+/// " Thus, however, you almost certainly want to call process_events() after any read_event to"
+/// " generate send_data calls to handle responses."
+/// ""
+/// " If Ok(true) is returned, further read_events should not be triggered until a send_data call"
+/// " on this file descriptor has resume_read set (preventing DoS issues in the send buffer)."
+/// ""
+/// " Panics if the descriptor was not previously registered in a new_*_connection event."
+#[no_mangle]
+pub extern "C" fn PeerManager_read_event(this_arg: &PeerManager, peer_descriptor: &mut SocketDescriptor, data: crate::c_types::u8slice) -> crate::c_types::CResultboolPeerHandleError {
+	let mut ret = unsafe { &*this_arg.inner }.read_event(peer_descriptor, data.to_slice());
+	let mut local_ret = match ret{ Ok(o) => crate::c_types::CResultTempl::good(o), Err(e) => crate::c_types::CResultTempl::err(crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)) }) };
 	local_ret
 }
 

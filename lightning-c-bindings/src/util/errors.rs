@@ -2,6 +2,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
+use crate::c_types::TakePointer;
 
 
 use lightning::util::errors::APIError as lnAPIErrorImport;
@@ -16,7 +17,12 @@ pub struct APIError {
 	pub inner: *const lnAPIError,
 }
 
-#[no_mangle]
-pub extern "C" fn APIError_free(this_ptr: APIError) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnAPIError) };
+impl Drop for APIError {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnAPIError) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn APIError_free(this_ptr: APIError) { }

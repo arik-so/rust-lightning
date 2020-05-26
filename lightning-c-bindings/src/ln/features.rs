@@ -18,6 +18,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
+use crate::c_types::TakePointer;
 
 
 use lightning::ln::features::InitFeatures as lnInitFeaturesImport;
@@ -31,10 +32,15 @@ pub struct InitFeatures {
 	pub inner: *const lnInitFeatures,
 }
 
-#[no_mangle]
-pub extern "C" fn InitFeatures_free(this_ptr: InitFeatures) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnInitFeatures) };
+impl Drop for InitFeatures {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnInitFeatures) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn InitFeatures_free(this_ptr: InitFeatures) { }
 
 use lightning::ln::features::NodeFeatures as lnNodeFeaturesImport;
 type lnNodeFeatures = lnNodeFeaturesImport;
@@ -47,10 +53,15 @@ pub struct NodeFeatures {
 	pub inner: *const lnNodeFeatures,
 }
 
-#[no_mangle]
-pub extern "C" fn NodeFeatures_free(this_ptr: NodeFeatures) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnNodeFeatures) };
+impl Drop for NodeFeatures {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnNodeFeatures) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn NodeFeatures_free(this_ptr: NodeFeatures) { }
 
 use lightning::ln::features::ChannelFeatures as lnChannelFeaturesImport;
 type lnChannelFeatures = lnChannelFeaturesImport;
@@ -63,7 +74,12 @@ pub struct ChannelFeatures {
 	pub inner: *const lnChannelFeatures,
 }
 
-#[no_mangle]
-pub extern "C" fn ChannelFeatures_free(this_ptr: ChannelFeatures) {
-	let _ = unsafe { Box::from_raw(this_ptr.inner as *mut lnChannelFeatures) };
+impl Drop for ChannelFeatures {
+	fn drop(&mut self) {
+		if !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelFeatures) };
+		}
+	}
 }
+#[no_mangle]
+pub extern "C" fn ChannelFeatures_free(this_ptr: ChannelFeatures) { }
