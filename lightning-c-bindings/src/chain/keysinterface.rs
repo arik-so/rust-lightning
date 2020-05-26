@@ -6,26 +6,6 @@ use std::ffi::c_void;
 use bitcoin::hashes::Hash;
 use crate::c_types::TakePointer;
 
-use bitcoin::blockdata::transaction::Transaction as lnTransaction;
-use bitcoin::blockdata::transaction::OutPoint as lnOutPoint;
-use bitcoin::blockdata::transaction::TxOut as lnTxOut;
-use bitcoin::blockdata::script::Script as lnScript;
-use bitcoin::blockdata::script::Builder as lnBuilder;
-use bitcoin::blockdata::opcodes as lnopcodes;
-use bitcoin::network::constants::Network as lnNetwork;
-use bitcoin::util::bip32::ExtendedPrivKey as lnExtendedPrivKey;
-use bitcoin::util::bip32::ExtendedPubKey as lnExtendedPubKey;
-use bitcoin::util::bip32::ChildNumber as lnChildNumber;
-use bitcoin::util::bip143 as lnbip143;
-use bitcoin::hashes::Hash as lnHash;
-use bitcoin::hashes::HashEngine as lnHashEngine;
-use bitcoin::hash_types::WPubkeyHash as lnWPubkeyHash;
-use bitcoin::secp256k1::key::SecretKey as lnSecretKey;
-use bitcoin::secp256k1::key::PublicKey as lnPublicKey;
-use bitcoin::secp256k1::Secp256k1 as lnSecp256k1;
-use bitcoin::secp256k1::Signature as lnSignature;
-use bitcoin::secp256k1::Signing as lnSigning;
-use bitcoin::secp256k1 as lnsecp256k1;
 
 use lightning::chain::keysinterface::SpendableOutputDescriptor as lnSpendableOutputDescriptorImport;
 type lnSpendableOutputDescriptor = lnSpendableOutputDescriptorImport;
@@ -91,9 +71,13 @@ pub struct ChannelKeys {
 	/// ""
 	/// " Note that, due to rounding, there may be one \"missing\" satoshi, and either party may have"
 	/// " chosen to forgo their output as dust."
-	pub sign_closing_transaction: extern "C" fn (this_arg: *const c_void, closing_tx: crate::c_types::Transaction) -> crate::c_types::CResultSignatureNone,
+	pub sign_closing_transaction: extern "C" fn (this_arg: *const c_void, closing_tx: crate::c_types::Transaction) -> crate::c_types::derived::CResult_SignatureNoneZ,
 	//XXX: Need to export sign_channel_announcement
-	//XXX: Need to export set_remote_channel_pubkeys
+	/// " Set the remote channel basepoints.  This is done immediately on incoming channels"
+	/// " and as soon as the channel is accepted on outgoing channels."
+	/// ""
+	/// " Will be called before any signatures are applied."
+	pub set_remote_channel_pubkeys: extern "C" fn (this_arg: *mut c_void, channel_points: &crate::ln::chan_utils::ChannelPublicKeys),
 }
 unsafe impl Send for ChannelKeys {}
 
@@ -132,14 +116,14 @@ impl lnChannelKeys for ChannelKeys {
 	fn sign_closing_transaction<T:bitcoin::secp256k1::Signing>(&self, closing_tx: &bitcoin::blockdata::transaction::Transaction, _secp_ctx: &bitcoin::secp256k1::Secp256k1<T>) -> Result<bitcoin::secp256k1::Signature, ()> {
 		let local_closing_tx = ::bitcoin::consensus::encode::serialize(closing_tx);
 		let mut ret = (self.sign_closing_transaction)(self.this_arg, crate::c_types::Transaction::from_slice(&local_closing_tx));
-		let mut local_ret = match ret.result_good { true => Ok((*unsafe { &mut *ret.contents.result }).into_rust()), false => Err(() /*(*unsafe { &mut *ret.contents.err })*/)};
+		let mut local_ret = match ret.result_good { true => Ok( { (*unsafe { Box::from_raw(ret.contents.result) }).into_rust() }), false => Err( { () /*(*unsafe { Box::from_raw(ret.contents.err) })*/ })};
 		local_ret
 	}
 	fn sign_channel_announcement<T:bitcoin::secp256k1::Signing>(&self, msg: &lightning::ln::msgs::UnsignedChannelAnnouncement, _secp_ctx: &bitcoin::secp256k1::Secp256k1<T>) -> Result<bitcoin::secp256k1::Signature, ()> {
 		unimplemented!();
 	}
 	fn set_remote_channel_pubkeys(&mut self, channel_points: &lightning::ln::chan_utils::ChannelPublicKeys) {
-		unimplemented!();
+		(self.set_remote_channel_pubkeys)(self.this_arg, &crate::ln::chan_utils::ChannelPublicKeys { inner: channel_points })
 	}
 }
 
@@ -157,11 +141,13 @@ pub struct KeysInterface {
 	pub this_arg: *mut c_void,
 	/// " Get node secret key (aka node_id or network_key)"
 	pub get_node_secret: extern "C" fn (this_arg: *const c_void) -> crate::c_types::SecretKey,
-	//XXX: Need to export get_destination_script
+	/// " Get destination redeemScript to encumber static protocol exit points."
+	pub get_destination_script: extern "C" fn (this_arg: *const c_void) -> crate::c_types::derived::CVec_u8Z,
 	/// " Get shutdown_pubkey to use as PublicKey at channel closure"
 	pub get_shutdown_pubkey: extern "C" fn (this_arg: *const c_void) -> crate::c_types::PublicKey,
 	//XXX: Need to export get_channel_keys
-	//XXX: Need to export get_onion_rand
+	/// " Get a secret and PRNG seed for constructing an onion packet"
+	pub get_onion_rand: extern "C" fn (this_arg: *const c_void) -> crate::c_types::derived::C2Tuple_SecretKey_u832Z,
 	/// " Get a unique temporary channel id. Channels will be referred to by this until the funding"
 	/// " transaction is created, at which point they will use the outpoint in the funding"
 	/// " transaction."
@@ -178,7 +164,8 @@ impl lnKeysInterface for KeysInterface {
 		ret.into_rust()
 	}
 	fn get_destination_script(&self) -> bitcoin::blockdata::script::Script {
-		unimplemented!();
+		let mut ret = (self.get_destination_script)(self.this_arg);
+		::bitcoin::blockdata::script::Script::from(ret.into_rust())
 	}
 	fn get_shutdown_pubkey(&self) -> bitcoin::secp256k1::key::PublicKey {
 		let mut ret = (self.get_shutdown_pubkey)(self.this_arg);
@@ -188,7 +175,9 @@ impl lnKeysInterface for KeysInterface {
 		unimplemented!();
 	}
 	fn get_onion_rand(&self) -> (bitcoin::secp256k1::key::SecretKey, [u8; 32]) {
-		unimplemented!();
+		let mut ret = (self.get_onion_rand)(self.this_arg);
+		let orig_ret = ret.to_rust(); let local_ret = (orig_ret.0.into_rust(), orig_ret.1.data);
+		local_ret
 	}
 	fn get_channel_id(&self) -> [u8; 32] {
 		let mut ret = (self.get_channel_id)(self.this_arg);
@@ -248,14 +237,17 @@ pub extern "C" fn InMemoryChannelKeys_as_ChannelKeys(this_arg: *const InMemoryCh
 		//XXX: Need to export sign_local_commitment_htlc_transactions
 		sign_closing_transaction: InMemoryChannelKeys_ChannelKeys_sign_closing_transaction,
 		//XXX: Need to export sign_channel_announcement
-		//XXX: Need to export set_remote_channel_pubkeys
+		set_remote_channel_pubkeys: InMemoryChannelKeys_ChannelKeys_set_remote_channel_pubkeys,
 	}
 }
 use lightning::chain::keysinterface::ChannelKeys as ChannelKeysTraitImport;
-extern "C" fn InMemoryChannelKeys_ChannelKeys_sign_closing_transaction(this_arg: *const c_void, closing_tx: crate::c_types::Transaction) -> crate::c_types::CResultSignatureNone {
-	let mut ret = unsafe { &*(*(this_arg as *const InMemoryChannelKeys)).inner }.sign_closing_transaction(&closing_tx.into_bitcoin(), &bitcoin::secp256k1::Secp256k1::new());
-	let mut local_ret = match ret{ Ok(o) => crate::c_types::CResultTempl::good(crate::c_types::Signature::from_rust(&o)), Err(e) => crate::c_types::CResultTempl::err(0u8 /*e*/) };
+extern "C" fn InMemoryChannelKeys_ChannelKeys_sign_closing_transaction(this_arg: *const c_void, closing_tx: crate::c_types::Transaction) -> crate::c_types::derived::CResult_SignatureNoneZ {
+	let mut ret = unsafe { &mut *(this_arg as *mut lnInMemoryChannelKeys) }.sign_closing_transaction(&closing_tx.into_bitcoin(), &bitcoin::secp256k1::Secp256k1::new());
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { crate::c_types::Signature::from_rust(&o) }), Err(mut e) => crate::c_types::CResultTempl::err( { 0u8 /*e*/ }) };
 	local_ret
+}
+extern "C" fn InMemoryChannelKeys_ChannelKeys_set_remote_channel_pubkeys(this_arg: *mut c_void, channel_pubkeys: &crate::ln::chan_utils::ChannelPublicKeys) {
+	unsafe { &mut *(this_arg as *mut lnInMemoryChannelKeys) }.set_remote_channel_pubkeys(unsafe { &*channel_pubkeys.inner })
 }
 
 
@@ -315,24 +307,33 @@ pub extern "C" fn KeysManager_as_KeysInterface(this_arg: *const KeysManager) -> 
 	crate::chain::keysinterface::KeysInterface {
 		this_arg: unsafe { (*this_arg).inner as *mut c_void },
 		get_node_secret: KeysManager_KeysInterface_get_node_secret,
-		//XXX: Need to export get_destination_script
+		get_destination_script: KeysManager_KeysInterface_get_destination_script,
 		get_shutdown_pubkey: KeysManager_KeysInterface_get_shutdown_pubkey,
 		//XXX: Need to export get_channel_keys
-		//XXX: Need to export get_onion_rand
+		get_onion_rand: KeysManager_KeysInterface_get_onion_rand,
 		get_channel_id: KeysManager_KeysInterface_get_channel_id,
 	}
 }
 use lightning::chain::keysinterface::KeysInterface as KeysInterfaceTraitImport;
 extern "C" fn KeysManager_KeysInterface_get_node_secret(this_arg: *const c_void) -> crate::c_types::SecretKey {
-	let mut ret = unsafe { &*(*(this_arg as *const KeysManager)).inner }.get_node_secret();
+	let mut ret = unsafe { &mut *(this_arg as *mut lnKeysManager) }.get_node_secret();
 	crate::c_types::SecretKey::from_rust(ret)
 }
+extern "C" fn KeysManager_KeysInterface_get_destination_script(this_arg: *const c_void) -> crate::c_types::derived::CVec_u8Z {
+	let mut ret = unsafe { &mut *(this_arg as *mut lnKeysManager) }.get_destination_script();
+	ret.into_bytes().into()
+}
 extern "C" fn KeysManager_KeysInterface_get_shutdown_pubkey(this_arg: *const c_void) -> crate::c_types::PublicKey {
-	let mut ret = unsafe { &*(*(this_arg as *const KeysManager)).inner }.get_shutdown_pubkey();
+	let mut ret = unsafe { &mut *(this_arg as *mut lnKeysManager) }.get_shutdown_pubkey();
 	crate::c_types::PublicKey::from_rust(&ret)
 }
+extern "C" fn KeysManager_KeysInterface_get_onion_rand(this_arg: *const c_void) -> crate::c_types::derived::C2Tuple_SecretKey_u832Z {
+	let mut ret = unsafe { &mut *(this_arg as *mut lnKeysManager) }.get_onion_rand();
+	let orig_ret = ret; let local_ret = (crate::c_types::SecretKey::from_rust(orig_ret.0), crate::c_types::ThirtyTwoBytes { data: orig_ret.1 }).into();
+	local_ret
+}
 extern "C" fn KeysManager_KeysInterface_get_channel_id(this_arg: *const c_void) -> crate::c_types::ThirtyTwoBytes {
-	let mut ret = unsafe { &*(*(this_arg as *const KeysManager)).inner }.get_channel_id();
+	let mut ret = unsafe { &mut *(this_arg as *mut lnKeysManager) }.get_channel_id();
 	crate::c_types::ThirtyTwoBytes { data: ret }
 }
 

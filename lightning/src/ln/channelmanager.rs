@@ -38,6 +38,7 @@ use ln::onion_utils;
 use ln::msgs::{ChannelMessageHandler, DecodeError, LightningError};
 use chain::keysinterface::{ChannelKeys, KeysInterface, KeysManager, InMemoryChannelKeys};
 use util::config::UserConfig;
+use util::events::{Event, EventsProvider, MessageSendEvent, MessageSendEventsProvider};
 use util::{byte_utils, events};
 use util::ser::{Readable, ReadableArgs, MaybeReadable, Writeable, Writer};
 use util::chacha20::{ChaCha20, ChaChaReader};
@@ -306,7 +307,7 @@ pub(super) struct ChannelHolder<ChanSigner: ChannelKeys> {
 	claimable_htlcs: HashMap<(PaymentHash, Option<PaymentSecret>), Vec<ClaimableHTLC>>,
 	/// Messages to send to peers - pushed to in the same lock that they are generated in (except
 	/// for broadcast messages, where ordering isn't as strict).
-	pub(super) pending_msg_events: Vec<events::MessageSendEvent>,
+	pub(super) pending_msg_events: Vec<MessageSendEvent>,
 }
 
 /// State we hold per-peer. In the future we should put channels in here, but for now we only hold
@@ -2891,14 +2892,14 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref, L: Deref> 
 	}
 }
 
-impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref, L: Deref> events::MessageSendEventsProvider for ChannelManager<ChanSigner, M, T, K, F, L>
+impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref, L: Deref> MessageSendEventsProvider for ChannelManager<ChanSigner, M, T, K, F, L>
 	where M::Target: ManyChannelMonitor<Keys=ChanSigner>,
         T::Target: BroadcasterInterface,
         K::Target: KeysInterface<ChanKeySigner = ChanSigner>,
         F::Target: FeeEstimator,
 				L::Target: Logger,
 {
-	fn get_and_clear_pending_msg_events(&self) -> Vec<events::MessageSendEvent> {
+	fn get_and_clear_pending_msg_events(&self) -> Vec<MessageSendEvent> {
 		// TODO: Event release to users and serialization is currently race-y: it's very easy for a
 		// user to serialize a ChannelManager with pending events in it and lose those events on
 		// restart. This is doubly true for the fail/fulfill-backs from monitor events!
@@ -2922,14 +2923,14 @@ impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref, L: Deref> 
 	}
 }
 
-impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref, L: Deref> events::EventsProvider for ChannelManager<ChanSigner, M, T, K, F, L>
+impl<ChanSigner: ChannelKeys, M: Deref, T: Deref, K: Deref, F: Deref, L: Deref> EventsProvider for ChannelManager<ChanSigner, M, T, K, F, L>
 	where M::Target: ManyChannelMonitor<Keys=ChanSigner>,
         T::Target: BroadcasterInterface,
         K::Target: KeysInterface<ChanKeySigner = ChanSigner>,
         F::Target: FeeEstimator,
 				L::Target: Logger,
 {
-	fn get_and_clear_pending_events(&self) -> Vec<events::Event> {
+	fn get_and_clear_pending_events(&self) -> Vec<Event> {
 		// TODO: Event release to users and serialization is currently race-y: it's very easy for a
 		// user to serialize a ChannelManager with pending events in it and lose those events on
 		// restart. This is doubly true for the fail/fulfill-backs from monitor events!

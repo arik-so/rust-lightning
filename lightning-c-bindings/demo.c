@@ -20,14 +20,14 @@ void broadcast_tx(const void *this_arg, LDKTransaction tx) {
 	//TODO
 }
 
-LDKCResultNoneChannelMonitorUpdateErr add_channel_monitor(const void *this_arg, LDKOutPoint funding_txo, LDKChannelMonitor monitor) {
-	return CResultNoneChannelMonitorUpdateErr_good();
+LDKCResult_NoneChannelMonitorUpdateErrZ add_channel_monitor(const void *this_arg, LDKOutPoint funding_txo, LDKChannelMonitor monitor) {
+	return CResult_NoneChannelMonitorUpdateErrZ_good();
 }
-LDKCResultNoneChannelMonitorUpdateErr update_channel_monitor(const void *this_arg, LDKOutPoint funding_txo, LDKChannelMonitorUpdate monitor) {
-	return CResultNoneChannelMonitorUpdateErr_good();
+LDKCResult_NoneChannelMonitorUpdateErrZ update_channel_monitor(const void *this_arg, LDKOutPoint funding_txo, LDKChannelMonitorUpdate monitor) {
+	return CResult_NoneChannelMonitorUpdateErrZ_good();
 }
-LDKCVecHTLCUpdate monitors_pending_htlcs_updated(const void *this_arg) {
-	LDKCVecHTLCUpdate empty_htlc_vec;
+LDKCVec_HTLCUpdateZ monitors_pending_htlcs_updated(const void *this_arg) {
+	LDKCVec_HTLCUpdateZ empty_htlc_vec;
 	empty_htlc_vec.data = NULL;
 	empty_htlc_vec.datalen = 0;
 	return empty_htlc_vec;
@@ -63,16 +63,22 @@ int main() {
 
 	LDKChannelManager cm = ChannelManager_new(net, fee_est, mon, broadcast, logger, keys_source, config, 0);
 
-	LDKCVecChannelDetails channels = ChannelManager_list_channels(&cm);
+	LDKCVec_ChannelDetailsZ channels = ChannelManager_list_channels(&cm);
+	assert((unsigned long)channels.data < 4096); // There's an offset, but it should still be an offset against null in the 0 page
 	assert(channels.datalen == 0);
-	CVecChannelDetails_free(channels);
+	CVec_ChannelDetailsZ_free(channels);
+
+	LDKEventsProvider prov = ChannelManager_as_EventsProvider(&cm);
+	LDKCVec_EventZ events = (prov.get_and_clear_pending_events)(prov.this_arg);
+	assert((unsigned long)events.data < 4096); // There's an offset, but it should still be an offset against null in the 0 page
+	assert(events.datalen == 0);
 
 	ChannelManager_free(cm);
 	KeysManager_free(keys);
 
 	// Check that passing empty vecs to rust doesn't blow it up:
-	LDKCVecHTLCUpdate empty_htlc_vec;
+	LDKCVec_HTLCUpdateZ empty_htlc_vec;
 	empty_htlc_vec.data = NULL;
 	empty_htlc_vec.datalen = 0;
-	CVecHTLCUpdate_free(empty_htlc_vec);
+	CVec_HTLCUpdateZ_free(empty_htlc_vec);
 }

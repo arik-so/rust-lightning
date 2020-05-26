@@ -4,12 +4,6 @@ use std::ffi::c_void;
 use bitcoin::hashes::Hash;
 use crate::c_types::TakePointer;
 
-use bitcoin::secp256k1::key::PublicKey as lnPublicKey;
-use bitcoin::secp256k1::Secp256k1 as lnSecp256k1;
-use bitcoin::secp256k1 as lnsecp256k1;
-use bitcoin::hashes::Hash as lnHash;
-use bitcoin::blockdata::script::Builder as lnBuilder;
-use bitcoin::blockdata::opcodes as lnopcodes;
 
 use lightning::routing::network_graph::NetGraphMsgHandler as lnNetGraphMsgHandlerImport;
 type lnNetGraphMsgHandler = lnNetGraphMsgHandlerImport<crate::chain::chaininterface::ChainWatchInterface, crate::util::logger::Logger>;
@@ -35,6 +29,17 @@ impl Drop for NetGraphMsgHandler {
 }
 #[no_mangle]
 pub extern "C" fn NetGraphMsgHandler_free(this_ptr: NetGraphMsgHandler) { }
+/// " Creates a new tracker of the actual state of the network of channels and nodes,"
+/// " assuming a fresh network graph."
+/// " Chain monitor is used to make sure announced channels exist on-chain,"
+/// " channel data is correct, and that the announcement is signed with"
+/// " channel owners' keys."
+#[no_mangle]
+pub extern "C" fn NetGraphMsgHandler_new(mut chain_monitor: crate::chain::chaininterface::ChainWatchInterface, mut logger: crate::util::logger::Logger) -> NetGraphMsgHandler {
+	let mut ret = lightning::routing::network_graph::NetGraphMsgHandler::new(chain_monitor, logger);
+	NetGraphMsgHandler { inner: Box::into_raw(Box::new(ret)) }
+}
+
 #[no_mangle]
 pub extern "C" fn NetGraphMsgHandler_as_RoutingMessageHandler(this_arg: *const NetGraphMsgHandler) -> crate::ln::msgs::RoutingMessageHandler {
 	crate::ln::msgs::RoutingMessageHandler {
@@ -49,26 +54,26 @@ pub extern "C" fn NetGraphMsgHandler_as_RoutingMessageHandler(this_arg: *const N
 	}
 }
 use lightning::ln::msgs::RoutingMessageHandler as RoutingMessageHandlerTraitImport;
-extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_node_announcement(this_arg: *const c_void, msg: &crate::ln::msgs::NodeAnnouncement) -> crate::c_types::CResultboolLightningError {
-	let mut ret = unsafe { &*(*(this_arg as *const NetGraphMsgHandler)).inner }.handle_node_announcement(unsafe { &*msg.inner });
-	let mut local_ret = match ret{ Ok(o) => crate::c_types::CResultTempl::good(o), Err(e) => crate::c_types::CResultTempl::err(crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)) }) };
+extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_node_announcement(this_arg: *const c_void, msg: &crate::ln::msgs::NodeAnnouncement) -> crate::c_types::derived::CResult_boolLightningErrorZ {
+	let mut ret = unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.handle_node_announcement(unsafe { &*msg.inner });
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)) } }) };
 	local_ret
 }
-extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_channel_announcement(this_arg: *const c_void, msg: &crate::ln::msgs::ChannelAnnouncement) -> crate::c_types::CResultboolLightningError {
-	let mut ret = unsafe { &*(*(this_arg as *const NetGraphMsgHandler)).inner }.handle_channel_announcement(unsafe { &*msg.inner });
-	let mut local_ret = match ret{ Ok(o) => crate::c_types::CResultTempl::good(o), Err(e) => crate::c_types::CResultTempl::err(crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)) }) };
+extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_channel_announcement(this_arg: *const c_void, msg: &crate::ln::msgs::ChannelAnnouncement) -> crate::c_types::derived::CResult_boolLightningErrorZ {
+	let mut ret = unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.handle_channel_announcement(unsafe { &*msg.inner });
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)) } }) };
 	local_ret
 }
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_htlc_fail_channel_update(this_arg: *const c_void, update: &crate::ln::msgs::HTLCFailChannelUpdate) {
-	unsafe { &*(*(this_arg as *const NetGraphMsgHandler)).inner }.handle_htlc_fail_channel_update(unsafe { &*update.inner })
+	unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.handle_htlc_fail_channel_update(unsafe { &*update.inner })
 }
-extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_channel_update(this_arg: *const c_void, msg: &crate::ln::msgs::ChannelUpdate) -> crate::c_types::CResultboolLightningError {
-	let mut ret = unsafe { &*(*(this_arg as *const NetGraphMsgHandler)).inner }.handle_channel_update(unsafe { &*msg.inner });
-	let mut local_ret = match ret{ Ok(o) => crate::c_types::CResultTempl::good(o), Err(e) => crate::c_types::CResultTempl::err(crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)) }) };
+extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_channel_update(this_arg: *const c_void, msg: &crate::ln::msgs::ChannelUpdate) -> crate::c_types::derived::CResult_boolLightningErrorZ {
+	let mut ret = unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.handle_channel_update(unsafe { &*msg.inner });
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)) } }) };
 	local_ret
 }
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_should_request_full_sync(this_arg: *const c_void, _node_id: crate::c_types::PublicKey) -> bool {
-	let mut ret = unsafe { &*(*(this_arg as *const NetGraphMsgHandler)).inner }.should_request_full_sync(&_node_id.into_rust());
+	let mut ret = unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.should_request_full_sync(&_node_id.into_rust());
 	ret
 }
 
@@ -177,13 +182,13 @@ pub extern "C" fn ChannelInfo_set_node_one(this_ptr: &mut ChannelInfo, mut val: 
 #[no_mangle]
 pub extern "C" fn ChannelInfo_get_one_to_two(this_ptr: &ChannelInfo) -> *const DirectionalChannelInfo {
 	let inner_val = &unsafe { &*this_ptr.inner }.one_to_two;
-	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else { Box::into_raw(Box::new(crate::routing::network_graph::DirectionalChannelInfo { inner: &(*inner_val.as_ref().unwrap()) } )) };
+	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::routing::network_graph::DirectionalChannelInfo { inner: &(*inner_val.as_ref().unwrap()) } )) } };
 	local_inner_val
 }
 /// " Details about the first direction of a channel"
 #[no_mangle]
 pub extern "C" fn ChannelInfo_set_one_to_two(this_ptr: &mut ChannelInfo, mut val: DirectionalChannelInfo) {
-	let mut local_val = if val.inner.is_null() { None } else { Some(*unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) }) };
+	let mut local_val = if val.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) } }) };
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelInfo) }.one_to_two = local_val;
 }
 /// " Source node of the second direction of a channel"
@@ -201,13 +206,13 @@ pub extern "C" fn ChannelInfo_set_node_two(this_ptr: &mut ChannelInfo, mut val: 
 #[no_mangle]
 pub extern "C" fn ChannelInfo_get_two_to_one(this_ptr: &ChannelInfo) -> *const DirectionalChannelInfo {
 	let inner_val = &unsafe { &*this_ptr.inner }.two_to_one;
-	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else { Box::into_raw(Box::new(crate::routing::network_graph::DirectionalChannelInfo { inner: &(*inner_val.as_ref().unwrap()) } )) };
+	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::routing::network_graph::DirectionalChannelInfo { inner: &(*inner_val.as_ref().unwrap()) } )) } };
 	local_inner_val
 }
 /// " Details about the second direction of a channel"
 #[no_mangle]
 pub extern "C" fn ChannelInfo_set_two_to_one(this_ptr: &mut ChannelInfo, mut val: DirectionalChannelInfo) {
-	let mut local_val = if val.inner.is_null() { None } else { Some(*unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) }) };
+	let mut local_val = if val.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) } }) };
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelInfo) }.two_to_one = local_val;
 }
 
@@ -324,8 +329,8 @@ pub extern "C" fn NodeAnnouncementInfo_set_alias(this_ptr: &mut NodeAnnouncement
 }
 /// " Internet-level addresses via which one can connect to the node"
 #[no_mangle]
-pub extern "C" fn NodeAnnouncementInfo_set_addresses(this_ptr: &mut NodeAnnouncementInfo, mut val: crate::c_types::CVecNetAddress) {
-	let mut local_val = Vec::new(); for mut item in val.into_rust().drain(..) { local_val.push(*unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) }); };
+pub extern "C" fn NodeAnnouncementInfo_set_addresses(this_ptr: &mut NodeAnnouncementInfo, mut val: crate::c_types::derived::CVec_NetAddressZ) {
+	let mut local_val = Vec::new(); for mut item in val.into_rust().drain(..) { local_val.push( { *unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) } }); };
 	unsafe { &mut *(this_ptr.inner as *mut lnNodeAnnouncementInfo) }.addresses = local_val;
 }
 
@@ -351,8 +356,8 @@ impl Drop for NodeInfo {
 pub extern "C" fn NodeInfo_free(this_ptr: NodeInfo) { }
 /// " All valid channels a node has announced"
 #[no_mangle]
-pub extern "C" fn NodeInfo_set_channels(this_ptr: &mut NodeInfo, mut val: crate::c_types::CVecu64) {
-	let mut local_val = Vec::new(); for mut item in val.into_rust().drain(..) { local_val.push(item); };
+pub extern "C" fn NodeInfo_set_channels(this_ptr: &mut NodeInfo, mut val: crate::c_types::derived::CVec_u64Z) {
+	let mut local_val = Vec::new(); for mut item in val.into_rust().drain(..) { local_val.push( { item }); };
 	unsafe { &mut *(this_ptr.inner as *mut lnNodeInfo) }.channels = local_val;
 }
 /// " Lowest fees enabling routing via any of the enabled, known channels to a node."
@@ -361,7 +366,7 @@ pub extern "C" fn NodeInfo_set_channels(this_ptr: &mut NodeInfo, mut val: crate:
 #[no_mangle]
 pub extern "C" fn NodeInfo_get_lowest_inbound_channel_fees(this_ptr: &NodeInfo) -> *const RoutingFees {
 	let inner_val = &unsafe { &*this_ptr.inner }.lowest_inbound_channel_fees;
-	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else { Box::into_raw(Box::new(crate::routing::network_graph::RoutingFees { inner: &(*inner_val.as_ref().unwrap()) } )) };
+	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::routing::network_graph::RoutingFees { inner: &(*inner_val.as_ref().unwrap()) } )) } };
 	local_inner_val
 }
 /// " Lowest fees enabling routing via any of the enabled, known channels to a node."
@@ -369,7 +374,7 @@ pub extern "C" fn NodeInfo_get_lowest_inbound_channel_fees(this_ptr: &NodeInfo) 
 /// " meaning they don't have to refer to the same channel."
 #[no_mangle]
 pub extern "C" fn NodeInfo_set_lowest_inbound_channel_fees(this_ptr: &mut NodeInfo, mut val: RoutingFees) {
-	let mut local_val = if val.inner.is_null() { None } else { Some(*unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) }) };
+	let mut local_val = if val.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) } }) };
 	unsafe { &mut *(this_ptr.inner as *mut lnNodeInfo) }.lowest_inbound_channel_fees = local_val;
 }
 /// " More information about a node from node_announcement."
@@ -378,7 +383,7 @@ pub extern "C" fn NodeInfo_set_lowest_inbound_channel_fees(this_ptr: &mut NodeIn
 #[no_mangle]
 pub extern "C" fn NodeInfo_get_announcement_info(this_ptr: &NodeInfo) -> *const NodeAnnouncementInfo {
 	let inner_val = &unsafe { &*this_ptr.inner }.announcement_info;
-	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else { Box::into_raw(Box::new(crate::routing::network_graph::NodeAnnouncementInfo { inner: &(*inner_val.as_ref().unwrap()) } )) };
+	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::routing::network_graph::NodeAnnouncementInfo { inner: &(*inner_val.as_ref().unwrap()) } )) } };
 	local_inner_val
 }
 /// " More information about a node from node_announcement."
@@ -386,14 +391,14 @@ pub extern "C" fn NodeInfo_get_announcement_info(this_ptr: &NodeInfo) -> *const 
 /// " a channel announcement, but before receiving a node announcement."
 #[no_mangle]
 pub extern "C" fn NodeInfo_set_announcement_info(this_ptr: &mut NodeInfo, mut val: NodeAnnouncementInfo) {
-	let mut local_val = if val.inner.is_null() { None } else { Some(*unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) }) };
+	let mut local_val = if val.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) } }) };
 	unsafe { &mut *(this_ptr.inner as *mut lnNodeInfo) }.announcement_info = local_val;
 }
 #[no_mangle]
-pub extern "C" fn NodeInfo_new(mut channels_arg: crate::c_types::CVecu64, mut lowest_inbound_channel_fees_arg: RoutingFees, mut announcement_info_arg: NodeAnnouncementInfo) -> NodeInfo {
-	let mut local_channels_arg = Vec::new(); for mut item in channels_arg.into_rust().drain(..) { local_channels_arg.push(item); };
-	let mut local_lowest_inbound_channel_fees_arg = if lowest_inbound_channel_fees_arg.inner.is_null() { None } else { Some(*unsafe { Box::from_raw(lowest_inbound_channel_fees_arg.inner.take_ptr() as *mut _) }) };
-	let mut local_announcement_info_arg = if announcement_info_arg.inner.is_null() { None } else { Some(*unsafe { Box::from_raw(announcement_info_arg.inner.take_ptr() as *mut _) }) };
+pub extern "C" fn NodeInfo_new(mut channels_arg: crate::c_types::derived::CVec_u64Z, mut lowest_inbound_channel_fees_arg: RoutingFees, mut announcement_info_arg: NodeAnnouncementInfo) -> NodeInfo {
+	let mut local_channels_arg = Vec::new(); for mut item in channels_arg.into_rust().drain(..) { local_channels_arg.push( { item }); };
+	let mut local_lowest_inbound_channel_fees_arg = if lowest_inbound_channel_fees_arg.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(lowest_inbound_channel_fees_arg.inner.take_ptr() as *mut _) } }) };
+	let mut local_announcement_info_arg = if announcement_info_arg.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(announcement_info_arg.inner.take_ptr() as *mut _) } }) };
 	NodeInfo { inner: Box::into_raw(Box::new(lnNodeInfo {
 		channels: local_channels_arg,
 		lowest_inbound_channel_fees: local_lowest_inbound_channel_fees_arg,

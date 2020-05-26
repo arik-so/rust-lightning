@@ -6,27 +6,6 @@ use std::ffi::c_void;
 use bitcoin::hashes::Hash;
 use crate::c_types::TakePointer;
 
-use bitcoin::blockdata::script::Script as lnScript;
-use bitcoin::blockdata::script::Builder as lnBuilder;
-use bitcoin::blockdata::opcodes as lnopcodes;
-use bitcoin::blockdata::transaction::TxIn as lnTxIn;
-use bitcoin::blockdata::transaction::TxOut as lnTxOut;
-use bitcoin::blockdata::transaction::OutPoint as lnOutPoint;
-use bitcoin::blockdata::transaction::Transaction as lnTransaction;
-use bitcoin::blockdata::transaction::SigHashType as lnSigHashType;
-use bitcoin::consensus::encode::Decodable as lnDecodable;
-use bitcoin::consensus::encode::Encodable as lnEncodable;
-use bitcoin::consensus::encode as lnencode;
-use bitcoin::util::bip143 as lnbip143;
-use bitcoin::hashes::Hash as lnHash;
-use bitcoin::hashes::HashEngine as lnHashEngine;
-use bitcoin::hash_types::Txid as lnTxid;
-use bitcoin::hash_types::PubkeyHash as lnPubkeyHash;
-use bitcoin::secp256k1::key::SecretKey as lnSecretKey;
-use bitcoin::secp256k1::key::PublicKey as lnPublicKey;
-use bitcoin::secp256k1::Secp256k1 as lnSecp256k1;
-use bitcoin::secp256k1::Signature as lnSignature;
-use bitcoin::secp256k1 as lnsecp256k1;
 
 use lightning::ln::chan_utils::TxCreationKeys as lnTxCreationKeysImport;
 type lnTxCreationKeys = lnTxCreationKeysImport;
@@ -316,8 +295,8 @@ pub extern "C" fn LocalCommitmentTransaction_set_feerate_per_kw(this_ptr: &mut L
 /// " ChannelKeys::sign_local_commitment() calls directly."
 /// " Channel value is amount locked in funding_outpoint."
 #[no_mangle]
-pub extern "C" fn LocalCommitmentTransaction_get_local_sig(this_arg: &LocalCommitmentTransaction, funding_key: *const [u8; 32], funding_redeemscript: crate::c_types::Script, mut channel_value_satoshis: u64) -> crate::c_types::Signature {
-	let mut ret = unsafe { &*this_arg.inner }.get_local_sig(&::bitcoin::secp256k1::key::SecretKey::from_slice(&unsafe { *funding_key}[..]).unwrap(), &funding_redeemscript.into_bitcoin(), channel_value_satoshis, &bitcoin::secp256k1::Secp256k1::new());
+pub extern "C" fn LocalCommitmentTransaction_get_local_sig(this_arg: &LocalCommitmentTransaction, funding_key: *const [u8; 32], funding_redeemscript: crate::c_types::u8slice, mut channel_value_satoshis: u64) -> crate::c_types::Signature {
+	let mut ret = unsafe { &*this_arg.inner }.get_local_sig(&::bitcoin::secp256k1::key::SecretKey::from_slice(&unsafe { *funding_key}[..]).unwrap(), &::bitcoin::blockdata::script::Script::from(Vec::from(funding_redeemscript.to_slice())), channel_value_satoshis, &bitcoin::secp256k1::Secp256k1::new());
 	crate::c_types::Signature::from_rust(&ret)
 }
 

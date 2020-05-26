@@ -1,3 +1,5 @@
+pub mod derived;
+
 use bitcoin::Script as BitcoinScript;
 use bitcoin::Transaction as BitcoinTransaction;
 use bitcoin::secp256k1::key::PublicKey as SecpPublicKey;
@@ -51,26 +53,6 @@ impl Signature {
 }
 
 #[repr(C)]
-/// A reference to a script, in (pointer, length) form.
-/// This type does *not* own its own memory, so access to it after, eg, the call in which it was
-/// provided to you are invalid.
-pub struct Script {
-	pub data: *const u8,
-	pub datalen: usize
-}
-impl Script {
-	pub(crate) fn into_bitcoin(&self) -> BitcoinScript {
-		BitcoinScript::from(unsafe { std::slice::from_raw_parts(self.data, self.datalen) }.to_vec())
-	}
-	pub(crate) fn from_bitcoin(s: &BitcoinScript) -> Self {
-		Self {
-			data: s.as_bytes().as_ptr(),
-			datalen: s.len(),
-		}
-	}
-}
-
-#[repr(C)]
 /// A reference to a serialized transaction, in (pointer, length) form.
 /// This type does *not* own its own memory, so access to it after, eg, the call in which it was
 /// provided to you are invalid.
@@ -119,6 +101,9 @@ pub struct ThreeBytes {
 	pub data: [u8; 3],
 }
 
+// Note that the C++ headers memset(0) all the Templ types to avoid deallocation!
+// Thus, they must gracefully handle being completely null in _free.
+
 #[repr(C)]
 pub union CResultPtr<O, E> {
 	pub result: *mut O,
@@ -152,56 +137,21 @@ impl<O, E> Drop for CResultTempl<O, E> {
 	fn drop(&mut self) {
 		if self.result_good {
 			unsafe { Box::from_raw(self.contents.result) };
-		} else {
+		} else if unsafe { !self.contents.err.is_null() } {
 			unsafe { Box::from_raw(self.contents.err) };
 		}
 	}
 }
 
+// TODO: auto-generate these like we do the types:
 #[no_mangle]
-pub type CResultNoneAPIError = CResultTempl<u8, crate::util::errors::APIError>;
-#[no_mangle]
-pub static CResultNoneAPIError_free: extern "C" fn(CResultNoneAPIError) = CResultTempl_free::<u8, crate::util::errors::APIError>;
-
-#[no_mangle]
-pub type CResultNonePeerHandleError = CResultTempl<u8, crate::ln::peer_handler::PeerHandleError>;
-#[no_mangle]
-pub static CResultNonePeerHandleError_free: extern "C" fn(CResultNonePeerHandleError) = CResultTempl_free::<u8, crate::ln::peer_handler::PeerHandleError>;
-
-#[no_mangle]
-pub type CResultNonePaymentSendFailure = CResultTempl<u8, crate::ln::channelmanager::PaymentSendFailure>;
-#[no_mangle]
-pub static CResultNonePaymentSendFailure_free: extern "C" fn(CResultNonePaymentSendFailure) = CResultTempl_free::<u8, crate::ln::channelmanager::PaymentSendFailure>;
-
-#[no_mangle]
-pub type CResultboolLightningError = CResultTempl<bool, crate::ln::msgs::LightningError>;
-#[no_mangle]
-pub static CResultboolLightningError_free: extern "C" fn(CResultboolLightningError) = CResultTempl_free::<bool, crate::ln::msgs::LightningError>;
-
-#[no_mangle]
-pub type CResultSignatureNone = CResultTempl<Signature, u8>;
-#[no_mangle]
-pub static CResultSignatureNone_free: extern "C" fn(CResultSignatureNone) = CResultTempl_free::<Signature, u8>;
-
-#[no_mangle]
-pub type CResultboolPeerHandleError = CResultTempl<bool, crate::ln::peer_handler::PeerHandleError>;
-#[no_mangle]
-pub static CResultboolPeerHandleError_free: extern "C" fn(CResultboolPeerHandleError) = CResultTempl_free::<bool, crate::ln::peer_handler::PeerHandleError>;
-
-#[no_mangle]
-pub type CResultNoneChannelMonitorUpdateErr = CResultTempl<u8, crate::ln::channelmonitor::ChannelMonitorUpdateErr>;
-#[no_mangle]
-pub static CResultNoneChannelMonitorUpdateErr_free: extern "C" fn(CResultNoneChannelMonitorUpdateErr) = CResultTempl_free::<u8, crate::ln::channelmonitor::ChannelMonitorUpdateErr>;
-#[no_mangle]
-pub extern "C" fn CResultNoneChannelMonitorUpdateErr_good() -> CResultNoneChannelMonitorUpdateErr {
+pub extern "C" fn CResult_NoneChannelMonitorUpdateErrZ_good() -> derived::CResult_NoneChannelMonitorUpdateErrZ {
 	CResultTempl::good(0)
 }
 #[no_mangle]
 pub static CResultNoneChannelMonitorUpdateErr_err:
-	extern"C" fn(crate::ln::channelmonitor::ChannelMonitorUpdateErr) -> CResultNoneChannelMonitorUpdateErr =
+	extern"C" fn(crate::ln::channelmonitor::ChannelMonitorUpdateErr) -> derived::CResult_NoneChannelMonitorUpdateErrZ =
 	CResultTempl::<u8, crate::ln::channelmonitor::ChannelMonitorUpdateErr>::err;
-
-
 
 #[repr(C)]
 pub struct CVecTempl<T> {
@@ -223,56 +173,43 @@ impl<T> From<Vec<T>> for CVecTempl<T> {
 pub extern "C" fn CVecTempl_free<T>(_res: CVecTempl<T>) { }
 impl<T> Drop for CVecTempl<T> {
 	fn drop(&mut self) {
+		// datalen == 0 is will gracefully be ignored, so we don't have to handle data == null
+		// here.
 		unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.data, self.datalen)) };
 	}
 }
 
-#[no_mangle]
-pub type CVecChannelDetails = CVecTempl<crate::ln::channelmanager::ChannelDetails>;
-#[no_mangle]
-pub static CVecChannelDetails_free: extern "C" fn(CVecChannelDetails) = CVecTempl_free::<crate::ln::channelmanager::ChannelDetails>;
+#[repr(C)]
+pub struct C2TupleTempl<A, B> {
+	pub a: *mut A,
+	pub b: *mut B,
+}
+impl<A, B> From<(A, B)> for C2TupleTempl<A, B> {
+	fn from(tup: (A, B)) -> Self {
+		Self {
+			a: Box::into_raw(Box::new(tup.0)),
+			b: Box::into_raw(Box::new(tup.1)),
+		}
+	}
+}
+impl<A, B> C2TupleTempl<A, B> {
+	pub(crate) fn to_rust(self) -> (A, B) {
+		(unsafe { *Box::from_raw(self.a) }, unsafe { *Box::from_raw(self.b) })
+	}
+}
+pub extern "C" fn C2TupleTempl_free<A, B>(_res: C2TupleTempl<A, B>) { }
+impl<A, B> Drop for C2TupleTempl<A, B> {
+	fn drop(&mut self) {
+		if !self.a.is_null() {
+			unsafe { Box::from_raw(self.a) };
+		}
+		if !self.b.is_null() {
+			unsafe { Box::from_raw(self.b) };
+		}
+	}
+}
 
-#[no_mangle]
-pub type CVecUpdateAddHTLC = CVecTempl<crate::ln::msgs::UpdateAddHTLC>;
-#[no_mangle]
-pub static CVecUpdateAddHTLC_free: extern "C" fn(CVecUpdateAddHTLC) = CVecTempl_free::<crate::ln::msgs::UpdateAddHTLC>;
-
-#[no_mangle]
-pub type CVecUpdateFulfillHTLC = CVecTempl<crate::ln::msgs::UpdateFulfillHTLC>;
-#[no_mangle]
-pub static CVecUpdateFulfillHTLC_free: extern "C" fn(CVecUpdateFulfillHTLC) = CVecTempl_free::<crate::ln::msgs::UpdateFulfillHTLC>;
-
-#[no_mangle]
-pub type CVecUpdateFailHTLC = CVecTempl<crate::ln::msgs::UpdateFailHTLC>;
-#[no_mangle]
-pub static CVecUpdateFailHTLC_free: extern "C" fn(CVecUpdateFailHTLC) = CVecTempl_free::<crate::ln::msgs::UpdateFailHTLC>;
-
-#[no_mangle]
-pub type CVecUpdateFailMalformedHTLC = CVecTempl<crate::ln::msgs::UpdateFailMalformedHTLC>;
-#[no_mangle]
-pub static CVecUpdateFailMalformedHTLC_free: extern "C" fn(CVecUpdateFailMalformedHTLC) = CVecTempl_free::<crate::ln::msgs::UpdateFailMalformedHTLC>;
-
-#[no_mangle]
-pub type CVecHTLCUpdate = CVecTempl<crate::ln::channelmonitor::HTLCUpdate>;
-#[no_mangle]
-pub static CVecHTLCUpdate_free: extern "C" fn(CVecHTLCUpdate) = CVecTempl_free::<crate::ln::channelmonitor::HTLCUpdate>;
-
-#[no_mangle]
-pub type CVecNetAddress = CVecTempl<crate::ln::msgs::NetAddress>;
-#[no_mangle]
-pub static CVecNetAddress_free: extern "C" fn(CVecNetAddress) = CVecTempl_free::<crate::ln::msgs::NetAddress>;
-
-#[no_mangle]
-pub type CVecPublicKey = CVecTempl<PublicKey>;
-#[no_mangle]
-pub static CVecPublicKey_free: extern "C" fn(CVecPublicKey) = CVecTempl_free::<PublicKey>;
-
-#[no_mangle]
-pub type CVecu64 = CVecTempl<u64>;
-#[no_mangle]
-pub static CVecu64_free: extern "C" fn(CVecu64) = CVecTempl_free::<u64>;
-
-
+/// Utility to make it easy to set a pointer to null and get its original value in line.
 pub(crate) trait TakePointer<T> {
 	fn take_ptr(&mut self) -> *const T;
 }

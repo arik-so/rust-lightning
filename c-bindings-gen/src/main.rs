@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -48,7 +48,7 @@ fn println_docs<W: std::io::Write>(w: &mut W, attrs: &[syn::Attribute], prefix: 
 	}
 }
 
-fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, associated_types: &HashMap<&syn::Ident, &syn::Ident>, this_param: &str, types: &TypeResolver, generics: Option<&GenericTypes>, self_ptr: bool, fn_decl: bool) {
+fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, associated_types: &HashMap<&syn::Ident, &syn::Ident>, this_param: &str, types: &mut TypeResolver, generics: Option<&GenericTypes>, self_ptr: bool, fn_decl: bool) {
 	if sig.constness.is_some() || sig.asyncness.is_some() || sig.unsafety.is_some() ||
 			sig.abi.is_some() || sig.variadic.is_some() || sig.generics.where_clause.is_some() {
 		unimplemented!();
@@ -318,7 +318,7 @@ macro_rules! walk_supertraits { ($t: expr, $types: expr, ($( $pat: pat => $e: ex
 	}
 } } }
 
-fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types: &mut TypeResolver<'a>) {
+fn println_trait<'a, 'b, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types: &mut TypeResolver<'b, 'a>, cpp_headers: &mut File) {
 	let trait_name = format!("{}", t.ident);
 	match export_status(&t.attrs) {
 		ExportStatus::Export => {},
@@ -490,10 +490,14 @@ fn println_trait<'a, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types:
 	writeln!(w, "// directly as a Deref trait in higher-level structs:").unwrap();
 	writeln!(w, "impl std::ops::Deref for {} {{\n\ttype Target = Self;", trait_name).unwrap();
 	writeln!(w, "\tfn deref(&self) -> &Self {{\n\t\tself\n\t}}\n}}").unwrap();
+
+	// TODO: We should really define an abstract base class instead of a typedef here, but that
+	// requires a ton of tweaking, sadly.
+	writeln!(cpp_headers, "typedef LDK{} {};", trait_name, trait_name).unwrap();
 	types.trait_declared(&t.ident, t);
 }
 
-fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name: &str, generics: &syn::Generics, attrs: &[syn::Attribute], types: &TypeResolver, extra_headers: &mut File) {
+fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name: &str, generics: &syn::Generics, attrs: &[syn::Attribute], types: &TypeResolver, extra_headers: &mut File, cpp_headers: &mut File) {
 	// If we directly read the original type by its original name, cbindgen hits
 	// https://github.com/eqrion/cbindgen/issues/286 Thus, instead, we import it as a temporary
 	// name and then reference it by that name, which works around the issue.
@@ -509,9 +513,19 @@ fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name:
 	writeln!(w, "\t\tif !self.inner.is_null() {{").unwrap();
 	writeln!(w, "\t\t\tlet _ = unsafe {{ Box::from_raw(self.inner as *mut ln{}) }};\n\t\t}}\n\t}}\n}}", struct_name).unwrap();
 	writeln!(w, "#[no_mangle]\npub extern \"C\" fn {}_free(this_ptr: {}) {{ }}", struct_name, struct_name).unwrap();
+	writeln!(cpp_headers, "class {} {{\nprivate:", ident).unwrap();
+	writeln!(cpp_headers, "\tLDK{} self;", ident).unwrap();
+	writeln!(cpp_headers, "public:").unwrap();
+	writeln!(cpp_headers, "\t{}(const {}&) = delete;", ident, ident).unwrap();
+	writeln!(cpp_headers, "\t~{}() {{ {}_free(self); }}", ident, ident).unwrap();
+	writeln!(cpp_headers, "\t{}({}&& o) : self(o.self) {{ o.self.inner = NULL; }}", ident, ident).unwrap();
+	writeln!(cpp_headers, "\t{}(LDK{}&& m_self) : self(m_self) {{ m_self.inner = NULL; }}", ident, ident).unwrap();
+	writeln!(cpp_headers, "\toperator LDK{}() {{ LDK{} res = self; self.inner = NULL; return res; }}", ident, ident).unwrap();
+	writeln!(cpp_headers, "\tLDK{}* operator &() {{ return &self; }}", ident).unwrap();
+	writeln!(cpp_headers, "}};").unwrap();
 }
 
-fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, types: &mut TypeResolver, extra_headers: &mut File) {
+fn println_struct<'a, 'b, W: std::io::Write>(w: &mut W, s: &'a syn::ItemStruct, types: &mut TypeResolver<'b, 'a>, extra_headers: &mut File, cpp_headers: &mut File) {
 	let struct_name = &format!("{}", s.ident);
 	let export = export_status(&s.attrs);
 	match export {
@@ -523,7 +537,7 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, types: &mut
 		}
 	}
 
-	println_opaque(w, &s.ident, struct_name, &s.generics, &s.attrs, types, extra_headers);
+	println_opaque(w, &s.ident, struct_name, &s.generics, &s.attrs, types, extra_headers, cpp_headers);
 
 	eprintln!("exporting fields for {}", struct_name);
 	if let syn::Fields::Named(fields) = &s.fields {
@@ -610,7 +624,7 @@ fn println_struct<W: std::io::Write>(w: &mut W, s: &syn::ItemStruct, types: &mut
 	types.struct_imported(&s.ident, struct_name.clone());
 }
 
-fn println_impl<W: std::io::Write>(w: &mut W, i: &syn::ItemImpl, types: &TypeResolver) {
+fn println_impl<W: std::io::Write>(w: &mut W, i: &syn::ItemImpl, types: &mut TypeResolver) {
 	if let &syn::Type::Path(ref p) = &*i.self_ty {
 		if p.qself.is_some() { unimplemented!(); }
 		if let Some(ident) = single_ident_generic_path_to_ident(&p.path) {
@@ -626,7 +640,7 @@ fn println_impl<W: std::io::Write>(w: &mut W, i: &syn::ItemImpl, types: &TypeRes
 					if types.understood_c_path(&trait_path.1) {
 eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 						let full_trait_path = types.resolve_path(&trait_path.1);
-						let trait_obj = types.crate_types.traits.get(&full_trait_path).unwrap();
+						let trait_obj = *types.crate_types.traits.get(&full_trait_path).unwrap();
 						let export = export_status(&trait_obj.attrs);
 						match export {
 							ExportStatus::Export => {},
@@ -635,21 +649,26 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_as_{}(this_arg: *const {}) -> crate::{} {{\n", ident, trait_obj.ident, ident, full_trait_path).unwrap();
 						write!(w, "\tcrate::{} {{\n\t\tthis_arg: unsafe {{ (*this_arg).inner as *mut c_void }},\n", full_trait_path).unwrap();
 
+						macro_rules! print_meth {
+							($m: expr, $trait: expr, $indent: expr) => {
+								let trait_method = $trait.items.iter().filter_map(|item| {
+									if let syn::TraitItem::Method(t_m) = item { Some(t_m) } else { None }
+								}).find(|trait_meth| trait_meth.sig.ident == $m.sig.ident).unwrap();
+								match export_status(&trait_method.attrs) {
+									ExportStatus::Export => {},
+									ExportStatus::NoExport => {
+										write!(w, "{}\t\t//XXX: Need to export {}\n", $indent, $m.sig.ident).unwrap();
+										continue;
+									},
+									ExportStatus::TestOnly => continue,
+								}
+								write!(w, "{}\t\t{}: {}_{}_{},\n", $indent, $m.sig.ident, ident, trait_obj.ident, $m.sig.ident).unwrap();
+							}
+						}
 						for item in i.items.iter() {
 							match item {
 								syn::ImplItem::Method(m) => {
-									let trait_method = trait_obj.items.iter().filter_map(|item| {
-										if let syn::TraitItem::Method(t_m) = item { Some(t_m) } else { None }
-									}).find(|trait_meth| trait_meth.sig.ident == m.sig.ident).unwrap();
-									match export_status(&trait_method.attrs) {
-										ExportStatus::Export => {},
-										ExportStatus::NoExport => {
-											write!(w, "\t\t//XXX: Need to export {}\n", m.sig.ident).unwrap();
-											continue;
-										},
-										ExportStatus::TestOnly => continue,
-									}
-									write!(w, "\t\t{}: {}_{}_{},\n", m.sig.ident, ident, trait_obj.ident, m.sig.ident).unwrap();
+									print_meth!(m, trait_obj, "");
 								},
 								_ => {},
 							}
@@ -658,46 +677,75 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 							(s, t) => {
 								if s.starts_with("util::") {
 									let supertrait_obj = types.crate_types.traits.get(s).unwrap();
-									write!(w, "\t\t{}: crate::{} {{\t\t\tthis_arg: unsafe {{ (*this_arg).inner as *mut c_void }},\n", t, s).unwrap();
-									// TODO: Expose supertrait methods
+									write!(w, "\t\t{}: crate::{} {{\n\t\t\tthis_arg: unsafe {{ (*this_arg).inner as *mut c_void }},\n", t, s).unwrap();
+									for item in supertrait_obj.items.iter() {
+										match item {
+											syn::TraitItem::Method(m) => {
+												print_meth!(m, supertrait_obj, "\t");
+											},
+											_ => {},
+										}
+									}
 									write!(w, "\t\t}},\n").unwrap();
 								}
 							}
 						) );
 						write!(w, "\t}}\n}}\nuse {}::{} as {}TraitImport;\n", types.orig_crate, full_trait_path, trait_obj.ident).unwrap();
 
+						macro_rules! impl_meth {
+							($m: expr, $trait: expr, $indent: expr) => {
+								let trait_method = $trait.items.iter().filter_map(|item| {
+									if let syn::TraitItem::Method(t_m) = item { Some(t_m) } else { None }
+								}).find(|trait_meth| trait_meth.sig.ident == $m.sig.ident).unwrap();
+								match export_status(&trait_method.attrs) {
+									ExportStatus::Export => {},
+									ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+								}
+								write!(w, "extern \"C\" fn {}_{}_{}(", ident, trait_obj.ident, $m.sig.ident).unwrap();
+								print_method_params(w, &$m.sig, &HashMap::new(), "c_void", types, Some(&gen_types), true, true);
+								write!(w, " {{\n\t").unwrap();
+								print_method_var_decl_body(w, &$m.sig, "", types, Some(&gen_types), false);
+								let mut takes_self = false;
+								for inp in $m.sig.inputs.iter() {
+									if let syn::FnArg::Receiver(_) = inp {
+										takes_self = true;
+									}
+								}
+								if takes_self {
+									write!(w, "unsafe {{ &mut *(this_arg as *mut ln{}) }}.{}(", ident, $m.sig.ident).unwrap();
+								} else {
+									write!(w, "lightning::{}::{}(", resolved_path, $m.sig.ident).unwrap();
+								}
+								print_method_call_params(w, &$m.sig, "", types, Some(&gen_types), "", false);
+								write!(w, "\n}}\n").unwrap();
+							}
+						}
+
 						for item in i.items.iter() {
 							match item {
 								syn::ImplItem::Method(m) => {
-									let trait_method = trait_obj.items.iter().filter_map(|item| {
-										if let syn::TraitItem::Method(t_m) = item { Some(t_m) } else { None }
-									}).find(|trait_meth| trait_meth.sig.ident == m.sig.ident).unwrap();
-									match export_status(&trait_method.attrs) {
-										ExportStatus::Export => {},
-										ExportStatus::NoExport|ExportStatus::TestOnly => continue,
-									}
-									write!(w, "extern \"C\" fn {}_{}_{}(", ident, trait_obj.ident, m.sig.ident).unwrap();
-									print_method_params(w, &m.sig, &HashMap::new(), "c_void", types, Some(&gen_types), true, true);
-									write!(w, " {{\n\t").unwrap();
-									print_method_var_decl_body(w, &m.sig, "", types, Some(&gen_types), false);
-									let mut takes_self = false;
-									for inp in m.sig.inputs.iter() {
-										if let syn::FnArg::Receiver(_) = inp {
-											takes_self = true;
-										}
-									}
-									if takes_self {
-										write!(w, "unsafe {{ &*(*(this_arg as *const {})).inner }}.{}(", ident, m.sig.ident).unwrap();
-									} else {
-										write!(w, "lightning::{}::{}(", resolved_path, m.sig.ident).unwrap();
-									}
-									print_method_call_params(w, &m.sig, "", types, Some(&gen_types), "", false);
-									write!(w, "\n}}\n").unwrap();
+									impl_meth!(m, trait_obj, "");
 								},
 								syn::ImplItem::Type(_) => {},
 								_ => unimplemented!(),
 							}
 						}
+						walk_supertraits!(trait_obj, types, (
+							(s, t) => {
+								if s.starts_with("util::") {
+									writeln!(w, "use lightning::{} as ln{}Trait;", s, t).unwrap();
+									let supertrait_obj = *types.crate_types.traits.get(s).unwrap();
+									for item in supertrait_obj.items.iter() {
+										match item {
+											syn::TraitItem::Method(m) => {
+												impl_meth!(m, supertrait_obj, "\t");
+											},
+											_ => {},
+										}
+									}
+								}
+							}
+						) );
 						write!(w, "\n").unwrap();
 					} else if let Some(trait_ident) = trait_path.1.get_ident() {
 						//XXX: implement for other things like ToString
@@ -713,8 +761,7 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 						}
 					}
 				} else {
-					let declared_type = types.get_declared_type(&ident).unwrap();
-eprintln!("GOOOOOO {}", ident);
+					let declared_type = (*types.get_declared_type(&ident).unwrap()).clone();
 					for item in i.items.iter() {
 						match item {
 							syn::ImplItem::Method(m) => {
@@ -726,7 +773,7 @@ eprintln!("GOOOOOO {}", ident);
 									if m.defaultness.is_some() { unimplemented!(); }
 									println_docs(w, &m.attrs, "");
 									write!(w, "#[no_mangle]\npub extern \"C\" fn {}_{}(", ident, m.sig.ident).unwrap();
-									let ret_type = match declared_type {
+									let ret_type = match &declared_type {
 										DeclType::MirroredEnum => format!("{}", ident),
 										DeclType::StructImported(newname) => format!("{}", newname),
 										_ => unimplemented!(),
@@ -773,7 +820,7 @@ fn is_enum_opaque(e: &syn::ItemEnum) -> bool {
 	false
 }
 
-fn println_enum<W: std::io::Write>(w: &mut W, e: &syn::ItemEnum, types: &mut TypeResolver, extra_headers: &mut File) {
+fn println_enum<'a, 'b, W: std::io::Write>(w: &mut W, e: &'a syn::ItemEnum, types: &mut TypeResolver<'b, 'a>, extra_headers: &mut File, cpp_headers: &mut File) {
 	match export_status(&e.attrs) {
 		ExportStatus::Export => {},
 		ExportStatus::NoExport|ExportStatus::TestOnly => return,
@@ -781,7 +828,7 @@ fn println_enum<W: std::io::Write>(w: &mut W, e: &syn::ItemEnum, types: &mut Typ
 
 	if is_enum_opaque(e) {
 		eprintln!("Skipping enum {} as it contains non-unit fields", e.ident);
-		println_opaque(w, &e.ident, &format!("{}", e.ident), &e.generics, &e.attrs, types, extra_headers);
+		println_opaque(w, &e.ident, &format!("{}", e.ident), &e.generics, &e.attrs, types, extra_headers, cpp_headers);
 		types.enum_ignored(&e.ident);
 		return;
 	}
@@ -810,13 +857,15 @@ fn println_enum<W: std::io::Write>(w: &mut W, e: &syn::ItemEnum, types: &mut Typ
 		writeln!(w, "\t\t\tln{}::{} => {}::{},", e.ident, var.ident, e.ident, var.ident).unwrap();
 	}
 	writeln!(w, "\t\t}}\n\t}}\n}}").unwrap();
+
+	writeln!(cpp_headers, "typedef LDK{} {};", e.ident, e.ident).unwrap();
 }
 
 struct FullLibraryAST {
 	files: HashMap<String, syn::File>,
 }
 
-fn convert_file(libast: &FullLibraryAST, crate_types: &CrateTypes, path: &str, out_path: &str, orig_crate: &str, module: &str, header_file: &mut File) {
+fn convert_file<'a, 'b>(libast: &'a FullLibraryAST, crate_types: &mut CrateTypes<'a>, path: &str, out_path: &str, orig_crate: &str, module: &str, header_file: &mut File, cpp_header_file: &mut File) {
 	eprintln!("Converting {}...", path);
 
 	let syntax = if let Some(ast) = libast.files.get(module) { ast } else { return };
@@ -828,8 +877,6 @@ fn convert_file(libast: &FullLibraryAST, crate_types: &CrateTypes, path: &str, o
 
 	assert_eq!(export_status(&syntax.attrs), ExportStatus::Export);
 	println_docs(&mut out, &syntax.attrs, "");
-
-	let mut type_resolver = TypeResolver::new(orig_crate, module, crate_types);
 
 	if path.ends_with("/lib.rs") {
 		writeln!(out, "#![allow(non_camel_case_types)]").unwrap();
@@ -847,26 +894,6 @@ fn convert_file(libast: &FullLibraryAST, crate_types: &CrateTypes, path: &str, o
 
 	for item in syntax.items.iter() {
 		match item {
-			syn::Item::Use(u) => type_resolver.process_use(&mut out, &u),
-			syn::Item::Static(_) => {},
-			syn::Item::Enum(e) => {
-				if let syn::Visibility::Public(_) = e.vis {
-					println_enum(&mut out, &e, &mut type_resolver, header_file);
-				}
-			},
-			syn::Item::Impl(i) => {
-				println_impl(&mut out, &i, &type_resolver);
-			},
-			syn::Item::Struct(s) => {
-				if let syn::Visibility::Public(_) = s.vis {
-					println_struct(&mut out, &s, &mut type_resolver, header_file);
-				}
-			},
-			syn::Item::Trait(t) => {
-				if let syn::Visibility::Public(_) = t.vis {
-					println_trait(&mut out, &t, &mut type_resolver);
-				}
-			},
 			syn::Item::Mod(m) => {
 				if let syn::Visibility::Public(_) = m.vis {
 					match export_status(&m.attrs) {
@@ -882,17 +909,46 @@ fn convert_file(libast: &FullLibraryAST, crate_types: &CrateTypes, path: &str, o
 						writeln!(out, "pub mod {};", m.ident).unwrap();
 						convert_file(libast, crate_types, &f_path,
 							&format!("{}/{}.rs", (out_path.as_ref() as &Path).parent().unwrap().display(), m.ident),
-							orig_crate, &new_mod, header_file);
+							orig_crate, &new_mod, header_file, cpp_header_file);
 					} else {
 						let f_path = format!("{}/{}/mod.rs", (path.as_ref() as &Path).parent().unwrap().display(), m.ident);
 						println_docs(&mut out, &m.attrs, "");
 						writeln!(out, "pub mod {};", m.ident).unwrap();
 						convert_file(libast, crate_types, &f_path,
 							&format!("{}/{}/mod.rs", (out_path.as_ref() as &Path).parent().unwrap().display(), m.ident),
-							orig_crate, &new_mod, header_file);
+							orig_crate, &new_mod, header_file, cpp_header_file);
 					}
 				}
 			},
+			_ => {},
+		}
+	}
+
+	let mut type_resolver = TypeResolver::new(orig_crate, module, crate_types);
+
+	for item in syntax.items.iter() {
+		match item {
+			syn::Item::Use(u) => type_resolver.process_use(&mut out, &u),
+			syn::Item::Static(_) => {},
+			syn::Item::Enum(e) => {
+				if let syn::Visibility::Public(_) = e.vis {
+					println_enum(&mut out, &e, &mut type_resolver, header_file, cpp_header_file);
+				}
+			},
+			syn::Item::Impl(i) => {
+				println_impl(&mut out, &i, &mut type_resolver);
+			},
+			syn::Item::Struct(s) => {
+				if let syn::Visibility::Public(_) = s.vis {
+					println_struct(&mut out, &s, &mut type_resolver, header_file, cpp_header_file);
+				}
+			},
+			syn::Item::Trait(t) => {
+				if let syn::Visibility::Public(_) = t.vis {
+					println_trait(&mut out, &t, &mut type_resolver, cpp_header_file);
+				}
+			},
+			syn::Item::Mod(_) => {},
 			syn::Item::Const(_c) => {
 				//XXX
 			},
@@ -903,7 +959,7 @@ fn convert_file(libast: &FullLibraryAST, crate_types: &CrateTypes, path: &str, o
 						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
 					}
 					if t.generics.lt_token.is_none() {
-						println_opaque(&mut out, &t.ident, &format!("{}", t.ident), &t.generics, &t.attrs, &type_resolver, header_file);
+						println_opaque(&mut out, &t.ident, &format!("{}", t.ident), &t.generics, &t.attrs, &type_resolver, header_file, cpp_header_file);
 					}
 				}
 			},
@@ -1030,21 +1086,42 @@ fn walk_ast<'a>(path: &str, module: String, ast_storage: &'a FullLibraryAST, cra
 
 fn main() {
 	let args: Vec<String> = env::args().collect();
-	if args.len() != 5 {
-		eprintln!("Usage: source/dir target/dir source_crate_name module::path extra/includes.h");
+	if args.len() != 7 {
+		eprintln!("Usage: source/dir target/dir source_crate_name module::path derived_templates.rs extra/includes.h extra/cpp/includes.hpp");
 		process::exit(1);
 	}
 
-	let mut header_file = std::fs::OpenOptions::new().write(true).truncate(true)
+	let mut derived_templates = std::fs::OpenOptions::new().write(true).create(true).truncate(true)
 		.open(&args[4]).expect("Unable to open new header file");
+	let mut header_file = std::fs::OpenOptions::new().write(true).create(true).truncate(true)
+		.open(&args[5]).expect("Unable to open new header file");
+	let mut cpp_header_file = std::fs::OpenOptions::new().write(true).create(true).truncate(true)
+		.open(&args[6]).expect("Unable to open new header file");
+	writeln!(cpp_header_file, "#include <string.h>\nnamespace LDK {{").unwrap();
 
 	let mut libast = FullLibraryAST { files: HashMap::new() };
 	load_ast(&(args[1].clone() + "/lib.rs"), "".to_string(), &mut libast);
 
-	let mut libtypes = CrateTypes { traits: HashMap::new(), trait_impls: HashMap::new(), opaques: HashMap::new() };
+	let mut libtypes = CrateTypes { traits: HashMap::new(), trait_impls: HashMap::new(), opaques: HashMap::new(),
+		templates_defined: HashSet::new(), template_file: &mut derived_templates };
 	walk_ast(&(args[1].clone() + "/lib.rs"), "".to_string(), &libast, &mut libtypes);
 
-	convert_file(&libast, &libtypes, &(args[1].clone() + "/lib.rs"), &(args[2].clone() + "lib.rs"), &args[3], "", &mut header_file);
+	convert_file(&libast, &mut libtypes, &(args[1].clone() + "/lib.rs"), &(args[2].clone() + "lib.rs"), &args[3], "", &mut header_file, &mut cpp_header_file);
+
+	for ty in libtypes.templates_defined.iter() {
+		writeln!(cpp_header_file, "struct {} {{", ty).unwrap();
+		writeln!(cpp_header_file, "\tLDK{} self;", ty).unwrap();
+		writeln!(cpp_header_file, "\t{}(const {}&) = delete;", ty, ty).unwrap();
+		writeln!(cpp_header_file, "\t~{}() {{ {}_free(self); }}", ty, ty).unwrap();
+		writeln!(cpp_header_file, "\t{}({}&& o) : self(o.self) {{ memset(&o, 0, sizeof({})); }}", ty, ty, ty).unwrap();
+		writeln!(cpp_header_file, "\t{}(LDK{}&& m_self) : self(m_self) {{ memset(&m_self, 0, sizeof(LDK{})); }}", ty, ty, ty).unwrap();
+		writeln!(cpp_header_file, "\toperator LDK{}() {{ LDK{} res = self; memset(&self, 0, sizeof(LDK{})); return res; }}", ty, ty, ty).unwrap();
+		writeln!(cpp_header_file, "\tLDK{}* operator &() {{ return &self; }}", ty).unwrap();
+		writeln!(cpp_header_file, "}};").unwrap();
+	}
+	writeln!(cpp_header_file, "}}").unwrap();
 
 	header_file.flush().unwrap();
+	cpp_header_file.flush().unwrap();
+	derived_templates.flush().unwrap();
 }

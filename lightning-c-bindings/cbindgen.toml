@@ -34,15 +34,15 @@ include_version = true
 
 # An optional namespace to output around the generated bindings
 # default: doesn't emit a namespace
-namespace = "ffi"
+namespace = "LDK"
 
 # An optional list of namespaces to output around the generated bindings
 # default: []
-namespaces = ["mozilla", "wr"]
+namespaces = []
 
 # An optional list of namespaces to declare as using with "using namespace"
 # default: []
-using_namespaces = ["mozilla", "wr"]
+using_namespaces = []
 
 # A list of sys headers to #include (with angle brackets)
 # default: []

@@ -7,7 +7,6 @@ use std::ffi::c_void;
 use bitcoin::hashes::Hash;
 use crate::c_types::TakePointer;
 
-use bitcoin::secp256k1::key::PublicKey as lnPublicKey;
 
 use lightning::routing::router::RouteHop as lnRouteHopImport;
 type lnRouteHop = lnRouteHopImport;
@@ -97,6 +96,24 @@ impl Drop for Route {
 }
 #[no_mangle]
 pub extern "C" fn Route_free(this_ptr: Route) { }
+/// " The list of routes taken for a single (potentially-)multi-part payment. The pubkey of the"
+/// " last RouteHop in each path must be the same."
+/// " Each entry represents a list of hops, NOT INCLUDING our own, where the last hop is the"
+/// " destination. Thus, this must always be at least length one. While the maximum length of any"
+/// " given path is variable, keeping the length of any path to less than 20 should currently"
+/// " ensure it is viable."
+#[no_mangle]
+pub extern "C" fn Route_set_paths(this_ptr: &mut Route, mut val: crate::c_types::derived::CVec_CVec_RouteHopZZ) {
+	let mut local_val = Vec::new(); for mut item in val.into_rust().drain(..) { local_val.push( { let mut local_val_0 = Vec::new(); for mut item in item.into_rust().drain(..) { local_val_0.push( { *unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) } }); }; local_val_0 }); };
+	unsafe { &mut *(this_ptr.inner as *mut lnRoute) }.paths = local_val;
+}
+#[no_mangle]
+pub extern "C" fn Route_new(mut paths_arg: crate::c_types::derived::CVec_CVec_RouteHopZZ) -> Route {
+	let mut local_paths_arg = Vec::new(); for mut item in paths_arg.into_rust().drain(..) { local_paths_arg.push( { let mut local_paths_arg_0 = Vec::new(); for mut item in item.into_rust().drain(..) { local_paths_arg_0.push( { *unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) } }); }; local_paths_arg_0 }); };
+	Route { inner: Box::into_raw(Box::new(lnRoute {
+		paths: local_paths_arg,
+	}))}
+}
 
 use lightning::routing::router::RouteHint as lnRouteHintImport;
 type lnRouteHint = lnRouteHintImport;

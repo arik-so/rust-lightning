@@ -4,7 +4,6 @@ use std::ffi::c_void;
 use bitcoin::hashes::Hash;
 use crate::c_types::TakePointer;
 
-use bitcoin::hash_types::Txid as lnTxid;
 
 use lightning::chain::transaction::OutPoint as lnOutPointImport;
 type lnOutPoint = lnOutPointImport;
