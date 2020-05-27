@@ -104,6 +104,9 @@ pub struct ThreeBytes {
 // Note that the C++ headers memset(0) all the Templ types to avoid deallocation!
 // Thus, they must gracefully handle being completely null in _free.
 
+// TODO: Integer/bool primitives should avoid the pointer indirection for underlying types
+// everywhere in the containers.
+
 #[repr(C)]
 pub union CResultPtr<O, E> {
 	pub result: *mut O,
