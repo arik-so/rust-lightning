@@ -112,6 +112,8 @@ fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, assoc
 			write!(w, " -> ").unwrap();
 			if let Some(mut remaining_path) = first_seg_self(&*rtype) {
 				if let Some(associated_seg) = get_single_remaining_path_seg(&mut remaining_path) {
+					// We're returning an associated type in a trait impl. Its probably a safe bet
+					// that its also a trait, so just return the trait type.
 					let real_type = associated_types.get(associated_seg).unwrap();
 					types.print_c_type(w, &syn::Type::Path(syn::TypePath { qself: None,
 						path: syn::PathSegment {
@@ -177,7 +179,7 @@ fn print_method_var_decl_body<W: std::io::Write>(w: &mut W, sig: &syn::Signature
 	}
 }
 
-fn print_method_call_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, extra_indent: &str, types: &TypeResolver, generics: Option<&GenericTypes>, this_type: &str, to_c: bool) {
+fn print_method_call_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, associated_types: &HashMap<&syn::Ident, &syn::Ident>, extra_indent: &str, types: &TypeResolver, generics: Option<&GenericTypes>, this_type: &str, to_c: bool) {
 	let mut first_arg = true;
 	let mut num_unused = 0;
 	for inp in sig.inputs.iter() {
@@ -241,7 +243,33 @@ fn print_method_call_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, 
 	match &sig.output {
 		syn::ReturnType::Type(_, rtype) => {
 			write!(w, ";\n\t{}", extra_indent).unwrap();
-			if !to_c && first_seg_self(&*rtype).is_some() {
+
+			if to_c && first_seg_self(&*rtype).is_some() {
+				// Assume rather blindly that we're returning an associated trait from a C fn call to a Rust trait object.
+				write!(w, "ret").unwrap();
+			} else if !to_c && first_seg_self(&*rtype).is_some() {
+				if let Some(mut remaining_path) = first_seg_self(&*rtype) {
+					if let Some(associated_seg) = get_single_remaining_path_seg(&mut remaining_path) {
+						let real_type = associated_types.get(associated_seg).unwrap();
+						if let Some(t) = types.crate_types.traits.get(&types.maybe_resolve_ident(&real_type).unwrap()) {
+							// We're returning an associated trait from a Rust fn call to a C trait
+							// object.
+							writeln!(w, "{} {{\n\t\t{}this_arg: Box::into_raw(Box::new(ret)) as *mut c_void,", t.ident, extra_indent).unwrap();
+							for i in t.items.iter() {
+								match i {
+									syn::TraitItem::Method(m) => {
+										if let ExportStatus::Export = export_status(&m.attrs) {
+											writeln!(w, "\t\t{}{}: {}_{}_{},", extra_indent, m.sig.ident, this_type, real_type, m.sig.ident).unwrap();
+										}
+									},
+									_ => {},
+								}
+							}
+							write!(w, "\t{}}}", extra_indent).unwrap();
+							return;
+						}
+					}
+				}
 				write!(w, "{} {{ inner: Box::into_raw(Box::new(ret)) }}", this_type).unwrap();
 			} else if to_c {
 				let new_var = types.print_from_c_conversion_new_var(w, &syn::Ident::new("ret", Span::call_site()), rtype, generics);
@@ -318,6 +346,28 @@ macro_rules! walk_supertraits { ($t: expr, $types: expr, ($( $pat: pat => $e: ex
 	}
 } } }
 
+fn learn_associated_types<'a>(t: &'a syn::ItemTrait) -> HashMap<&'a syn::Ident, &'a syn::Ident> {
+	let mut associated_types = HashMap::new();
+	for item in t.items.iter() {
+		match item {
+			&syn::TraitItem::Type(ref t) => {
+				if t.default.is_some() || t.generics.lt_token.is_some() { unimplemented!(); }
+				let mut bounds_iter = t.bounds.iter();
+				match bounds_iter.next().unwrap() {
+					syn::TypeParamBound::Trait(tr) => {
+						assert_simple_bound(&tr);
+						associated_types.insert(&t.ident, assert_single_path_seg(&tr.path));
+					},
+					_ => unimplemented!(),
+				}
+				if bounds_iter.next().is_some() { unimplemented!(); }
+			},
+			_ => {},
+		}
+	}
+	associated_types
+}
+
 fn println_trait<'a, 'b, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types: &mut TypeResolver<'b, 'a>, cpp_headers: &mut File) {
 	let trait_name = format!("{}", t.ident);
 	match export_status(&t.attrs) {
@@ -337,7 +387,7 @@ fn println_trait<'a, 'b, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, ty
 	) );
 	writeln!(w, "#[repr(C)]\npub struct {} {{", trait_name).unwrap();
 	writeln!(w, "\tpub this_arg: *mut c_void,").unwrap();
-	let mut associated_types: HashMap<&syn::Ident, &syn::Ident> = HashMap::new();
+	let associated_types = learn_associated_types(t);
 	for item in t.items.iter() {
 		match item {
 			&syn::TraitItem::Method(ref m) => {
@@ -355,18 +405,7 @@ fn println_trait<'a, 'b, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, ty
 				print_method_params(w, &m.sig, &associated_types, "c_void", types, None, true, false);
 				writeln!(w, ",").unwrap();
 			},
-			&syn::TraitItem::Type(ref t) => {
-				if t.default.is_some() || t.generics.lt_token.is_some() { unimplemented!(); }
-				let mut bounds_iter = t.bounds.iter();
-				match bounds_iter.next().unwrap() {
-					syn::TypeParamBound::Trait(tr) => {
-						assert_simple_bound(&tr);
-						associated_types.insert(&t.ident, assert_single_path_seg(&tr.path));
-					},
-					_ => unimplemented!(),
-				}
-				if bounds_iter.next().is_some() { unimplemented!(); }
-			},
+			&syn::TraitItem::Type(_) => {},
 			_ => unimplemented!(),
 		}
 	}
@@ -467,7 +506,7 @@ fn println_trait<'a, 'b, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, ty
 				}
 				print_method_var_decl_body(w, &m.sig, "\t", types, None, true);
 				write!(w, "(self.{})(", m.sig.ident).unwrap();
-				print_method_call_params(w, &m.sig, "\t", types, None, "", true);
+				print_method_call_params(w, &m.sig, &associated_types, "\t", types, None, "", true);
 
 				writeln!(w, "\n\t}}").unwrap();
 			},
@@ -632,6 +671,7 @@ fn println_impl<W: std::io::Write>(w: &mut W, i: &syn::ItemImpl, types: &mut Typ
 				let mut gen_types = GenericTypes::new();
 				if !gen_types.learn_generics(&i.generics, types) {
 					eprintln!("Not implementing anything for impl {} due to not understood generics", ident);
+					return;
 				}
 
 				if i.defaultness.is_some() || i.unsafety.is_some() { unimplemented!(); }
@@ -641,6 +681,25 @@ fn println_impl<W: std::io::Write>(w: &mut W, i: &syn::ItemImpl, types: &mut Typ
 eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 						let full_trait_path = types.resolve_path(&trait_path.1);
 						let trait_obj = *types.crate_types.traits.get(&full_trait_path).unwrap();
+						// We learn the associated types maping from the original trait object.
+						// That's great, except that they are unresolved idents, so if we learn
+						// mappings from a trai defined in a different file, we may mis-resolve or
+						// fail to resolve the mapped types.
+						let trait_associated_types = learn_associated_types(trait_obj);
+						let mut impl_associated_types = HashMap::new();
+						for item in i.items.iter() {
+							match item {
+								syn::ImplItem::Type(t) => {
+									if let syn::Type::Path(p) = &t.ty {
+										if let Some(id) = single_ident_generic_path_to_ident(&p.path) {
+											impl_associated_types.insert(&t.ident, id);
+										}
+									}
+								},
+								_ => {},
+							}
+						}
+
 						let export = export_status(&trait_obj.attrs);
 						match export {
 							ExportStatus::Export => {},
@@ -665,9 +724,9 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 								write!(w, "{}\t\t{}: {}_{}_{},\n", $indent, $m.sig.ident, ident, trait_obj.ident, $m.sig.ident).unwrap();
 							}
 						}
-						for item in i.items.iter() {
+						for item in trait_obj.items.iter() {
 							match item {
-								syn::ImplItem::Method(m) => {
+								syn::TraitItem::Method(m) => {
 									print_meth!(m, trait_obj, "");
 								},
 								_ => {},
@@ -702,7 +761,7 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 									ExportStatus::NoExport|ExportStatus::TestOnly => continue,
 								}
 								write!(w, "extern \"C\" fn {}_{}_{}(", ident, trait_obj.ident, $m.sig.ident).unwrap();
-								print_method_params(w, &$m.sig, &HashMap::new(), "c_void", types, Some(&gen_types), true, true);
+								print_method_params(w, &$m.sig, &trait_associated_types, "c_void", types, Some(&gen_types), true, true);
 								write!(w, " {{\n\t").unwrap();
 								print_method_var_decl_body(w, &$m.sig, "", types, Some(&gen_types), false);
 								let mut takes_self = false;
@@ -716,7 +775,19 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 								} else {
 									write!(w, "lightning::{}::{}(", resolved_path, $m.sig.ident).unwrap();
 								}
-								print_method_call_params(w, &$m.sig, "", types, Some(&gen_types), "", false);
+
+								let mut real_type = "".to_string();
+								match &$m.sig.output {
+									syn::ReturnType::Type(_, rtype) => {
+										if let Some(mut remaining_path) = first_seg_self(&*rtype) {
+											if let Some(associated_seg) = get_single_remaining_path_seg(&mut remaining_path) {
+												real_type = format!("{}", impl_associated_types.get(associated_seg).unwrap());
+											}
+										}
+									},
+									_ => {},
+								}
+								print_method_call_params(w, &$m.sig, &trait_associated_types, "", types, Some(&gen_types), &real_type, false);
 								write!(w, "\n}}\n").unwrap();
 							}
 						}
@@ -796,7 +867,7 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 									} else {
 										write!(w, "lightning::{}::{}(", resolved_path, m.sig.ident).unwrap();
 									}
-									print_method_call_params(w, &m.sig, "", types, Some(&gen_types), &ret_type, false);
+									print_method_call_params(w, &m.sig, &HashMap::new(), "", types, Some(&gen_types), &ret_type, false);
 									writeln!(w, "\n}}\n").unwrap();
 								}
 							},

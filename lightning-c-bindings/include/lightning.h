@@ -135,6 +135,75 @@ typedef enum {
    Regtest,
 } LDKNetwork;
 
+typedef struct {
+   uint8_t compact_form[64];
+} LDKSignature;
+
+typedef union {
+   LDKSignature *result;
+   uint8_t *err;
+} LDKCResultPtr_Signature__u8;
+
+typedef struct {
+   LDKCResultPtr_Signature__u8 contents;
+   bool result_good;
+} LDKCResultTempl_Signature__u8;
+
+typedef LDKCResultTempl_Signature__u8 LDKCResult_SignatureNoneZ;
+
+
+
+/**
+ * " Indicates an error on the client's part (usually some variant of attempting to use too-low or"
+ * " too-high values)"
+ */
+typedef struct {
+   /**
+    * Nearly everyhwere, inner must be non-null, however in places where
+    *the Rust equivalent takes an Option, it may be set to null to indicate None.
+    */
+   const LDKlnAPIError *inner;
+} LDKAPIError;
+
+typedef union {
+   uint8_t *result;
+   LDKAPIError *err;
+} LDKCResultPtr_u8__APIError;
+
+typedef struct {
+   LDKCResultPtr_u8__APIError contents;
+   bool result_good;
+} LDKCResultTempl_u8__APIError;
+
+typedef LDKCResultTempl_u8__APIError LDKCResult_NoneAPIErrorZ;
+
+
+
+/**
+ * " If a payment fails to send, it can be in one of several states. This enum is returned as the"
+ * " Err() type describing which state the payment is in, see the description of individual enum"
+ * " states for more."
+ */
+typedef struct {
+   /**
+    * Nearly everyhwere, inner must be non-null, however in places where
+    *the Rust equivalent takes an Option, it may be set to null to indicate None.
+    */
+   const LDKlnPaymentSendFailure *inner;
+} LDKPaymentSendFailure;
+
+typedef union {
+   uint8_t *result;
+   LDKPaymentSendFailure *err;
+} LDKCResultPtr_u8__PaymentSendFailure;
+
+typedef struct {
+   LDKCResultPtr_u8__PaymentSendFailure contents;
+   bool result_good;
+} LDKCResultTempl_u8__PaymentSendFailure;
+
+typedef LDKCResultTempl_u8__PaymentSendFailure LDKCResult_NonePaymentSendFailureZ;
+
 typedef union {
    uint8_t *result;
    LDKChannelMonitorUpdateErr *err;
@@ -146,6 +215,35 @@ typedef struct {
 } LDKCResultTempl_u8__ChannelMonitorUpdateErr;
 
 typedef LDKCResultTempl_u8__ChannelMonitorUpdateErr LDKCResult_NoneChannelMonitorUpdateErrZ;
+
+
+
+/**
+ * " Error for PeerManager errors. If you get one of these, you must disconnect the socket and"
+ * " generate no further read_event/write_buffer_space_avail calls for the descriptor, only"
+ * " triggering a single socket_disconnected call (unless it was provided in response to a"
+ * " new_*_connection event, in which case no such socket_disconnected() must be called and the"
+ * " socket silently disconencted)."
+ */
+typedef struct {
+   /**
+    * Nearly everyhwere, inner must be non-null, however in places where
+    *the Rust equivalent takes an Option, it may be set to null to indicate None.
+    */
+   const LDKlnPeerHandleError *inner;
+} LDKPeerHandleError;
+
+typedef union {
+   uint8_t *result;
+   LDKPeerHandleError *err;
+} LDKCResultPtr_u8__PeerHandleError;
+
+typedef struct {
+   LDKCResultPtr_u8__PeerHandleError contents;
+   bool result_good;
+} LDKCResultTempl_u8__PeerHandleError;
+
+typedef LDKCResultTempl_u8__PeerHandleError LDKCResult_NonePeerHandleErrorZ;
 
 
 
@@ -178,20 +276,6 @@ typedef struct {
     */
    const LDKlnMessageSendEvent *inner;
 } LDKMessageSendEvent;
-
-
-
-/**
- * " Indicates an error on the client's part (usually some variant of attempting to use too-low or"
- * " too-high values)"
- */
-typedef struct {
-   /**
-    * Nearly everyhwere, inner must be non-null, however in places where
-    *the Rust equivalent takes an Option, it may be set to null to indicate None.
-    */
-   const LDKlnAPIError *inner;
-} LDKAPIError;
 
 
 
@@ -280,6 +364,21 @@ typedef struct {
 } LDKu8slice;
 
 /**
+ * Arbitrary 32 bytes, which could represent one of a few different things. You probably want to
+ * look up the corresponding function in rust-lightning's docs.
+ */
+typedef struct {
+   uint8_t data[32];
+} LDKThirtyTwoBytes;
+
+typedef struct {
+   LDKThirtyTwoBytes *a;
+   uint32_t *b;
+} LDKC2TupleTempl_ThirtyTwoBytes__u32;
+
+typedef LDKC2TupleTempl_ThirtyTwoBytes__u32 LDKC2Tuple_Txidu32Z;
+
+/**
  * A reference to a serialized transaction, in (pointer, length) form.
  * This type does *not* own its own memory, so access to it after, eg, the call in which it was
  * provided to you are invalid.
@@ -324,7 +423,7 @@ typedef struct {
    bool result_good;
 } LDKCResultTempl_C2TupleTempl_CVec_u8Z__u64_____ChainError;
 
-typedef LDKCResultTempl_C2TupleTempl_CVec_u8Z__u64_____ChainError LDKCResult_CTuple2_Scriptu64ZChainErrorZ;
+typedef LDKCResultTempl_C2TupleTempl_CVec_u8Z__u64_____ChainError LDKCResult_C2Tuple_Scriptu64ZChainErrorZ;
 
 /**
  * " An interface to request notification of certain scripts as they appear the"
@@ -341,6 +440,11 @@ typedef struct {
     */
    void (*install_watch_tx)(const void *this_arg, const uint8_t (*txid)[32], LDKu8slice script_pub_key);
    /**
+    * " Provides an outpoint which must be watched for, providing any transactions which spend the"
+    * " given outpoint."
+    */
+   void (*install_watch_outpoint)(const void *this_arg, LDKC2Tuple_Txidu32Z outpoint, LDKu8slice out_script);
+   /**
     * " Indicates that a listener needs to see all transactions."
     */
    void (*watch_all_txn)(const void *this_arg);
@@ -350,7 +454,7 @@ typedef struct {
     * " bytes are the block height, the next 3 the transaction index within the block, and the"
     * " final two the output within the transaction."
     */
-   LDKCResult_CTuple2_Scriptu64ZChainErrorZ (*get_chain_utxo)(const void *this_arg, uint8_t genesis_hash[32], uint64_t unspent_tx_output_identifier);
+   LDKCResult_C2Tuple_Scriptu64ZChainErrorZ (*get_chain_utxo)(const void *this_arg, uint8_t genesis_hash[32], uint64_t unspent_tx_output_identifier);
    /**
     * " Returns a usize that changes when the ChainWatchInterface's watched data is modified."
     * " Users of `filter_block` should pre-save a copy of `reentered`'s return value and use it to"
@@ -409,14 +513,6 @@ typedef struct {
    const LDKlnOutPoint *inner;
 } LDKOutPoint;
 
-/**
- * Arbitrary 32 bytes, which could represent one of a few different things. You probably want to
- * look up the corresponding function in rust-lightning's docs.
- */
-typedef struct {
-   uint8_t data[32];
-} LDKThirtyTwoBytes;
-
 
 
 /**
@@ -450,22 +546,6 @@ typedef struct {
 typedef struct {
    uint8_t bytes[32];
 } LDKSecretKey;
-
-typedef struct {
-   uint8_t compact_form[64];
-} LDKSignature;
-
-typedef union {
-   LDKSignature *result;
-   uint8_t *err;
-} LDKCResultPtr_Signature__u8;
-
-typedef struct {
-   LDKCResultPtr_Signature__u8 contents;
-   bool result_good;
-} LDKCResultTempl_Signature__u8;
-
-typedef LDKCResultTempl_Signature__u8 LDKCResult_SignatureNoneZ;
 
 
 
@@ -569,6 +649,11 @@ typedef struct {
     * " Get shutdown_pubkey to use as PublicKey at channel closure"
     */
    LDKPublicKey (*get_shutdown_pubkey)(const void *this_arg);
+   /**
+    * " Get a new set of ChannelKeys for per-channel secrets. These MUST be unique even if you"
+    * " restarted with some stale data!"
+    */
+   LDKChannelKeys (*get_channel_keys)(const void *this_arg, bool inbound, uint64_t channel_value_satoshis);
    /**
     * " Get a secret and PRNG seed for constructing an onion packet"
     */
@@ -824,51 +909,12 @@ typedef struct {
    const LDKlnInitFeatures *inner;
 } LDKInitFeatures;
 
-
-
-/**
- * " If a payment fails to send, it can be in one of several states. This enum is returned as the"
- * " Err() type describing which state the payment is in, see the description of individual enum"
- * " states for more."
- */
-typedef struct {
-   /**
-    * Nearly everyhwere, inner must be non-null, however in places where
-    *the Rust equivalent takes an Option, it may be set to null to indicate None.
-    */
-   const LDKlnPaymentSendFailure *inner;
-} LDKPaymentSendFailure;
-
-typedef union {
-   uint8_t *result;
-   LDKAPIError *err;
-} LDKCResultPtr_u8__APIError;
-
-typedef struct {
-   LDKCResultPtr_u8__APIError contents;
-   bool result_good;
-} LDKCResultTempl_u8__APIError;
-
-typedef LDKCResultTempl_u8__APIError LDKCResult_NoneAPIErrorZ;
-
 typedef struct {
    LDKChannelDetails *data;
    uintptr_t datalen;
 } LDKCVecTempl_ChannelDetails;
 
 typedef LDKCVecTempl_ChannelDetails LDKCVec_ChannelDetailsZ;
-
-typedef union {
-   uint8_t *result;
-   LDKPaymentSendFailure *err;
-} LDKCResultPtr_u8__PaymentSendFailure;
-
-typedef struct {
-   LDKCResultPtr_u8__PaymentSendFailure contents;
-   bool result_good;
-} LDKCResultTempl_u8__PaymentSendFailure;
-
-typedef LDKCResultTempl_u8__PaymentSendFailure LDKCResult_NonePaymentSendFailureZ;
 
 
 
@@ -1516,23 +1562,6 @@ typedef struct {
    const LDKlnMessageHandler *inner;
 } LDKMessageHandler;
 
-
-
-/**
- * " Error for PeerManager errors. If you get one of these, you must disconnect the socket and"
- * " generate no further read_event/write_buffer_space_avail calls for the descriptor, only"
- * " triggering a single socket_disconnected call (unless it was provided in response to a"
- * " new_*_connection event, in which case no such socket_disconnected() must be called and the"
- * " socket silently disconencted)."
- */
-typedef struct {
-   /**
-    * Nearly everyhwere, inner must be non-null, however in places where
-    *the Rust equivalent takes an Option, it may be set to null to indicate None.
-    */
-   const LDKlnPeerHandleError *inner;
-} LDKPeerHandleError;
-
 /**
  * " Provides an object which can be used to send data to and which uniquely identifies a connection"
  * " to a remote host. You will need to be able to generate multiple of these which meet Eq and"
@@ -1615,18 +1644,6 @@ typedef struct {
 } LDKCResultTempl_CVecTempl_u8_____PeerHandleError;
 
 typedef LDKCResultTempl_CVecTempl_u8_____PeerHandleError LDKCResult_CVec_u8ZPeerHandleErrorZ;
-
-typedef union {
-   uint8_t *result;
-   LDKPeerHandleError *err;
-} LDKCResultPtr_u8__PeerHandleError;
-
-typedef struct {
-   LDKCResultPtr_u8__PeerHandleError contents;
-   bool result_good;
-} LDKCResultTempl_u8__PeerHandleError;
-
-typedef LDKCResultTempl_u8__PeerHandleError LDKCResult_NonePeerHandleErrorZ;
 
 typedef union {
    bool *result;
@@ -1850,33 +1867,59 @@ typedef struct {
    const LDKlnNetworkGraph *inner;
 } LDKNetworkGraph;
 
-typedef LDKC2TupleTempl_CVec_u8Z__u64 LDKCTuple2_Scriptu64Z;
+typedef LDKC2TupleTempl_CVec_u8Z__u64 LDKC2Tuple_Scriptu64Z;
 
 typedef LDKCVecTempl_RouteHop LDKCVec_RouteHopZ;
 
+extern const void (*C2Tuple_Scriptu64Z_free)(LDKC2Tuple_Scriptu64Z);
+
 extern const void (*C2Tuple_SecretKey_u832Z_free)(LDKC2Tuple_SecretKey_u832Z);
 
-extern const LDKCResult_NoneChannelMonitorUpdateErrZ (*CResultNoneChannelMonitorUpdateErr_err)(LDKChannelMonitorUpdateErr);
+extern const void (*C2Tuple_Txidu32Z_free)(LDKC2Tuple_Txidu32Z);
 
-extern const void (*CResult_CTuple2_Scriptu64ZChainErrorZ_free)(LDKCResult_CTuple2_Scriptu64ZChainErrorZ);
+extern const LDKCResult_C2Tuple_Scriptu64ZChainErrorZ (*CResult_C2Tuple_Scriptu64ZChainErrorZ_err)(LDKChainError);
+
+extern const void (*CResult_C2Tuple_Scriptu64ZChainErrorZ_free)(LDKCResult_C2Tuple_Scriptu64ZChainErrorZ);
+
+extern const LDKCResult_C2Tuple_Scriptu64ZChainErrorZ (*CResult_C2Tuple_Scriptu64ZChainErrorZ_good)(LDKC2Tuple_Scriptu64Z);
+
+extern const LDKCResult_CVec_u8ZPeerHandleErrorZ (*CResult_CVec_u8ZPeerHandleErrorZ_err)(LDKPeerHandleError);
 
 extern const void (*CResult_CVec_u8ZPeerHandleErrorZ_free)(LDKCResult_CVec_u8ZPeerHandleErrorZ);
 
+extern const LDKCResult_CVec_u8ZPeerHandleErrorZ (*CResult_CVec_u8ZPeerHandleErrorZ_good)(LDKCVec_u8Z);
+
+extern const LDKCResult_NoneAPIErrorZ (*CResult_NoneAPIErrorZ_err)(LDKAPIError);
+
 extern const void (*CResult_NoneAPIErrorZ_free)(LDKCResult_NoneAPIErrorZ);
+
+extern const LDKCResult_NoneChannelMonitorUpdateErrZ (*CResult_NoneChannelMonitorUpdateErrZ_err)(LDKChannelMonitorUpdateErr);
 
 extern const void (*CResult_NoneChannelMonitorUpdateErrZ_free)(LDKCResult_NoneChannelMonitorUpdateErrZ);
 
+extern const LDKCResult_NonePaymentSendFailureZ (*CResult_NonePaymentSendFailureZ_err)(LDKPaymentSendFailure);
+
 extern const void (*CResult_NonePaymentSendFailureZ_free)(LDKCResult_NonePaymentSendFailureZ);
+
+extern const LDKCResult_NonePeerHandleErrorZ (*CResult_NonePeerHandleErrorZ_err)(LDKPeerHandleError);
 
 extern const void (*CResult_NonePeerHandleErrorZ_free)(LDKCResult_NonePeerHandleErrorZ);
 
 extern const void (*CResult_SignatureNoneZ_free)(LDKCResult_SignatureNoneZ);
 
+extern const LDKCResult_SignatureNoneZ (*CResult_SignatureNoneZ_good)(LDKSignature);
+
+extern const LDKCResult_boolLightningErrorZ (*CResult_boolLightningErrorZ_err)(LDKLightningError);
+
 extern const void (*CResult_boolLightningErrorZ_free)(LDKCResult_boolLightningErrorZ);
+
+extern const LDKCResult_boolLightningErrorZ (*CResult_boolLightningErrorZ_good)(bool);
+
+extern const LDKCResult_boolPeerHandleErrorZ (*CResult_boolPeerHandleErrorZ_err)(LDKPeerHandleError);
 
 extern const void (*CResult_boolPeerHandleErrorZ_free)(LDKCResult_boolPeerHandleErrorZ);
 
-extern const void (*CTuple2_Scriptu64Z_free)(LDKCTuple2_Scriptu64Z);
+extern const LDKCResult_boolPeerHandleErrorZ (*CResult_boolPeerHandleErrorZ_good)(bool);
 
 extern const void (*CVec_CVec_RouteHopZZ_free)(LDKCVec_CVec_RouteHopZZ);
 
@@ -1906,7 +1949,15 @@ extern const void (*CVec_u64Z_free)(LDKCVec_u64Z);
 
 extern const void (*CVec_u8Z_free)(LDKCVec_u8Z);
 
+LDKCResult_SignatureNoneZ CResult_SignatureNoneZ_err(void);
+
+LDKCResult_NoneAPIErrorZ CResult_NoneAPIErrorZ_good(void);
+
+LDKCResult_NonePaymentSendFailureZ CResult_NonePaymentSendFailureZ_good(void);
+
 LDKCResult_NoneChannelMonitorUpdateErrZ CResult_NoneChannelMonitorUpdateErrZ_good(void);
+
+LDKCResult_NonePeerHandleErrorZ CResult_NonePeerHandleErrorZ_good(void);
 
 void Event_free(LDKEvent this_ptr);
 
@@ -2291,6 +2342,12 @@ LDKChainWatchedUtil ChainWatchedUtil_new(void);
 bool ChainWatchedUtil_register_tx(LDKChainWatchedUtil *this_arg, const uint8_t (*txid)[32], LDKu8slice script_pub_key);
 
 /**
+ * " Registers an outpoint for monitoring, returning true if it was a new outpoint and false if"
+ * " we'd already been watching for it"
+ */
+bool ChainWatchedUtil_register_outpoint(LDKChainWatchedUtil *this_arg, LDKC2Tuple_Txidu32Z outpoint, LDKu8slice _script_pub_key);
+
+/**
  * " Sets us to match all transactions, returning true if this is a new setting and false if"
  * " we'd already been set to match everything."
  */
@@ -2312,6 +2369,14 @@ LDKBlockNotifier BlockNotifier_new(LDKChainWatchInterface chain_monitor);
  * " Register the given listener to receive events."
  */
 void BlockNotifier_register_listener(const LDKBlockNotifier *this_arg, LDKChainListener listener);
+
+/**
+ * " Notify listeners that a block was connected given a full, unfiltered block."
+ * ""
+ * " Handles re-scanning the block and calling block_connected again if listeners register new"
+ * " watch data during the callbacks for you (see ChainListener::block_connected for more info)."
+ */
+void BlockNotifier_block_connected(const LDKBlockNotifier *this_arg, LDKu8slice block, uint32_t height);
 
 /**
  * " Notify listeners that a block was disconnected."
@@ -2342,7 +2407,7 @@ const uint8_t (*OutPoint_get_txid(const LDKOutPoint *this_ptr))[32];
 /**
  * " The referenced transaction's txid."
  */
-void OutPoint_set_txid(LDKOutPoint *this_ptr, uint8_t val[32]);
+void OutPoint_set_txid(LDKOutPoint *this_ptr, LDKThirtyTwoBytes val);
 
 /**
  * " The index of the referenced output in its transaction's vout."
@@ -2354,7 +2419,7 @@ uint16_t OutPoint_get_index(const LDKOutPoint *this_ptr);
  */
 void OutPoint_set_index(LDKOutPoint *this_ptr, uint16_t val);
 
-LDKOutPoint OutPoint_new(uint8_t txid_arg[32], uint16_t index_arg);
+LDKOutPoint OutPoint_new(LDKThirtyTwoBytes txid_arg, uint16_t index_arg);
 
 /**
  * " Convert an `OutPoint` to a lightning channel id."

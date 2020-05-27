@@ -585,7 +585,7 @@ impl KeysInterface for KeysManager {
 		self.shutdown_pubkey.clone()
 	}
 
-	fn get_channel_keys(&self, _inbound: bool, channel_value_satoshis: u64) -> InMemoryChannelKeys {
+	fn get_channel_keys(&self, _inbound: bool, channel_value_satoshis: u64) -> Self::ChanKeySigner {
 		// We only seriously intend to rely on the channel_master_key for true secure
 		// entropy, everything else just ensures uniqueness. We rely on the unique_start (ie
 		// starting_time provided in the constructor) to be unique.

@@ -38,8 +38,8 @@ LDKCVec_HTLCUpdateZ monitors_pending_htlcs_updated(const void *this_arg) {
 
 void chain_install_watch_tx(const void *this_arg, const uint8_t (*txid)[32], LDKu8slice script_pub_key) {}
 void chain_watch_all_txn(const void *this_arg) {}
-LDKCResult_CTuple2_Scriptu64ZChainErrorZ get_chain_utxo(const void *this_arg, uint8_t genesis_hash[32], uint64_t unspent_tx_output_identifier) {
-
+LDKCResult_C2Tuple_Scriptu64ZChainErrorZ get_chain_utxo(const void *this_arg, uint8_t genesis_hash[32], uint64_t unspent_tx_output_identifier) {
+	// TODO: Create constructors for Tuples
 }
 /**
 * " Returns a usize that changes when the ChainWatchInterface's watched data is modified."

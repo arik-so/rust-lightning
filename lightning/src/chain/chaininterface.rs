@@ -42,7 +42,6 @@ pub trait ChainWatchInterface: Sync + Send {
 
 	/// Provides an outpoint which must be watched for, providing any transactions which spend the
 	/// given outpoint.
-	/// (C-not exported) due to tuples
 	fn install_watch_outpoint(&self, outpoint: (Txid, u32), out_script: &Script);
 
 	/// Indicates that a listener needs to see all transactions.
@@ -52,7 +51,6 @@ pub trait ChainWatchInterface: Sync + Send {
 	/// short_channel_id (aka unspent_tx_output_identier). For BTC/tBTC channels the top three
 	/// bytes are the block height, the next 3 the transaction index within the block, and the
 	/// final two the output within the transaction.
-	/// (C-not exported) due to tuples
 	fn get_chain_utxo(&self, genesis_hash: BlockHash, unspent_tx_output_identifier: u64) -> Result<(Script, u64), ChainError>;
 
 	/// Gets the list of transactions and transaction indices that the ChainWatchInterface is
@@ -171,7 +169,6 @@ impl ChainWatchedUtil {
 
 	/// Registers an outpoint for monitoring, returning true if it was a new outpoint and false if
 	/// we'd already been watching for it
-	/// (C-not exported) due to tuples
 	pub fn register_outpoint(&mut self, outpoint: (Txid, u32), _script_pub_key: &Script) -> bool {
 		if self.watch_all { return false; }
 		self.watched_outpoints.insert(outpoint)
@@ -283,8 +280,7 @@ impl<'a, CL: Deref + 'a, C: Deref> BlockNotifier<'a, CL, C>
 	///
 	/// Handles re-scanning the block and calling block_connected again if listeners register new
 	/// watch data during the callbacks for you (see ChainListener::block_connected for more info).
-	/// (C-not exported) due to Block
-	pub fn block_connected<'b>(&self, block: &'b Block, height: u32) {
+	pub fn block_connected(&self, block: &Block, height: u32) {
 		let mut reentered = true;
 		while reentered {
 			let (matched, matched_index) = self.chain_monitor.filter_block(block);

@@ -145,7 +145,9 @@ pub struct KeysInterface {
 	pub get_destination_script: extern "C" fn (this_arg: *const c_void) -> crate::c_types::derived::CVec_u8Z,
 	/// " Get shutdown_pubkey to use as PublicKey at channel closure"
 	pub get_shutdown_pubkey: extern "C" fn (this_arg: *const c_void) -> crate::c_types::PublicKey,
-	//XXX: Need to export get_channel_keys
+	/// " Get a new set of ChannelKeys for per-channel secrets. These MUST be unique even if you"
+	/// " restarted with some stale data!"
+	pub get_channel_keys: extern "C" fn (this_arg: *const c_void, inbound: bool, channel_value_satoshis: u64) -> ChannelKeys,
 	/// " Get a secret and PRNG seed for constructing an onion packet"
 	pub get_onion_rand: extern "C" fn (this_arg: *const c_void) -> crate::c_types::derived::C2Tuple_SecretKey_u832Z,
 	/// " Get a unique temporary channel id. Channels will be referred to by this until the funding"
@@ -172,7 +174,8 @@ impl lnKeysInterface for KeysInterface {
 		ret.into_rust()
 	}
 	fn get_channel_keys(&self, inbound: bool, channel_value_satoshis: u64) -> Self::ChanKeySigner {
-		unimplemented!();
+		let mut ret = (self.get_channel_keys)(self.this_arg, inbound, channel_value_satoshis);
+		ret
 	}
 	fn get_onion_rand(&self) -> (bitcoin::secp256k1::key::SecretKey, [u8; 32]) {
 		let mut ret = (self.get_onion_rand)(self.this_arg);
@@ -309,7 +312,7 @@ pub extern "C" fn KeysManager_as_KeysInterface(this_arg: *const KeysManager) -> 
 		get_node_secret: KeysManager_KeysInterface_get_node_secret,
 		get_destination_script: KeysManager_KeysInterface_get_destination_script,
 		get_shutdown_pubkey: KeysManager_KeysInterface_get_shutdown_pubkey,
-		//XXX: Need to export get_channel_keys
+		get_channel_keys: KeysManager_KeysInterface_get_channel_keys,
 		get_onion_rand: KeysManager_KeysInterface_get_onion_rand,
 		get_channel_id: KeysManager_KeysInterface_get_channel_id,
 	}
@@ -326,6 +329,14 @@ extern "C" fn KeysManager_KeysInterface_get_destination_script(this_arg: *const 
 extern "C" fn KeysManager_KeysInterface_get_shutdown_pubkey(this_arg: *const c_void) -> crate::c_types::PublicKey {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnKeysManager) }.get_shutdown_pubkey();
 	crate::c_types::PublicKey::from_rust(&ret)
+}
+extern "C" fn KeysManager_KeysInterface_get_channel_keys(this_arg: *const c_void, mut _inbound: bool, mut channel_value_satoshis: u64) -> ChannelKeys {
+	let mut ret = unsafe { &mut *(this_arg as *mut lnKeysManager) }.get_channel_keys(_inbound, channel_value_satoshis);
+	ChannelKeys {
+		this_arg: Box::into_raw(Box::new(ret)) as *mut c_void,
+		sign_closing_transaction: InMemoryChannelKeys_ChannelKeys_sign_closing_transaction,
+		set_remote_channel_pubkeys: InMemoryChannelKeys_ChannelKeys_set_remote_channel_pubkeys,
+	}
 }
 extern "C" fn KeysManager_KeysInterface_get_onion_rand(this_arg: *const c_void) -> crate::c_types::derived::C2Tuple_SecretKey_u832Z {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnKeysManager) }.get_onion_rand();

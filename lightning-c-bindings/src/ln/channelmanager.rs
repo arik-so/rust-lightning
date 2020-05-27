@@ -528,9 +528,9 @@ pub extern "C" fn ChannelManager_as_ChannelMessageHandler(this_arg: *const Chann
 		handle_revoke_and_ack: ChannelManager_ChannelMessageHandler_handle_revoke_and_ack,
 		handle_update_fee: ChannelManager_ChannelMessageHandler_handle_update_fee,
 		handle_announcement_signatures: ChannelManager_ChannelMessageHandler_handle_announcement_signatures,
-		handle_channel_reestablish: ChannelManager_ChannelMessageHandler_handle_channel_reestablish,
 		peer_disconnected: ChannelManager_ChannelMessageHandler_peer_disconnected,
 		peer_connected: ChannelManager_ChannelMessageHandler_peer_connected,
+		handle_channel_reestablish: ChannelManager_ChannelMessageHandler_handle_channel_reestablish,
 		handle_error: ChannelManager_ChannelMessageHandler_handle_error,
 		MessageSendEventsProvider: crate::util::events::MessageSendEventsProvider {
 			this_arg: unsafe { (*this_arg).inner as *mut c_void },

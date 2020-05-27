@@ -48,14 +48,16 @@ pub struct ChainWatchInterface {
 	pub this_arg: *mut c_void,
 	/// " Provides a txid/random-scriptPubKey-in-the-tx which much be watched for."
 	pub install_watch_tx: extern "C" fn (this_arg: *const c_void, txid: *const [u8; 32], script_pub_key: crate::c_types::u8slice),
-	//XXX: Need to export install_watch_outpoint
+	/// " Provides an outpoint which must be watched for, providing any transactions which spend the"
+	/// " given outpoint."
+	pub install_watch_outpoint: extern "C" fn (this_arg: *const c_void, outpoint: crate::c_types::derived::C2Tuple_Txidu32Z, out_script: crate::c_types::u8slice),
 	/// " Indicates that a listener needs to see all transactions."
 	pub watch_all_txn: extern "C" fn (this_arg: *const c_void),
 	/// " Gets the script and value in satoshis for a given unspent transaction output given a"
 	/// " short_channel_id (aka unspent_tx_output_identier). For BTC/tBTC channels the top three"
 	/// " bytes are the block height, the next 3 the transaction index within the block, and the"
 	/// " final two the output within the transaction."
-	pub get_chain_utxo: extern "C" fn (this_arg: *const c_void, genesis_hash: [u8; 32], unspent_tx_output_identifier: u64) -> crate::c_types::derived::CResult_CTuple2_Scriptu64ZChainErrorZ,
+	pub get_chain_utxo: extern "C" fn (this_arg: *const c_void, genesis_hash: [u8; 32], unspent_tx_output_identifier: u64) -> crate::c_types::derived::CResult_C2Tuple_Scriptu64ZChainErrorZ,
 	//XXX: Need to export filter_block
 	/// " Returns a usize that changes when the ChainWatchInterface's watched data is modified."
 	/// " Users of `filter_block` should pre-save a copy of `reentered`'s return value and use it to"
@@ -71,7 +73,8 @@ impl lnChainWatchInterface for ChainWatchInterface {
 		(self.install_watch_tx)(self.this_arg, txid.as_inner(), crate::c_types::u8slice::from_slice(&script_pub_key[..]))
 	}
 	fn install_watch_outpoint(&self, outpoint: (bitcoin::hash_types::Txid, u32), out_script: &bitcoin::blockdata::script::Script) {
-		unimplemented!();
+		let orig_outpoint = outpoint; let local_outpoint = (crate::c_types::ThirtyTwoBytes { data: orig_outpoint.0.into_inner() }, orig_outpoint.1).into();
+		(self.install_watch_outpoint)(self.this_arg, local_outpoint, crate::c_types::u8slice::from_slice(&out_script[..]))
 	}
 	fn watch_all_txn(&self) {
 		(self.watch_all_txn)(self.this_arg)
@@ -260,6 +263,15 @@ pub extern "C" fn ChainWatchedUtil_register_tx(this_arg: &mut ChainWatchedUtil, 
 	ret
 }
 
+/// " Registers an outpoint for monitoring, returning true if it was a new outpoint and false if"
+/// " we'd already been watching for it"
+#[no_mangle]
+pub extern "C" fn ChainWatchedUtil_register_outpoint(this_arg: &mut ChainWatchedUtil, mut outpoint: crate::c_types::derived::C2Tuple_Txidu32Z, _script_pub_key: crate::c_types::u8slice) -> bool {
+	let orig_outpoint = outpoint.to_rust(); let local_outpoint = (::bitcoin::hash_types::Txid::from_slice(&orig_outpoint.0.data[..]).unwrap(), orig_outpoint.1);
+	let mut ret = unsafe { &mut (*(this_arg.inner as *mut lnChainWatchedUtil)) }.register_outpoint(local_outpoint, &::bitcoin::blockdata::script::Script::from(Vec::from(_script_pub_key.to_slice())));
+	ret
+}
+
 /// " Sets us to match all transactions, returning true if this is a new setting and false if"
 /// " we'd already been set to match everything."
 #[no_mangle]
@@ -315,6 +327,15 @@ pub extern "C" fn BlockNotifier_register_listener(this_arg: &BlockNotifier, mut 
 	unsafe { &*this_arg.inner }.register_listener(listener)
 }
 
+/// " Notify listeners that a block was connected given a full, unfiltered block."
+/// ""
+/// " Handles re-scanning the block and calling block_connected again if listeners register new"
+/// " watch data during the callbacks for you (see ChainListener::block_connected for more info)."
+#[no_mangle]
+pub extern "C" fn BlockNotifier_block_connected(this_arg: &BlockNotifier, block: crate::c_types::u8slice, mut height: u32) {
+	unsafe { &*this_arg.inner }.block_connected(&::bitcoin::consensus::encode::deserialize(block.to_slice()).unwrap(), height)
+}
+
 /// " Notify listeners that a block was disconnected."
 #[no_mangle]
 pub extern "C" fn BlockNotifier_block_disconnected(this_arg: &BlockNotifier, header: *const [u8; 80], mut disconnected_height: u32) {
@@ -349,7 +370,7 @@ pub extern "C" fn ChainWatchInterfaceUtil_as_ChainWatchInterface(this_arg: *cons
 	crate::chain::chaininterface::ChainWatchInterface {
 		this_arg: unsafe { (*this_arg).inner as *mut c_void },
 		install_watch_tx: ChainWatchInterfaceUtil_ChainWatchInterface_install_watch_tx,
-		//XXX: Need to export install_watch_outpoint
+		install_watch_outpoint: ChainWatchInterfaceUtil_ChainWatchInterface_install_watch_outpoint,
 		watch_all_txn: ChainWatchInterfaceUtil_ChainWatchInterface_watch_all_txn,
 		get_chain_utxo: ChainWatchInterfaceUtil_ChainWatchInterface_get_chain_utxo,
 		//XXX: Need to export filter_block
@@ -360,10 +381,14 @@ use lightning::chain::chaininterface::ChainWatchInterface as ChainWatchInterface
 extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_install_watch_tx(this_arg: *const c_void, txid: *const [u8; 32], script_pub_key: crate::c_types::u8slice) {
 	unsafe { &mut *(this_arg as *mut lnChainWatchInterfaceUtil) }.install_watch_tx(&::bitcoin::hash_types::Txid::from_slice(&unsafe { &*txid }[..]).unwrap(), &::bitcoin::blockdata::script::Script::from(Vec::from(script_pub_key.to_slice())))
 }
+extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_install_watch_outpoint(this_arg: *const c_void, mut outpoint: crate::c_types::derived::C2Tuple_Txidu32Z, out_script: crate::c_types::u8slice) {
+	let orig_outpoint = outpoint.to_rust(); let local_outpoint = (::bitcoin::hash_types::Txid::from_slice(&orig_outpoint.0.data[..]).unwrap(), orig_outpoint.1);
+	unsafe { &mut *(this_arg as *mut lnChainWatchInterfaceUtil) }.install_watch_outpoint(local_outpoint, &::bitcoin::blockdata::script::Script::from(Vec::from(out_script.to_slice())))
+}
 extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_watch_all_txn(this_arg: *const c_void) {
 	unsafe { &mut *(this_arg as *mut lnChainWatchInterfaceUtil) }.watch_all_txn()
 }
-extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_get_chain_utxo(this_arg: *const c_void, mut genesis_hash: [u8; 32], mut _unspent_tx_output_identifier: u64) -> crate::c_types::derived::CResult_CTuple2_Scriptu64ZChainErrorZ {
+extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_get_chain_utxo(this_arg: *const c_void, mut genesis_hash: [u8; 32], mut _unspent_tx_output_identifier: u64) -> crate::c_types::derived::CResult_C2Tuple_Scriptu64ZChainErrorZ {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnChainWatchInterfaceUtil) }.get_chain_utxo(::bitcoin::hash_types::BlockHash::from_slice(&genesis_hash[..]).unwrap(), _unspent_tx_output_identifier);
 	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { let orig_ret_0 = o; let local_ret_0 = (orig_ret_0.0.into_bytes().into(), orig_ret_0.1).into(); local_ret_0 }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::chain::chaininterface::ChainError::from_ln(e) }) };
 	local_ret

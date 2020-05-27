@@ -129,6 +129,11 @@ jobs:
             git checkout lightning-c-bindings/include/lightning.h
             cat lightning-c-bindings/include/lightning.h | sort > lightning-c-bindings/include/lightning.h.sorted
             cat lightning-c-bindings/include/lightning.h.new | sort > lightning-c-bindings/include/lightning.h.new.sorted
+            mv lightning-c-bindings/include/lightningpp.hpp lightning-c-bindings/include/lightningpp.hpp.new
+            git checkout lightning-c-bindings/include/lightningpp.hpp
+            cat lightning-c-bindings/include/lightningpp.hpp | sort > lightning-c-bindings/include/lightningpp.hpp.sorted
+            cat lightning-c-bindings/include/lightningpp.hpp.new | sort > lightning-c-bindings/include/lightningpp.hpp.new.sorted
             [ "$(diff lightning-c-bindings/include/lightning.h.sorted lightning-c-bindings/include/lightning.h.new.sorted)" != "" ] && exit 2
+            [ "$(diff lightning-c-bindings/include/lightningpp.hpp.sorted lightning-c-bindings/include/lightningpp.hpp.new.sorted)" != "" ] && exit 3
             [ "$(git diff)" != "" ] && exit 1
           fi

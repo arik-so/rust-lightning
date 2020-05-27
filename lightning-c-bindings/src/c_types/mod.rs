@@ -143,16 +143,6 @@ impl<O, E> Drop for CResultTempl<O, E> {
 	}
 }
 
-// TODO: auto-generate these like we do the types:
-#[no_mangle]
-pub extern "C" fn CResult_NoneChannelMonitorUpdateErrZ_good() -> derived::CResult_NoneChannelMonitorUpdateErrZ {
-	CResultTempl::good(0)
-}
-#[no_mangle]
-pub static CResultNoneChannelMonitorUpdateErr_err:
-	extern"C" fn(crate::ln::channelmonitor::ChannelMonitorUpdateErr) -> derived::CResult_NoneChannelMonitorUpdateErrZ =
-	CResultTempl::<u8, crate::ln::channelmonitor::ChannelMonitorUpdateErr>::err;
-
 #[repr(C)]
 pub struct CVecTempl<T> {
 	pub data: *mut T,
@@ -166,8 +156,8 @@ impl<T> CVecTempl<T> {
 impl<T> From<Vec<T>> for CVecTempl<T> {
 	fn from(v: Vec<T>) -> Self {
 		let datalen = v.len();
-		let data = v.into_boxed_slice().as_mut_ptr();
-		CVecTempl { datalen, data }
+		let data = Box::into_raw(v.into_boxed_slice());
+		CVecTempl { datalen, data: unsafe { (*data).as_mut_ptr() } }
 	}
 }
 pub extern "C" fn CVecTempl_free<T>(_res: CVecTempl<T>) { }

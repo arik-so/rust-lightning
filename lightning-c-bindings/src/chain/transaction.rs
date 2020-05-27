@@ -36,8 +36,8 @@ pub extern "C" fn OutPoint_get_txid(this_ptr: &OutPoint) -> *const [u8; 32] {
 }
 /// " The referenced transaction's txid."
 #[no_mangle]
-pub extern "C" fn OutPoint_set_txid(this_ptr: &mut OutPoint, mut val: [u8; 32]) {
-	unsafe { &mut *(this_ptr.inner as *mut lnOutPoint) }.txid = ::bitcoin::hash_types::Txid::from_slice(&val[..]).unwrap();
+pub extern "C" fn OutPoint_set_txid(this_ptr: &mut OutPoint, mut val: crate::c_types::ThirtyTwoBytes) {
+	unsafe { &mut *(this_ptr.inner as *mut lnOutPoint) }.txid = ::bitcoin::hash_types::Txid::from_slice(&val.data[..]).unwrap();
 }
 /// " The index of the referenced output in its transaction's vout."
 #[no_mangle]
@@ -51,9 +51,9 @@ pub extern "C" fn OutPoint_set_index(this_ptr: &mut OutPoint, mut val: u16) {
 	unsafe { &mut *(this_ptr.inner as *mut lnOutPoint) }.index = val;
 }
 #[no_mangle]
-pub extern "C" fn OutPoint_new(mut txid_arg: [u8; 32], mut index_arg: u16) -> OutPoint {
+pub extern "C" fn OutPoint_new(mut txid_arg: crate::c_types::ThirtyTwoBytes, mut index_arg: u16) -> OutPoint {
 	OutPoint { inner: Box::into_raw(Box::new(lnOutPoint {
-		txid: ::bitcoin::hash_types::Txid::from_slice(&txid_arg[..]).unwrap(),
+		txid: ::bitcoin::hash_types::Txid::from_slice(&txid_arg.data[..]).unwrap(),
 		index: index_arg,
 	}))}
 }

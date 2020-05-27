@@ -46,8 +46,8 @@ pub extern "C" fn NetGraphMsgHandler_as_RoutingMessageHandler(this_arg: *const N
 		this_arg: unsafe { (*this_arg).inner as *mut c_void },
 		handle_node_announcement: NetGraphMsgHandler_RoutingMessageHandler_handle_node_announcement,
 		handle_channel_announcement: NetGraphMsgHandler_RoutingMessageHandler_handle_channel_announcement,
-		handle_htlc_fail_channel_update: NetGraphMsgHandler_RoutingMessageHandler_handle_htlc_fail_channel_update,
 		handle_channel_update: NetGraphMsgHandler_RoutingMessageHandler_handle_channel_update,
+		handle_htlc_fail_channel_update: NetGraphMsgHandler_RoutingMessageHandler_handle_htlc_fail_channel_update,
 		//XXX: Need to export get_next_channel_announcements
 		//XXX: Need to export get_next_node_announcements
 		should_request_full_sync: NetGraphMsgHandler_RoutingMessageHandler_should_request_full_sync,
