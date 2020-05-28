@@ -23,11 +23,12 @@ pub struct Event {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnEvent,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for Event {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnEvent) };
 		}
 	}
@@ -46,11 +47,12 @@ pub struct MessageSendEvent {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnMessageSendEvent,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for MessageSendEvent {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnMessageSendEvent) };
 		}
 	}

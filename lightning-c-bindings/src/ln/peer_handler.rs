@@ -20,11 +20,12 @@ pub struct MessageHandler {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnMessageHandler,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for MessageHandler {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnMessageHandler) };
 		}
 	}
@@ -62,7 +63,7 @@ pub extern "C" fn MessageHandler_new(mut chan_handler_arg: crate::ln::msgs::Chan
 	MessageHandler { inner: Box::into_raw(Box::new(lnMessageHandler {
 		chan_handler: chan_handler_arg,
 		route_handler: route_handler_arg,
-	}))}
+	})), _underlying_ref: false }
 }
 /// " Provides an object which can be used to send data to and which uniquely identifies a connection"
 /// " to a remote host. You will need to be able to generate multiple of these which meet Eq and"
@@ -145,11 +146,12 @@ pub struct PeerHandleError {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnPeerHandleError,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for PeerHandleError {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnPeerHandleError) };
 		}
 	}
@@ -173,7 +175,7 @@ pub extern "C" fn PeerHandleError_set_no_connection_possible(this_ptr: &mut Peer
 pub extern "C" fn PeerHandleError_new(mut no_connection_possible_arg: bool) -> PeerHandleError {
 	PeerHandleError { inner: Box::into_raw(Box::new(lnPeerHandleError {
 		no_connection_possible: no_connection_possible_arg,
-	}))}
+	})), _underlying_ref: false }
 }
 
 use lightning::ln::peer_handler::PeerManager as lnPeerManagerImport;
@@ -192,11 +194,12 @@ pub struct PeerManager {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnPeerManager,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for PeerManager {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnPeerManager) };
 		}
 	}
@@ -209,7 +212,7 @@ pub extern "C" fn PeerManager_free(this_ptr: PeerManager) { }
 #[no_mangle]
 pub extern "C" fn PeerManager_new(mut message_handler: MessageHandler, mut our_node_secret: crate::c_types::SecretKey, ephemeral_random_data: *const [u8; 32], mut logger: crate::util::logger::Logger) -> PeerManager {
 	let mut ret = lightning::ln::peer_handler::PeerManager::new(*unsafe { Box::from_raw(message_handler.inner.take_ptr() as *mut _) }, our_node_secret.into_rust(), unsafe { &*ephemeral_random_data}, logger);
-	PeerManager { inner: Box::into_raw(Box::new(ret)) }
+	PeerManager { inner: Box::into_raw(Box::new(ret)), _underlying_ref: false }
 }
 
 /// " Get the list of node ids for peers which have completed the initial handshake."
@@ -235,7 +238,7 @@ pub extern "C" fn PeerManager_get_peer_node_ids(this_arg: &PeerManager) -> crate
 #[no_mangle]
 pub extern "C" fn PeerManager_new_outbound_connection(this_arg: &PeerManager, mut their_node_id: crate::c_types::PublicKey, mut descriptor: SocketDescriptor) -> crate::c_types::derived::CResult_CVec_u8ZPeerHandleErrorZ {
 	let mut ret = unsafe { &*this_arg.inner }.new_outbound_connection(their_node_id.into_rust(), descriptor);
-	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { let mut local_ret_0 = Vec::new(); for item in o.drain(..) { local_ret_0.push( { item }); }; local_ret_0.into() }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)) } }) };
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { let mut local_ret_0 = Vec::new(); for item in o.drain(..) { local_ret_0.push( { item }); }; local_ret_0.into() }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
 	local_ret
 }
 
@@ -251,7 +254,7 @@ pub extern "C" fn PeerManager_new_outbound_connection(this_arg: &PeerManager, mu
 #[no_mangle]
 pub extern "C" fn PeerManager_new_inbound_connection(this_arg: &PeerManager, mut descriptor: SocketDescriptor) -> crate::c_types::derived::CResult_NonePeerHandleErrorZ {
 	let mut ret = unsafe { &*this_arg.inner }.new_inbound_connection(descriptor);
-	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { 0u8 /*o*/ }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)) } }) };
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { 0u8 /*o*/ }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
 	local_ret
 }
 
@@ -268,7 +271,7 @@ pub extern "C" fn PeerManager_new_inbound_connection(this_arg: &PeerManager, mut
 #[no_mangle]
 pub extern "C" fn PeerManager_write_buffer_space_avail(this_arg: &PeerManager, descriptor: &mut SocketDescriptor) -> crate::c_types::derived::CResult_NonePeerHandleErrorZ {
 	let mut ret = unsafe { &*this_arg.inner }.write_buffer_space_avail(descriptor);
-	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { 0u8 /*o*/ }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)) } }) };
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { 0u8 /*o*/ }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
 	local_ret
 }
 
@@ -287,7 +290,7 @@ pub extern "C" fn PeerManager_write_buffer_space_avail(this_arg: &PeerManager, d
 #[no_mangle]
 pub extern "C" fn PeerManager_read_event(this_arg: &PeerManager, peer_descriptor: &mut SocketDescriptor, data: crate::c_types::u8slice) -> crate::c_types::derived::CResult_boolPeerHandleErrorZ {
 	let mut ret = unsafe { &*this_arg.inner }.read_event(peer_descriptor, data.to_slice());
-	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)) } }) };
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
 	local_ret
 }
 

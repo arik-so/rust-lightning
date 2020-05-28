@@ -17,11 +17,12 @@ pub struct TxCreationKeys {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnTxCreationKeys,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for TxCreationKeys {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnTxCreationKeys) };
 		}
 	}
@@ -49,11 +50,12 @@ pub struct ChannelPublicKeys {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnChannelPublicKeys,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ChannelPublicKeys {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelPublicKeys) };
 		}
 	}
@@ -141,7 +143,7 @@ pub extern "C" fn ChannelPublicKeys_new(mut funding_pubkey_arg: crate::c_types::
 		payment_point: payment_point_arg.into_rust(),
 		delayed_payment_basepoint: delayed_payment_basepoint_arg.into_rust(),
 		htlc_basepoint: htlc_basepoint_arg.into_rust(),
-	}))}
+	})), _underlying_ref: false }
 }
 
 use lightning::ln::chan_utils::HTLCOutputInCommitment as lnHTLCOutputInCommitmentImport;
@@ -153,11 +155,12 @@ pub struct HTLCOutputInCommitment {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnHTLCOutputInCommitment,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for HTLCOutputInCommitment {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnHTLCOutputInCommitment) };
 		}
 	}
@@ -228,11 +231,12 @@ pub struct LocalCommitmentTransaction {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnLocalCommitmentTransaction,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for LocalCommitmentTransaction {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnLocalCommitmentTransaction) };
 		}
 	}
@@ -266,7 +270,7 @@ pub extern "C" fn LocalCommitmentTransaction_set_their_sig(this_ptr: &mut LocalC
 #[no_mangle]
 pub extern "C" fn LocalCommitmentTransaction_get_local_keys(this_ptr: &LocalCommitmentTransaction) -> *const TxCreationKeys {
 	let inner_val = &unsafe { &*this_ptr.inner }.local_keys;
-	Box::into_raw(Box::new(crate::ln::chan_utils::TxCreationKeys { inner: &(*inner_val) } ))
+	Box::into_raw(Box::new(crate::ln::chan_utils::TxCreationKeys { inner: &(*inner_val), _underlying_ref: true } ))
 }
 /// " The key derivation parameters for this commitment transaction"
 #[no_mangle]

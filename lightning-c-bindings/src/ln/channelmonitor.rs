@@ -26,11 +26,12 @@ pub struct ChannelMonitorUpdate {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnChannelMonitorUpdate,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ChannelMonitorUpdate {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelMonitorUpdate) };
 		}
 	}
@@ -138,11 +139,12 @@ pub struct MonitorUpdateError {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnMonitorUpdateError,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for MonitorUpdateError {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnMonitorUpdateError) };
 		}
 	}
@@ -160,11 +162,12 @@ pub struct HTLCUpdate {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnHTLCUpdate,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for HTLCUpdate {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnHTLCUpdate) };
 		}
 	}
@@ -190,11 +193,12 @@ pub struct ChannelMonitor {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnChannelMonitor,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ChannelMonitor {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelMonitor) };
 		}
 	}
@@ -267,12 +271,12 @@ use lightning::ln::channelmonitor::ManyChannelMonitor as lnManyChannelMonitor;
 impl lnManyChannelMonitor for ManyChannelMonitor {
 	type Keys = crate::chain::keysinterface::ChannelKeys;
 	fn add_monitor(&self, funding_txo: lightning::chain::transaction::OutPoint, monitor: lightning::ln::channelmonitor::ChannelMonitor<Self::Keys>) -> Result<(), lightning::ln::channelmonitor::ChannelMonitorUpdateErr> {
-		let mut ret = (self.add_monitor)(self.this_arg, crate::chain::transaction::OutPoint { inner: Box::into_raw(Box::new(funding_txo)) }, crate::ln::channelmonitor::ChannelMonitor { inner: Box::into_raw(Box::new(monitor)) });
+		let mut ret = (self.add_monitor)(self.this_arg, crate::chain::transaction::OutPoint { inner: Box::into_raw(Box::new(funding_txo)), _underlying_ref: false }, crate::ln::channelmonitor::ChannelMonitor { inner: Box::into_raw(Box::new(monitor)), _underlying_ref: false });
 		let mut local_ret = match ret.result_good { true => Ok( { () /*(*unsafe { Box::from_raw(ret.contents.result) })*/ }), false => Err( { (*unsafe { Box::from_raw(ret.contents.err) }).to_ln() })};
 		local_ret
 	}
 	fn update_monitor(&self, funding_txo: lightning::chain::transaction::OutPoint, monitor: lightning::ln::channelmonitor::ChannelMonitorUpdate) -> Result<(), lightning::ln::channelmonitor::ChannelMonitorUpdateErr> {
-		let mut ret = (self.update_monitor)(self.this_arg, crate::chain::transaction::OutPoint { inner: Box::into_raw(Box::new(funding_txo)) }, crate::ln::channelmonitor::ChannelMonitorUpdate { inner: Box::into_raw(Box::new(monitor)) });
+		let mut ret = (self.update_monitor)(self.this_arg, crate::chain::transaction::OutPoint { inner: Box::into_raw(Box::new(funding_txo)), _underlying_ref: false }, crate::ln::channelmonitor::ChannelMonitorUpdate { inner: Box::into_raw(Box::new(monitor)), _underlying_ref: false });
 		let mut local_ret = match ret.result_good { true => Ok( { () /*(*unsafe { Box::from_raw(ret.contents.result) })*/ }), false => Err( { (*unsafe { Box::from_raw(ret.contents.err) }).to_ln() })};
 		local_ret
 	}
@@ -303,7 +307,7 @@ pub extern "C" fn ChannelMonitor_get_latest_update_id(this_arg: &ChannelMonitor)
 #[no_mangle]
 pub extern "C" fn ChannelMonitor_get_funding_txo(this_arg: &ChannelMonitor) -> crate::chain::transaction::OutPoint {
 	let mut ret = unsafe { &*this_arg.inner }.get_funding_txo();
-	crate::chain::transaction::OutPoint { inner: Box::into_raw(Box::new(ret)) }
+	crate::chain::transaction::OutPoint { inner: Box::into_raw(Box::new(ret)), _underlying_ref: false }
 }
 
 /// " Get the list of HTLCs who's status has been updated on chain. This should be called by"
@@ -311,7 +315,7 @@ pub extern "C" fn ChannelMonitor_get_funding_txo(this_arg: &ChannelMonitor) -> c
 #[no_mangle]
 pub extern "C" fn ChannelMonitor_get_and_clear_pending_htlcs_updated(this_arg: &mut ChannelMonitor) -> crate::c_types::derived::CVec_HTLCUpdateZ {
 	let mut ret = unsafe { &mut (*(this_arg.inner as *mut lnChannelMonitor)) }.get_and_clear_pending_htlcs_updated();
-	let mut local_ret = Vec::new(); for item in ret.drain(..) { local_ret.push( { crate::ln::channelmonitor::HTLCUpdate { inner: Box::into_raw(Box::new(item)) } }); };
+	let mut local_ret = Vec::new(); for item in ret.drain(..) { local_ret.push( { crate::ln::channelmonitor::HTLCUpdate { inner: Box::into_raw(Box::new(item)), _underlying_ref: false } }); };
 	local_ret.into()
 }
 

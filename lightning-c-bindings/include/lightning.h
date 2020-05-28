@@ -163,6 +163,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnAPIError *inner;
+   bool _underlying_ref;
 } LDKAPIError;
 
 typedef union {
@@ -190,6 +191,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnPaymentSendFailure *inner;
+   bool _underlying_ref;
 } LDKPaymentSendFailure;
 
 typedef union {
@@ -231,6 +233,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnPeerHandleError *inner;
+   bool _underlying_ref;
 } LDKPeerHandleError;
 
 typedef union {
@@ -260,6 +263,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnEvent *inner;
+   bool _underlying_ref;
 } LDKEvent;
 
 
@@ -275,6 +279,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnMessageSendEvent *inner;
+   bool _underlying_ref;
 } LDKMessageSendEvent;
 
 
@@ -291,6 +296,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnUserConfig *inner;
+   bool _underlying_ref;
 } LDKUserConfig;
 
 
@@ -306,6 +312,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChannelHandshakeConfig *inner;
+   bool _underlying_ref;
 } LDKChannelHandshakeConfig;
 
 
@@ -329,6 +336,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChannelHandshakeLimits *inner;
+   bool _underlying_ref;
 } LDKChannelHandshakeLimits;
 
 
@@ -343,6 +351,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChannelConfig *inner;
+   bool _underlying_ref;
 } LDKChannelConfig;
 
 
@@ -356,6 +365,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChainWatchedUtil *inner;
+   bool _underlying_ref;
 } LDKChainWatchedUtil;
 
 typedef struct {
@@ -480,6 +490,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnBlockNotifier *inner;
+   bool _underlying_ref;
 } LDKBlockNotifier;
 
 
@@ -495,6 +506,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChainWatchInterfaceUtil *inner;
+   bool _underlying_ref;
 } LDKChainWatchInterfaceUtil;
 
 
@@ -511,6 +523,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnOutPoint *inner;
+   bool _underlying_ref;
 } LDKOutPoint;
 
 
@@ -528,6 +541,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnSpendableOutputDescriptor *inner;
+   bool _underlying_ref;
 } LDKSpendableOutputDescriptor;
 
 
@@ -541,6 +555,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnInMemoryChannelKeys *inner;
+   bool _underlying_ref;
 } LDKInMemoryChannelKeys;
 
 typedef struct {
@@ -558,6 +573,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChannelPublicKeys *inner;
+   bool _underlying_ref;
 } LDKChannelPublicKeys;
 
 /**
@@ -619,6 +635,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnKeysManager *inner;
+   bool _underlying_ref;
 } LDKKeysManager;
 
 typedef struct {
@@ -686,6 +703,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChannelMonitor *inner;
+   bool _underlying_ref;
 } LDKChannelMonitor;
 
 
@@ -700,6 +718,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChannelMonitorUpdate *inner;
+   bool _underlying_ref;
 } LDKChannelMonitorUpdate;
 
 
@@ -714,6 +733,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnHTLCUpdate *inner;
+   bool _underlying_ref;
 } LDKHTLCUpdate;
 
 typedef struct {
@@ -881,6 +901,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChannelManager *inner;
+   bool _underlying_ref;
 } LDKChannelManager;
 
 
@@ -894,6 +915,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChannelDetails *inner;
+   bool _underlying_ref;
 } LDKChannelDetails;
 
 
@@ -907,6 +929,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnInitFeatures *inner;
+   bool _underlying_ref;
 } LDKInitFeatures;
 
 typedef struct {
@@ -928,6 +951,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnRoute *inner;
+   bool _underlying_ref;
 } LDKRoute;
 
 typedef struct {
@@ -945,6 +969,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnNetAddress *inner;
+   bool _underlying_ref;
 } LDKNetAddress;
 
 typedef struct {
@@ -984,6 +1009,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnOpenChannel *inner;
+   bool _underlying_ref;
 } LDKOpenChannel;
 
 
@@ -997,6 +1023,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnAcceptChannel *inner;
+   bool _underlying_ref;
 } LDKAcceptChannel;
 
 
@@ -1010,6 +1037,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnFundingCreated *inner;
+   bool _underlying_ref;
 } LDKFundingCreated;
 
 
@@ -1023,6 +1051,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnFundingSigned *inner;
+   bool _underlying_ref;
 } LDKFundingSigned;
 
 
@@ -1036,6 +1065,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnFundingLocked *inner;
+   bool _underlying_ref;
 } LDKFundingLocked;
 
 
@@ -1049,6 +1079,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnShutdown *inner;
+   bool _underlying_ref;
 } LDKShutdown;
 
 
@@ -1062,6 +1093,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnClosingSigned *inner;
+   bool _underlying_ref;
 } LDKClosingSigned;
 
 
@@ -1075,6 +1107,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnUpdateAddHTLC *inner;
+   bool _underlying_ref;
 } LDKUpdateAddHTLC;
 
 
@@ -1088,6 +1121,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnUpdateFulfillHTLC *inner;
+   bool _underlying_ref;
 } LDKUpdateFulfillHTLC;
 
 
@@ -1101,6 +1135,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnUpdateFailHTLC *inner;
+   bool _underlying_ref;
 } LDKUpdateFailHTLC;
 
 
@@ -1114,6 +1149,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnUpdateFailMalformedHTLC *inner;
+   bool _underlying_ref;
 } LDKUpdateFailMalformedHTLC;
 
 
@@ -1127,6 +1163,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnCommitmentSigned *inner;
+   bool _underlying_ref;
 } LDKCommitmentSigned;
 
 
@@ -1140,6 +1177,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnRevokeAndACK *inner;
+   bool _underlying_ref;
 } LDKRevokeAndACK;
 
 
@@ -1153,6 +1191,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnUpdateFee *inner;
+   bool _underlying_ref;
 } LDKUpdateFee;
 
 
@@ -1166,6 +1205,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnAnnouncementSignatures *inner;
+   bool _underlying_ref;
 } LDKAnnouncementSignatures;
 
 
@@ -1179,6 +1219,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnInit *inner;
+   bool _underlying_ref;
 } LDKInit;
 
 
@@ -1192,6 +1233,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChannelReestablish *inner;
+   bool _underlying_ref;
 } LDKChannelReestablish;
 
 
@@ -1205,6 +1247,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnErrorMessage *inner;
+   bool _underlying_ref;
 } LDKErrorMessage;
 
 typedef struct {
@@ -1331,6 +1374,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnMonitorUpdateError *inner;
+   bool _underlying_ref;
 } LDKMonitorUpdateError;
 
 
@@ -1344,6 +1388,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnDecodeError *inner;
+   bool _underlying_ref;
 } LDKDecodeError;
 
 
@@ -1357,6 +1402,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnPing *inner;
+   bool _underlying_ref;
 } LDKPing;
 
 
@@ -1370,6 +1416,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnPong *inner;
+   bool _underlying_ref;
 } LDKPong;
 
 
@@ -1383,6 +1430,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnUnsignedNodeAnnouncement *inner;
+   bool _underlying_ref;
 } LDKUnsignedNodeAnnouncement;
 
 
@@ -1396,6 +1444,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnNodeAnnouncement *inner;
+   bool _underlying_ref;
 } LDKNodeAnnouncement;
 
 
@@ -1409,6 +1458,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnUnsignedChannelAnnouncement *inner;
+   bool _underlying_ref;
 } LDKUnsignedChannelAnnouncement;
 
 
@@ -1422,6 +1472,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChannelAnnouncement *inner;
+   bool _underlying_ref;
 } LDKChannelAnnouncement;
 
 
@@ -1435,6 +1486,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChannelUpdate *inner;
+   bool _underlying_ref;
 } LDKChannelUpdate;
 
 
@@ -1448,6 +1500,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnLightningError *inner;
+   bool _underlying_ref;
 } LDKLightningError;
 
 
@@ -1462,6 +1515,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnCommitmentUpdate *inner;
+   bool _underlying_ref;
 } LDKCommitmentUpdate;
 
 typedef struct {
@@ -1505,6 +1559,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnHTLCFailChannelUpdate *inner;
+   bool _underlying_ref;
 } LDKHTLCFailChannelUpdate;
 
 typedef union {
@@ -1560,6 +1615,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnMessageHandler *inner;
+   bool _underlying_ref;
 } LDKMessageHandler;
 
 /**
@@ -1624,6 +1680,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnPeerManager *inner;
+   bool _underlying_ref;
 } LDKPeerManager;
 
 typedef struct {
@@ -1669,6 +1726,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnTxCreationKeys *inner;
+   bool _underlying_ref;
 } LDKTxCreationKeys;
 
 
@@ -1682,6 +1740,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnHTLCOutputInCommitment *inner;
+   bool _underlying_ref;
 } LDKHTLCOutputInCommitment;
 
 
@@ -1697,6 +1756,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnLocalCommitmentTransaction *inner;
+   bool _underlying_ref;
 } LDKLocalCommitmentTransaction;
 
 
@@ -1710,6 +1770,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnNodeFeatures *inner;
+   bool _underlying_ref;
 } LDKNodeFeatures;
 
 
@@ -1723,6 +1784,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChannelFeatures *inner;
+   bool _underlying_ref;
 } LDKChannelFeatures;
 
 
@@ -1736,6 +1798,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnRouteHop *inner;
+   bool _underlying_ref;
 } LDKRouteHop;
 
 typedef struct {
@@ -1761,6 +1824,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnRouteHint *inner;
+   bool _underlying_ref;
 } LDKRouteHint;
 
 
@@ -1774,6 +1838,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnRoutingFees *inner;
+   bool _underlying_ref;
 } LDKRoutingFees;
 
 
@@ -1791,6 +1856,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnNetGraphMsgHandler *inner;
+   bool _underlying_ref;
 } LDKNetGraphMsgHandler;
 
 
@@ -1805,6 +1871,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnDirectionalChannelInfo *inner;
+   bool _underlying_ref;
 } LDKDirectionalChannelInfo;
 
 
@@ -1819,6 +1886,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnChannelInfo *inner;
+   bool _underlying_ref;
 } LDKChannelInfo;
 
 
@@ -1832,6 +1900,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnNodeAnnouncementInfo *inner;
+   bool _underlying_ref;
 } LDKNodeAnnouncementInfo;
 
 
@@ -1845,6 +1914,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnNodeInfo *inner;
+   bool _underlying_ref;
 } LDKNodeInfo;
 
 typedef struct {
@@ -1865,6 +1935,7 @@ typedef struct {
     *the Rust equivalent takes an Option, it may be set to null to indicate None.
     */
    const LDKlnNetworkGraph *inner;
+   bool _underlying_ref;
 } LDKNetworkGraph;
 
 typedef LDKC2TupleTempl_CVec_u8Z__u64 LDKC2Tuple_Scriptu64Z;

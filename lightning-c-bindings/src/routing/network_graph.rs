@@ -18,11 +18,12 @@ pub struct NetGraphMsgHandler {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnNetGraphMsgHandler,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for NetGraphMsgHandler {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnNetGraphMsgHandler) };
 		}
 	}
@@ -37,7 +38,7 @@ pub extern "C" fn NetGraphMsgHandler_free(this_ptr: NetGraphMsgHandler) { }
 #[no_mangle]
 pub extern "C" fn NetGraphMsgHandler_new(mut chain_monitor: crate::chain::chaininterface::ChainWatchInterface, mut logger: crate::util::logger::Logger) -> NetGraphMsgHandler {
 	let mut ret = lightning::routing::network_graph::NetGraphMsgHandler::new(chain_monitor, logger);
-	NetGraphMsgHandler { inner: Box::into_raw(Box::new(ret)) }
+	NetGraphMsgHandler { inner: Box::into_raw(Box::new(ret)), _underlying_ref: false }
 }
 
 #[no_mangle]
@@ -56,12 +57,12 @@ pub extern "C" fn NetGraphMsgHandler_as_RoutingMessageHandler(this_arg: *const N
 use lightning::ln::msgs::RoutingMessageHandler as RoutingMessageHandlerTraitImport;
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_node_announcement(this_arg: *const c_void, msg: &crate::ln::msgs::NodeAnnouncement) -> crate::c_types::derived::CResult_boolLightningErrorZ {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.handle_node_announcement(unsafe { &*msg.inner });
-	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)) } }) };
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
 	local_ret
 }
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_channel_announcement(this_arg: *const c_void, msg: &crate::ln::msgs::ChannelAnnouncement) -> crate::c_types::derived::CResult_boolLightningErrorZ {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.handle_channel_announcement(unsafe { &*msg.inner });
-	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)) } }) };
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
 	local_ret
 }
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_htlc_fail_channel_update(this_arg: *const c_void, update: &crate::ln::msgs::HTLCFailChannelUpdate) {
@@ -69,7 +70,7 @@ extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_htlc_fail_channel_
 }
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_channel_update(this_arg: *const c_void, msg: &crate::ln::msgs::ChannelUpdate) -> crate::c_types::derived::CResult_boolLightningErrorZ {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.handle_channel_update(unsafe { &*msg.inner });
-	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)) } }) };
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
 	local_ret
 }
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_should_request_full_sync(this_arg: *const c_void, _node_id: crate::c_types::PublicKey) -> bool {
@@ -88,11 +89,12 @@ pub struct DirectionalChannelInfo {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnDirectionalChannelInfo,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for DirectionalChannelInfo {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnDirectionalChannelInfo) };
 		}
 	}
@@ -156,11 +158,12 @@ pub struct ChannelInfo {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnChannelInfo,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ChannelInfo {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelInfo) };
 		}
 	}
@@ -182,7 +185,7 @@ pub extern "C" fn ChannelInfo_set_node_one(this_ptr: &mut ChannelInfo, mut val: 
 #[no_mangle]
 pub extern "C" fn ChannelInfo_get_one_to_two(this_ptr: &ChannelInfo) -> *const DirectionalChannelInfo {
 	let inner_val = &unsafe { &*this_ptr.inner }.one_to_two;
-	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::routing::network_graph::DirectionalChannelInfo { inner: &(*inner_val.as_ref().unwrap()) } )) } };
+	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::routing::network_graph::DirectionalChannelInfo { inner: &(*inner_val.as_ref().unwrap()), _underlying_ref: true } )) } };
 	local_inner_val
 }
 /// " Details about the first direction of a channel"
@@ -206,7 +209,7 @@ pub extern "C" fn ChannelInfo_set_node_two(this_ptr: &mut ChannelInfo, mut val: 
 #[no_mangle]
 pub extern "C" fn ChannelInfo_get_two_to_one(this_ptr: &ChannelInfo) -> *const DirectionalChannelInfo {
 	let inner_val = &unsafe { &*this_ptr.inner }.two_to_one;
-	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::routing::network_graph::DirectionalChannelInfo { inner: &(*inner_val.as_ref().unwrap()) } )) } };
+	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::routing::network_graph::DirectionalChannelInfo { inner: &(*inner_val.as_ref().unwrap()), _underlying_ref: true } )) } };
 	local_inner_val
 }
 /// " Details about the second direction of a channel"
@@ -225,11 +228,12 @@ pub struct RoutingFees {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnRoutingFees,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for RoutingFees {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnRoutingFees) };
 		}
 	}
@@ -265,7 +269,7 @@ pub extern "C" fn RoutingFees_new(mut base_msat_arg: u32, mut proportional_milli
 	RoutingFees { inner: Box::into_raw(Box::new(lnRoutingFees {
 		base_msat: base_msat_arg,
 		proportional_millionths: proportional_millionths_arg,
-	}))}
+	})), _underlying_ref: false }
 }
 
 use lightning::routing::network_graph::NodeAnnouncementInfo as lnNodeAnnouncementInfoImport;
@@ -277,11 +281,12 @@ pub struct NodeAnnouncementInfo {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnNodeAnnouncementInfo,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for NodeAnnouncementInfo {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnNodeAnnouncementInfo) };
 		}
 	}
@@ -343,11 +348,12 @@ pub struct NodeInfo {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnNodeInfo,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for NodeInfo {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnNodeInfo) };
 		}
 	}
@@ -366,7 +372,7 @@ pub extern "C" fn NodeInfo_set_channels(this_ptr: &mut NodeInfo, mut val: crate:
 #[no_mangle]
 pub extern "C" fn NodeInfo_get_lowest_inbound_channel_fees(this_ptr: &NodeInfo) -> *const RoutingFees {
 	let inner_val = &unsafe { &*this_ptr.inner }.lowest_inbound_channel_fees;
-	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::routing::network_graph::RoutingFees { inner: &(*inner_val.as_ref().unwrap()) } )) } };
+	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::routing::network_graph::RoutingFees { inner: &(*inner_val.as_ref().unwrap()), _underlying_ref: true } )) } };
 	local_inner_val
 }
 /// " Lowest fees enabling routing via any of the enabled, known channels to a node."
@@ -383,7 +389,7 @@ pub extern "C" fn NodeInfo_set_lowest_inbound_channel_fees(this_ptr: &mut NodeIn
 #[no_mangle]
 pub extern "C" fn NodeInfo_get_announcement_info(this_ptr: &NodeInfo) -> *const NodeAnnouncementInfo {
 	let inner_val = &unsafe { &*this_ptr.inner }.announcement_info;
-	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::routing::network_graph::NodeAnnouncementInfo { inner: &(*inner_val.as_ref().unwrap()) } )) } };
+	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::routing::network_graph::NodeAnnouncementInfo { inner: &(*inner_val.as_ref().unwrap()), _underlying_ref: true } )) } };
 	local_inner_val
 }
 /// " More information about a node from node_announcement."
@@ -403,7 +409,7 @@ pub extern "C" fn NodeInfo_new(mut channels_arg: crate::c_types::derived::CVec_u
 		channels: local_channels_arg,
 		lowest_inbound_channel_fees: local_lowest_inbound_channel_fees_arg,
 		announcement_info: local_announcement_info_arg,
-	}))}
+	})), _underlying_ref: false }
 }
 
 use lightning::routing::network_graph::NetworkGraph as lnNetworkGraphImport;
@@ -415,11 +421,12 @@ pub struct NetworkGraph {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnNetworkGraph,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for NetworkGraph {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnNetworkGraph) };
 		}
 	}

@@ -30,11 +30,12 @@ pub struct InitFeatures {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnInitFeatures,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for InitFeatures {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnInitFeatures) };
 		}
 	}
@@ -51,11 +52,12 @@ pub struct NodeFeatures {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnNodeFeatures,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for NodeFeatures {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnNodeFeatures) };
 		}
 	}
@@ -72,11 +74,12 @@ pub struct ChannelFeatures {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnChannelFeatures,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ChannelFeatures {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelFeatures) };
 		}
 	}

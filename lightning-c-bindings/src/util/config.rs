@@ -18,11 +18,12 @@ pub struct UserConfig {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnUserConfig,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for UserConfig {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnUserConfig) };
 		}
 	}
@@ -31,7 +32,7 @@ impl Drop for UserConfig {
 pub extern "C" fn UserConfig_free(this_ptr: UserConfig) { }
 #[no_mangle]
 pub extern "C" fn UserConfig_default() -> UserConfig {
-	UserConfig { inner: Box::into_raw(Box::new(Default::default())) }
+	UserConfig { inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }
 }
 
 use lightning::util::config::ChannelHandshakeConfig as lnChannelHandshakeConfigImport;
@@ -45,11 +46,12 @@ pub struct ChannelHandshakeConfig {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnChannelHandshakeConfig,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ChannelHandshakeConfig {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelHandshakeConfig) };
 		}
 	}
@@ -137,11 +139,11 @@ pub extern "C" fn ChannelHandshakeConfig_new(mut minimum_depth_arg: u32, mut our
 		minimum_depth: minimum_depth_arg,
 		our_to_self_delay: our_to_self_delay_arg,
 		our_htlc_minimum_msat: our_htlc_minimum_msat_arg,
-	}))}
+	})), _underlying_ref: false }
 }
 #[no_mangle]
 pub extern "C" fn ChannelHandshakeConfig_default() -> ChannelHandshakeConfig {
-	ChannelHandshakeConfig { inner: Box::into_raw(Box::new(Default::default())) }
+	ChannelHandshakeConfig { inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }
 }
 
 use lightning::util::config::ChannelHandshakeLimits as lnChannelHandshakeLimitsImport;
@@ -163,11 +165,12 @@ pub struct ChannelHandshakeLimits {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnChannelHandshakeLimits,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ChannelHandshakeLimits {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelHandshakeLimits) };
 		}
 	}
@@ -383,11 +386,11 @@ pub extern "C" fn ChannelHandshakeLimits_new(mut min_funding_satoshis_arg: u64, 
 		max_minimum_depth: max_minimum_depth_arg,
 		force_announced_channel_preference: force_announced_channel_preference_arg,
 		their_to_self_delay: their_to_self_delay_arg,
-	}))}
+	})), _underlying_ref: false }
 }
 #[no_mangle]
 pub extern "C" fn ChannelHandshakeLimits_default() -> ChannelHandshakeLimits {
-	ChannelHandshakeLimits { inner: Box::into_raw(Box::new(Default::default())) }
+	ChannelHandshakeLimits { inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }
 }
 
 use lightning::util::config::ChannelConfig as lnChannelConfigImport;
@@ -400,11 +403,12 @@ pub struct ChannelConfig {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnChannelConfig,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ChannelConfig {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelConfig) };
 		}
 	}
@@ -498,9 +502,9 @@ pub extern "C" fn ChannelConfig_new(mut fee_proportional_millionths_arg: u32, mu
 		fee_proportional_millionths: fee_proportional_millionths_arg,
 		announced_channel: announced_channel_arg,
 		commit_upfront_shutdown_pubkey: commit_upfront_shutdown_pubkey_arg,
-	}))}
+	})), _underlying_ref: false }
 }
 #[no_mangle]
 pub extern "C" fn ChannelConfig_default() -> ChannelConfig {
-	ChannelConfig { inner: Box::into_raw(Box::new(Default::default())) }
+	ChannelConfig { inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }
 }
