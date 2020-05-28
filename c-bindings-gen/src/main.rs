@@ -270,7 +270,7 @@ fn print_method_call_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, 
 						}
 					}
 				}
-				write!(w, "{} {{ inner: Box::into_raw(Box::new(ret)) }}", this_type).unwrap();
+				write!(w, "{} {{ inner: Box::into_raw(Box::new(ret)), _underlying_ref: false }}", this_type).unwrap();
 			} else if to_c {
 				let new_var = types.print_from_c_conversion_new_var(w, &syn::Ident::new("ret", Span::call_site()), rtype, generics);
 				if new_var {
@@ -547,9 +547,9 @@ fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name:
 	println_docs(w, &attrs, "");
 	writeln!(w, "#[repr(C)]\npub struct {} {{\n\t/// Nearly everyhwere, inner must be non-null, however in places where", struct_name).unwrap();
 	writeln!(w, "\t///the Rust equivalent takes an Option, it may be set to null to indicate None.").unwrap();
-	writeln!(w, "\tpub inner: *const ln{},\n}}\n", ident).unwrap();
+	writeln!(w, "\tpub inner: *const ln{},\n\tpub _underlying_ref: bool,\n}}\n", ident).unwrap();
 	writeln!(w, "impl Drop for {} {{\n\tfn drop(&mut self) {{", struct_name).unwrap();
-	writeln!(w, "\t\tif !self.inner.is_null() {{").unwrap();
+	writeln!(w, "\t\tif !self._underlying_ref && !self.inner.is_null() {{").unwrap();
 	writeln!(w, "\t\t\tlet _ = unsafe {{ Box::from_raw(self.inner as *mut ln{}) }};\n\t\t}}\n\t}}\n}}", struct_name).unwrap();
 	writeln!(w, "#[no_mangle]\npub extern \"C\" fn {}_free(this_ptr: {}) {{ }}", struct_name, struct_name).unwrap();
 	writeln!(cpp_headers, "class {} {{\nprivate:", ident).unwrap();
@@ -656,7 +656,7 @@ fn println_struct<'a, 'b, W: std::io::Write>(w: &mut W, s: &'a syn::ItemStruct, 
 				types.print_from_c_conversion_suffix(w, &field.ty, Some(&gen_types));
 				writeln!(w, ",").unwrap();
 			}
-			writeln!(w, "\t}}))}}\n}}").unwrap();
+			writeln!(w, "\t}})), _underlying_ref: false }}\n}}").unwrap();
 		}
 	}
 
@@ -824,7 +824,7 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 							"From" => {},
 							"Default" => {
 								write!(w, "#[no_mangle]\npub extern \"C\" fn {}_default() -> {} {{\n", ident, ident).unwrap();
-								write!(w, "\t{} {{ inner: Box::into_raw(Box::new(Default::default())) }}\n", ident).unwrap();
+								write!(w, "\t{} {{ inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }}\n", ident).unwrap();
 								write!(w, "}}\n").unwrap();
 							},
 							"PartialEq" => {},
