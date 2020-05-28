@@ -20,11 +20,12 @@ pub struct SpendableOutputDescriptor {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnSpendableOutputDescriptor,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for SpendableOutputDescriptor {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnSpendableOutputDescriptor) };
 		}
 	}
@@ -123,7 +124,7 @@ impl lnChannelKeys for ChannelKeys {
 		unimplemented!();
 	}
 	fn set_remote_channel_pubkeys(&mut self, channel_points: &lightning::ln::chan_utils::ChannelPublicKeys) {
-		(self.set_remote_channel_pubkeys)(self.this_arg, &crate::ln::chan_utils::ChannelPublicKeys { inner: channel_points })
+		(self.set_remote_channel_pubkeys)(self.this_arg, &crate::ln::chan_utils::ChannelPublicKeys { inner: channel_points, _underlying_ref: true })
 	}
 }
 
@@ -206,11 +207,12 @@ pub struct InMemoryChannelKeys {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnInMemoryChannelKeys,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for InMemoryChannelKeys {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnInMemoryChannelKeys) };
 		}
 	}
@@ -221,7 +223,7 @@ pub extern "C" fn InMemoryChannelKeys_free(this_ptr: InMemoryChannelKeys) { }
 #[no_mangle]
 pub extern "C" fn InMemoryChannelKeys_new(mut funding_key: crate::c_types::SecretKey, mut revocation_base_key: crate::c_types::SecretKey, mut payment_key: crate::c_types::SecretKey, mut delayed_payment_base_key: crate::c_types::SecretKey, mut htlc_base_key: crate::c_types::SecretKey, mut commitment_seed: crate::c_types::ThirtyTwoBytes, mut channel_value_satoshis: u64) -> InMemoryChannelKeys {
 	let mut ret = lightning::chain::keysinterface::InMemoryChannelKeys::new(&bitcoin::secp256k1::Secp256k1::new(), funding_key.into_rust(), revocation_base_key.into_rust(), payment_key.into_rust(), delayed_payment_base_key.into_rust(), htlc_base_key.into_rust(), commitment_seed.data, channel_value_satoshis);
-	crate::chain::keysinterface::InMemoryChannelKeys { inner: Box::into_raw(Box::new(ret)) }
+	crate::chain::keysinterface::InMemoryChannelKeys { inner: Box::into_raw(Box::new(ret)), _underlying_ref: false }
 }
 
 #[no_mangle]
@@ -269,11 +271,12 @@ pub struct KeysManager {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnKeysManager,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for KeysManager {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnKeysManager) };
 		}
 	}
@@ -302,7 +305,7 @@ pub extern "C" fn KeysManager_free(this_ptr: KeysManager) { }
 #[no_mangle]
 pub extern "C" fn KeysManager_new(seed: *const [u8; 32], mut network: crate::bitcoin::network::Network, mut starting_time_secs: u64, mut starting_time_nanos: u32) -> KeysManager {
 	let mut ret = lightning::chain::keysinterface::KeysManager::new(unsafe { &*seed}, network.into_bitcoin(), starting_time_secs, starting_time_nanos);
-	KeysManager { inner: Box::into_raw(Box::new(ret)) }
+	KeysManager { inner: Box::into_raw(Box::new(ret)), _underlying_ref: false }
 }
 
 #[no_mangle]

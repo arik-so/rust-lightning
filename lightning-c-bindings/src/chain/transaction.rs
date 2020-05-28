@@ -17,11 +17,12 @@ pub struct OutPoint {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnOutPoint,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for OutPoint {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnOutPoint) };
 		}
 	}
@@ -55,7 +56,7 @@ pub extern "C" fn OutPoint_new(mut txid_arg: crate::c_types::ThirtyTwoBytes, mut
 	OutPoint { inner: Box::into_raw(Box::new(lnOutPoint {
 		txid: ::bitcoin::hash_types::Txid::from_slice(&txid_arg.data[..]).unwrap(),
 		index: index_arg,
-	}))}
+	})), _underlying_ref: false }
 }
 /// " Convert an `OutPoint` to a lightning channel id."
 #[no_mangle]

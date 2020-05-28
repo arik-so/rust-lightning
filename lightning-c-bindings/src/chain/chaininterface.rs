@@ -237,11 +237,12 @@ pub struct ChainWatchedUtil {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnChainWatchedUtil,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ChainWatchedUtil {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnChainWatchedUtil) };
 		}
 	}
@@ -252,7 +253,7 @@ pub extern "C" fn ChainWatchedUtil_free(this_ptr: ChainWatchedUtil) { }
 #[no_mangle]
 pub extern "C" fn ChainWatchedUtil_new() -> ChainWatchedUtil {
 	let mut ret = lightning::chain::chaininterface::ChainWatchedUtil::new();
-	ChainWatchedUtil { inner: Box::into_raw(Box::new(ret)) }
+	ChainWatchedUtil { inner: Box::into_raw(Box::new(ret)), _underlying_ref: false }
 }
 
 /// " Registers a tx for monitoring, returning true if it was a new tx and false if we'd already"
@@ -303,11 +304,12 @@ pub struct BlockNotifier {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnBlockNotifier,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for BlockNotifier {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnBlockNotifier) };
 		}
 	}
@@ -318,7 +320,7 @@ pub extern "C" fn BlockNotifier_free(this_ptr: BlockNotifier) { }
 #[no_mangle]
 pub extern "C" fn BlockNotifier_new(mut chain_monitor: crate::chain::chaininterface::ChainWatchInterface) -> BlockNotifier {
 	let mut ret = lightning::chain::chaininterface::BlockNotifier::new(chain_monitor);
-	crate::chain::chaininterface::BlockNotifier { inner: Box::into_raw(Box::new(ret)) }
+	crate::chain::chaininterface::BlockNotifier { inner: Box::into_raw(Box::new(ret)), _underlying_ref: false }
 }
 
 /// " Register the given listener to receive events."
@@ -354,11 +356,12 @@ pub struct ChainWatchInterfaceUtil {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnChainWatchInterfaceUtil,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ChainWatchInterfaceUtil {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnChainWatchInterfaceUtil) };
 		}
 	}
@@ -402,7 +405,7 @@ extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_reentered(this_arg: *c
 #[no_mangle]
 pub extern "C" fn ChainWatchInterfaceUtil_new(mut network: crate::bitcoin::network::Network) -> ChainWatchInterfaceUtil {
 	let mut ret = lightning::chain::chaininterface::ChainWatchInterfaceUtil::new(network.into_bitcoin());
-	crate::chain::chaininterface::ChainWatchInterfaceUtil { inner: Box::into_raw(Box::new(ret)) }
+	crate::chain::chaininterface::ChainWatchInterfaceUtil { inner: Box::into_raw(Box::new(ret)), _underlying_ref: false }
 }
 
 /// " Checks if a given transaction matches the current filter."

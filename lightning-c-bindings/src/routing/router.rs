@@ -17,11 +17,12 @@ pub struct RouteHop {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnRouteHop,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for RouteHop {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnRouteHop) };
 		}
 	}
@@ -85,11 +86,12 @@ pub struct Route {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnRoute,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for Route {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnRoute) };
 		}
 	}
@@ -112,7 +114,7 @@ pub extern "C" fn Route_new(mut paths_arg: crate::c_types::derived::CVec_CVec_Ro
 	let mut local_paths_arg = Vec::new(); for mut item in paths_arg.into_rust().drain(..) { local_paths_arg.push( { let mut local_paths_arg_0 = Vec::new(); for mut item in item.into_rust().drain(..) { local_paths_arg_0.push( { *unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) } }); }; local_paths_arg_0 }); };
 	Route { inner: Box::into_raw(Box::new(lnRoute {
 		paths: local_paths_arg,
-	}))}
+	})), _underlying_ref: false }
 }
 
 use lightning::routing::router::RouteHint as lnRouteHintImport;
@@ -124,11 +126,12 @@ pub struct RouteHint {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnRouteHint,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for RouteHint {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnRouteHint) };
 		}
 	}
@@ -161,7 +164,7 @@ pub extern "C" fn RouteHint_set_short_channel_id(this_ptr: &mut RouteHint, mut v
 #[no_mangle]
 pub extern "C" fn RouteHint_get_fees(this_ptr: &RouteHint) -> *const crate::routing::network_graph::RoutingFees {
 	let inner_val = &unsafe { &*this_ptr.inner }.fees;
-	Box::into_raw(Box::new(crate::routing::network_graph::RoutingFees { inner: &(*inner_val) } ))
+	Box::into_raw(Box::new(crate::routing::network_graph::RoutingFees { inner: &(*inner_val), _underlying_ref: true } ))
 }
 /// " The fees which must be paid to use this channel"
 #[no_mangle]
@@ -198,5 +201,5 @@ pub extern "C" fn RouteHint_new(mut src_node_id_arg: crate::c_types::PublicKey, 
 		fees: *unsafe { Box::from_raw(fees_arg.inner.take_ptr() as *mut _) },
 		cltv_expiry_delta: cltv_expiry_delta_arg,
 		htlc_minimum_msat: htlc_minimum_msat_arg,
-	}))}
+	})), _underlying_ref: false }
 }

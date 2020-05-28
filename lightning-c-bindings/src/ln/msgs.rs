@@ -29,11 +29,12 @@ pub struct DecodeError {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnDecodeError,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for DecodeError {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnDecodeError) };
 		}
 	}
@@ -50,11 +51,12 @@ pub struct Init {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnInit,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for Init {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnInit) };
 		}
 	}
@@ -71,11 +73,12 @@ pub struct ErrorMessage {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnErrorMessage,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ErrorMessage {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnErrorMessage) };
 		}
 	}
@@ -92,11 +95,12 @@ pub struct Ping {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnPing,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for Ping {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnPing) };
 		}
 	}
@@ -113,11 +117,12 @@ pub struct Pong {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnPong,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for Pong {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnPong) };
 		}
 	}
@@ -134,11 +139,12 @@ pub struct OpenChannel {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnOpenChannel,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for OpenChannel {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnOpenChannel) };
 		}
 	}
@@ -155,11 +161,12 @@ pub struct AcceptChannel {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnAcceptChannel,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for AcceptChannel {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnAcceptChannel) };
 		}
 	}
@@ -176,11 +183,12 @@ pub struct FundingCreated {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnFundingCreated,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for FundingCreated {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnFundingCreated) };
 		}
 	}
@@ -197,11 +205,12 @@ pub struct FundingSigned {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnFundingSigned,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for FundingSigned {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnFundingSigned) };
 		}
 	}
@@ -218,11 +227,12 @@ pub struct FundingLocked {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnFundingLocked,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for FundingLocked {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnFundingLocked) };
 		}
 	}
@@ -252,7 +262,7 @@ pub extern "C" fn FundingLocked_new(mut channel_id_arg: crate::c_types::ThirtyTw
 	FundingLocked { inner: Box::into_raw(Box::new(lnFundingLocked {
 		channel_id: channel_id_arg.data,
 		next_per_commitment_point: next_per_commitment_point_arg.into_rust(),
-	}))}
+	})), _underlying_ref: false }
 }
 
 use lightning::ln::msgs::Shutdown as lnShutdownImport;
@@ -264,11 +274,12 @@ pub struct Shutdown {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnShutdown,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for Shutdown {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnShutdown) };
 		}
 	}
@@ -285,11 +296,12 @@ pub struct ClosingSigned {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnClosingSigned,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ClosingSigned {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnClosingSigned) };
 		}
 	}
@@ -306,11 +318,12 @@ pub struct UpdateAddHTLC {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnUpdateAddHTLC,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for UpdateAddHTLC {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnUpdateAddHTLC) };
 		}
 	}
@@ -327,11 +340,12 @@ pub struct UpdateFulfillHTLC {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnUpdateFulfillHTLC,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for UpdateFulfillHTLC {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnUpdateFulfillHTLC) };
 		}
 	}
@@ -348,11 +362,12 @@ pub struct UpdateFailHTLC {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnUpdateFailHTLC,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for UpdateFailHTLC {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnUpdateFailHTLC) };
 		}
 	}
@@ -369,11 +384,12 @@ pub struct UpdateFailMalformedHTLC {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnUpdateFailMalformedHTLC,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for UpdateFailMalformedHTLC {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnUpdateFailMalformedHTLC) };
 		}
 	}
@@ -390,11 +406,12 @@ pub struct CommitmentSigned {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnCommitmentSigned,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for CommitmentSigned {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnCommitmentSigned) };
 		}
 	}
@@ -411,11 +428,12 @@ pub struct RevokeAndACK {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnRevokeAndACK,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for RevokeAndACK {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnRevokeAndACK) };
 		}
 	}
@@ -432,11 +450,12 @@ pub struct UpdateFee {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnUpdateFee,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for UpdateFee {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnUpdateFee) };
 		}
 	}
@@ -453,11 +472,12 @@ pub struct ChannelReestablish {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnChannelReestablish,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ChannelReestablish {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelReestablish) };
 		}
 	}
@@ -474,11 +494,12 @@ pub struct AnnouncementSignatures {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnAnnouncementSignatures,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for AnnouncementSignatures {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnAnnouncementSignatures) };
 		}
 	}
@@ -495,11 +516,12 @@ pub struct NetAddress {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnNetAddress,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for NetAddress {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnNetAddress) };
 		}
 	}
@@ -516,11 +538,12 @@ pub struct UnsignedNodeAnnouncement {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnUnsignedNodeAnnouncement,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for UnsignedNodeAnnouncement {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnUnsignedNodeAnnouncement) };
 		}
 	}
@@ -550,11 +573,12 @@ pub struct NodeAnnouncement {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnNodeAnnouncement,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for NodeAnnouncement {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnNodeAnnouncement) };
 		}
 	}
@@ -571,11 +595,12 @@ pub struct UnsignedChannelAnnouncement {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnUnsignedChannelAnnouncement,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for UnsignedChannelAnnouncement {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnUnsignedChannelAnnouncement) };
 		}
 	}
@@ -614,11 +639,12 @@ pub struct ChannelAnnouncement {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnChannelAnnouncement,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ChannelAnnouncement {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelAnnouncement) };
 		}
 	}
@@ -635,11 +661,12 @@ pub struct ChannelUpdate {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnChannelUpdate,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for ChannelUpdate {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnChannelUpdate) };
 		}
 	}
@@ -656,11 +683,12 @@ pub struct LightningError {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnLightningError,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for LightningError {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnLightningError) };
 		}
 	}
@@ -678,11 +706,12 @@ pub struct CommitmentUpdate {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnCommitmentUpdate,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for CommitmentUpdate {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnCommitmentUpdate) };
 		}
 	}
@@ -717,7 +746,7 @@ pub extern "C" fn CommitmentUpdate_set_update_fail_malformed_htlcs(this_ptr: &mu
 #[no_mangle]
 pub extern "C" fn CommitmentUpdate_get_update_fee(this_ptr: &CommitmentUpdate) -> *const UpdateFee {
 	let inner_val = &unsafe { &*this_ptr.inner }.update_fee;
-	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::ln::msgs::UpdateFee { inner: &(*inner_val.as_ref().unwrap()) } )) } };
+	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::ln::msgs::UpdateFee { inner: &(*inner_val.as_ref().unwrap()), _underlying_ref: true } )) } };
 	local_inner_val
 }
 /// " An update_fee message which should be sent"
@@ -730,7 +759,7 @@ pub extern "C" fn CommitmentUpdate_set_update_fee(this_ptr: &mut CommitmentUpdat
 #[no_mangle]
 pub extern "C" fn CommitmentUpdate_get_commitment_signed(this_ptr: &CommitmentUpdate) -> *const CommitmentSigned {
 	let inner_val = &unsafe { &*this_ptr.inner }.commitment_signed;
-	Box::into_raw(Box::new(crate::ln::msgs::CommitmentSigned { inner: &(*inner_val) } ))
+	Box::into_raw(Box::new(crate::ln::msgs::CommitmentSigned { inner: &(*inner_val), _underlying_ref: true } ))
 }
 /// " Finally, the commitment_signed message which should be sent"
 #[no_mangle]
@@ -751,7 +780,7 @@ pub extern "C" fn CommitmentUpdate_new(mut update_add_htlcs_arg: crate::c_types:
 		update_fail_malformed_htlcs: local_update_fail_malformed_htlcs_arg,
 		update_fee: local_update_fee_arg,
 		commitment_signed: *unsafe { Box::from_raw(commitment_signed_arg.inner.take_ptr() as *mut _) },
-	}))}
+	})), _underlying_ref: false }
 }
 
 use lightning::ln::msgs::HTLCFailChannelUpdate as lnHTLCFailChannelUpdateImport;
@@ -765,11 +794,12 @@ pub struct HTLCFailChannelUpdate {
 	/// Nearly everyhwere, inner must be non-null, however in places where
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnHTLCFailChannelUpdate,
+	pub _underlying_ref: bool,
 }
 
 impl Drop for HTLCFailChannelUpdate {
 	fn drop(&mut self) {
-		if !self.inner.is_null() {
+		if !self._underlying_ref && !self.inner.is_null() {
 			let _ = unsafe { Box::from_raw(self.inner as *mut lnHTLCFailChannelUpdate) };
 		}
 	}
@@ -837,61 +867,61 @@ unsafe impl Sync for ChannelMessageHandler {}
 use lightning::ln::msgs::ChannelMessageHandler as lnChannelMessageHandler;
 impl lnChannelMessageHandler for ChannelMessageHandler {
 	fn handle_open_channel(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, their_features: lightning::ln::features::InitFeatures, msg: &lightning::ln::msgs::OpenChannel) {
-		(self.handle_open_channel)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), crate::ln::features::InitFeatures { inner: Box::into_raw(Box::new(their_features)) }, &crate::ln::msgs::OpenChannel { inner: msg })
+		(self.handle_open_channel)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), crate::ln::features::InitFeatures { inner: Box::into_raw(Box::new(their_features)), _underlying_ref: false }, &crate::ln::msgs::OpenChannel { inner: msg, _underlying_ref: true })
 	}
 	fn handle_accept_channel(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, their_features: lightning::ln::features::InitFeatures, msg: &lightning::ln::msgs::AcceptChannel) {
-		(self.handle_accept_channel)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), crate::ln::features::InitFeatures { inner: Box::into_raw(Box::new(their_features)) }, &crate::ln::msgs::AcceptChannel { inner: msg })
+		(self.handle_accept_channel)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), crate::ln::features::InitFeatures { inner: Box::into_raw(Box::new(their_features)), _underlying_ref: false }, &crate::ln::msgs::AcceptChannel { inner: msg, _underlying_ref: true })
 	}
 	fn handle_funding_created(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::FundingCreated) {
-		(self.handle_funding_created)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::FundingCreated { inner: msg })
+		(self.handle_funding_created)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::FundingCreated { inner: msg, _underlying_ref: true })
 	}
 	fn handle_funding_signed(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::FundingSigned) {
-		(self.handle_funding_signed)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::FundingSigned { inner: msg })
+		(self.handle_funding_signed)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::FundingSigned { inner: msg, _underlying_ref: true })
 	}
 	fn handle_funding_locked(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::FundingLocked) {
-		(self.handle_funding_locked)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::FundingLocked { inner: msg })
+		(self.handle_funding_locked)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::FundingLocked { inner: msg, _underlying_ref: true })
 	}
 	fn handle_shutdown(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::Shutdown) {
-		(self.handle_shutdown)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::Shutdown { inner: msg })
+		(self.handle_shutdown)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::Shutdown { inner: msg, _underlying_ref: true })
 	}
 	fn handle_closing_signed(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::ClosingSigned) {
-		(self.handle_closing_signed)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::ClosingSigned { inner: msg })
+		(self.handle_closing_signed)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::ClosingSigned { inner: msg, _underlying_ref: true })
 	}
 	fn handle_update_add_htlc(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::UpdateAddHTLC) {
-		(self.handle_update_add_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::UpdateAddHTLC { inner: msg })
+		(self.handle_update_add_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::UpdateAddHTLC { inner: msg, _underlying_ref: true })
 	}
 	fn handle_update_fulfill_htlc(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::UpdateFulfillHTLC) {
-		(self.handle_update_fulfill_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::UpdateFulfillHTLC { inner: msg })
+		(self.handle_update_fulfill_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::UpdateFulfillHTLC { inner: msg, _underlying_ref: true })
 	}
 	fn handle_update_fail_htlc(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::UpdateFailHTLC) {
-		(self.handle_update_fail_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::UpdateFailHTLC { inner: msg })
+		(self.handle_update_fail_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::UpdateFailHTLC { inner: msg, _underlying_ref: true })
 	}
 	fn handle_update_fail_malformed_htlc(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::UpdateFailMalformedHTLC) {
-		(self.handle_update_fail_malformed_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::UpdateFailMalformedHTLC { inner: msg })
+		(self.handle_update_fail_malformed_htlc)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::UpdateFailMalformedHTLC { inner: msg, _underlying_ref: true })
 	}
 	fn handle_commitment_signed(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::CommitmentSigned) {
-		(self.handle_commitment_signed)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::CommitmentSigned { inner: msg })
+		(self.handle_commitment_signed)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::CommitmentSigned { inner: msg, _underlying_ref: true })
 	}
 	fn handle_revoke_and_ack(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::RevokeAndACK) {
-		(self.handle_revoke_and_ack)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::RevokeAndACK { inner: msg })
+		(self.handle_revoke_and_ack)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::RevokeAndACK { inner: msg, _underlying_ref: true })
 	}
 	fn handle_update_fee(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::UpdateFee) {
-		(self.handle_update_fee)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::UpdateFee { inner: msg })
+		(self.handle_update_fee)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::UpdateFee { inner: msg, _underlying_ref: true })
 	}
 	fn handle_announcement_signatures(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::AnnouncementSignatures) {
-		(self.handle_announcement_signatures)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::AnnouncementSignatures { inner: msg })
+		(self.handle_announcement_signatures)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::AnnouncementSignatures { inner: msg, _underlying_ref: true })
 	}
 	fn peer_disconnected(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, no_connection_possible: bool) {
 		(self.peer_disconnected)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), no_connection_possible)
 	}
 	fn peer_connected(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::Init) {
-		(self.peer_connected)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::Init { inner: msg })
+		(self.peer_connected)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::Init { inner: msg, _underlying_ref: true })
 	}
 	fn handle_channel_reestablish(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::ChannelReestablish) {
-		(self.handle_channel_reestablish)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::ChannelReestablish { inner: msg })
+		(self.handle_channel_reestablish)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::ChannelReestablish { inner: msg, _underlying_ref: true })
 	}
 	fn handle_error(&self, their_node_id: &bitcoin::secp256k1::key::PublicKey, msg: &lightning::ln::msgs::ErrorMessage) {
-		(self.handle_error)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::ErrorMessage { inner: msg })
+		(self.handle_error)(self.this_arg, crate::c_types::PublicKey::from_rust(&their_node_id), &crate::ln::msgs::ErrorMessage { inner: msg, _underlying_ref: true })
 	}
 }
 
@@ -929,22 +959,22 @@ unsafe impl Sync for RoutingMessageHandler {}
 use lightning::ln::msgs::RoutingMessageHandler as lnRoutingMessageHandler;
 impl lnRoutingMessageHandler for RoutingMessageHandler {
 	fn handle_node_announcement(&self, msg: &lightning::ln::msgs::NodeAnnouncement) -> Result<bool, lightning::ln::msgs::LightningError> {
-		let mut ret = (self.handle_node_announcement)(self.this_arg, &crate::ln::msgs::NodeAnnouncement { inner: msg });
+		let mut ret = (self.handle_node_announcement)(self.this_arg, &crate::ln::msgs::NodeAnnouncement { inner: msg, _underlying_ref: true });
 		let mut local_ret = match ret.result_good { true => Ok( { (*unsafe { Box::from_raw(ret.contents.result) }) }), false => Err( { *unsafe { Box::from_raw((*unsafe { Box::from_raw(ret.contents.err) }).inner.take_ptr() as *mut _) } })};
 		local_ret
 	}
 	fn handle_channel_announcement(&self, msg: &lightning::ln::msgs::ChannelAnnouncement) -> Result<bool, lightning::ln::msgs::LightningError> {
-		let mut ret = (self.handle_channel_announcement)(self.this_arg, &crate::ln::msgs::ChannelAnnouncement { inner: msg });
+		let mut ret = (self.handle_channel_announcement)(self.this_arg, &crate::ln::msgs::ChannelAnnouncement { inner: msg, _underlying_ref: true });
 		let mut local_ret = match ret.result_good { true => Ok( { (*unsafe { Box::from_raw(ret.contents.result) }) }), false => Err( { *unsafe { Box::from_raw((*unsafe { Box::from_raw(ret.contents.err) }).inner.take_ptr() as *mut _) } })};
 		local_ret
 	}
 	fn handle_channel_update(&self, msg: &lightning::ln::msgs::ChannelUpdate) -> Result<bool, lightning::ln::msgs::LightningError> {
-		let mut ret = (self.handle_channel_update)(self.this_arg, &crate::ln::msgs::ChannelUpdate { inner: msg });
+		let mut ret = (self.handle_channel_update)(self.this_arg, &crate::ln::msgs::ChannelUpdate { inner: msg, _underlying_ref: true });
 		let mut local_ret = match ret.result_good { true => Ok( { (*unsafe { Box::from_raw(ret.contents.result) }) }), false => Err( { *unsafe { Box::from_raw((*unsafe { Box::from_raw(ret.contents.err) }).inner.take_ptr() as *mut _) } })};
 		local_ret
 	}
 	fn handle_htlc_fail_channel_update(&self, update: &lightning::ln::msgs::HTLCFailChannelUpdate) {
-		(self.handle_htlc_fail_channel_update)(self.this_arg, &crate::ln::msgs::HTLCFailChannelUpdate { inner: update })
+		(self.handle_htlc_fail_channel_update)(self.this_arg, &crate::ln::msgs::HTLCFailChannelUpdate { inner: update, _underlying_ref: true })
 	}
 	fn get_next_channel_announcements(&self, starting_point: u64, batch_amount: u8) -> Vec<(lightning::ln::msgs::ChannelAnnouncement, Option<lightning::ln::msgs::ChannelUpdate>, Option<lightning::ln::msgs::ChannelUpdate>)> {
 		unimplemented!();
