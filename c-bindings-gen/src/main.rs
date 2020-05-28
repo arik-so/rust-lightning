@@ -1,14 +1,66 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 use std::process;
 
-use proc_macro2::{TokenTree, Span};
+use proc_macro2::{TokenTree, TokenStream, Span};
 
 mod types;
 use types::*;
+
+/// Because we don't expand macros, any code that we need to generated based on their contents has
+/// to be completely manual. In this case its all just serialization, so its not too hard.
+fn convert_macro<W: std::io::Write>(w: &mut W, macro_path: &syn::Path, stream: &TokenStream, types: &TypeResolver) {
+	assert_eq!(macro_path.segments.len(), 1);
+	match &format!("{}", macro_path.segments.iter().next().unwrap().ident) as &str {
+		"impl_writeable" | "impl_writeable_len_match" => {
+			let struct_for = if let TokenTree::Ident(i) = stream.clone().into_iter().next().unwrap() { i } else { unimplemented!(); };
+			if let Some(s) = types.maybe_resolve_ident(&struct_for) {
+				if !types.crate_types.opaques.get(&s).is_some() { return; }
+				writeln!(w, "#[no_mangle]").unwrap();
+				writeln!(w, "pub extern \"C\" fn {}_write(obj: *const {}) -> crate::c_types::derived::CVec_u8Z {{", struct_for, struct_for).unwrap();
+				writeln!(w, "\tcrate::c_types::serialize_obj(unsafe {{ &(*(*obj).inner) }})").unwrap();
+				writeln!(w, "}}").unwrap();
+				writeln!(w, "#[no_mangle]").unwrap();
+				writeln!(w, "pub extern \"C\" fn {}_read(ser: crate::c_types::u8slice) -> {} {{", struct_for, struct_for).unwrap();
+				writeln!(w, "\tif let Ok(res) = crate::c_types::deserialize_obj(ser) {{").unwrap();
+				writeln!(w, "\t\t{} {{ inner: Box::into_raw(Box::new(res)), _underlying_ref: false }}", struct_for).unwrap();
+				writeln!(w, "\t}} else {{").unwrap();
+				writeln!(w, "\t\t{} {{ inner: std::ptr::null(), _underlying_ref: false }}", struct_for).unwrap();
+				writeln!(w, "\t}}\n}}").unwrap();
+			}
+		},
+		_ => {},
+	}
+}
+
+/// Manually mapped trait impls
+fn maybe_convert_trait_impl<W: std::io::Write>(w: &mut W, trait_path: &syn::Path, for_obj: &syn::Ident, types: &TypeResolver) {
+	if let Some(t) = types.maybe_resolve_path(&trait_path) {
+		let s = types.maybe_resolve_ident(for_obj).unwrap();
+		if !types.crate_types.opaques.get(&s).is_some() { return; }
+		match &t as &str {
+			"util::ser::Writeable" => {
+				writeln!(w, "#[no_mangle]").unwrap();
+				writeln!(w, "pub extern \"C\" fn {}_write(obj: *const {}) -> crate::c_types::derived::CVec_u8Z {{", for_obj, for_obj).unwrap();
+				writeln!(w, "\tcrate::c_types::serialize_obj(unsafe {{ &(*(*obj).inner) }})").unwrap();
+				writeln!(w, "}}").unwrap();
+			},
+			"util::ser::Readable" => {
+				writeln!(w, "#[no_mangle]").unwrap();
+				writeln!(w, "pub extern \"C\" fn {}_read(ser: crate::c_types::u8slice) -> {} {{", for_obj, for_obj).unwrap();
+				writeln!(w, "\tif let Ok(res) = crate::c_types::deserialize_obj(ser) {{").unwrap();
+				writeln!(w, "\t\t{} {{ inner: Box::into_raw(Box::new(res)), _underlying_ref: false }}", for_obj).unwrap();
+				writeln!(w, "\t}} else {{").unwrap();
+				writeln!(w, "\t\t{} {{ inner: std::ptr::null(), _underlying_ref: false }}", for_obj).unwrap();
+				writeln!(w, "\t}}\n}}").unwrap();
+			},
+			_ => {},
+		}
+	}
+}
 
 /// Prints the docs from a given attribute list unless its tagged no export
 fn println_docs<W: std::io::Write>(w: &mut W, attrs: &[syn::Attribute], prefix: &str) {
@@ -125,7 +177,12 @@ fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, assoc
 					write!(w, "{}", this_param).unwrap();
 				}
 			} else {
-				types.print_c_type(w, &*rtype, generics, true);
+				if let syn::Type::Reference(r) = &**rtype {
+					// We can't return a reference, cause we allocate things on the stack.
+					types.print_c_type(w, &*r.elem, generics, true);
+				} else {
+					types.print_c_type(w, &*rtype, generics, true);
+				}
 			}
 		},
 		_ => {},
@@ -143,7 +200,7 @@ fn print_method_var_decl_body<W: std::io::Write>(w: &mut W, sig: &syn::Signature
 				macro_rules! write_new_var {
 					($ident: expr, $ty: expr) => {
 						if to_c {
-							if types.print_to_c_conversion_new_var(w, &$ident, &$ty, generics, false) {
+							if types.print_to_c_conversion_new_var(w, &$ident, &$ty, generics) {
 								write!(w, "\n\t{}", extra_indent).unwrap();
 							}
 						} else {
@@ -172,7 +229,7 @@ fn print_method_var_decl_body<W: std::io::Write>(w: &mut W, sig: &syn::Signature
 		}
 	}
 	match &sig.output {
-		syn::ReturnType::Type(_, rtype) => {
+		syn::ReturnType::Type(_, _) => {
 			write!(w, "let mut ret = ").unwrap();
 		},
 		_ => {},
@@ -259,6 +316,14 @@ fn print_method_call_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, 
 								match i {
 									syn::TraitItem::Method(m) => {
 										if let ExportStatus::Export = export_status(&m.attrs) {
+											if let syn::ReturnType::Type(_, rtype) = &m.sig.output {
+												if let syn::Type::Reference(r) = &**rtype {
+													write!(w, "\t\t{}{}: ", extra_indent, m.sig.ident).unwrap();
+													types.print_empty_rust_val(w, &*r.elem);
+													writeln!(w, ",\n\t\t{}set_{}: Some({}_{}_set_{}),", extra_indent, m.sig.ident, this_type, real_type, m.sig.ident).unwrap();
+													continue;
+												}
+											}
 											writeln!(w, "\t\t{}{}: {}_{}_{},", extra_indent, m.sig.ident, this_type, real_type, m.sig.ident).unwrap();
 										}
 									},
@@ -279,8 +344,19 @@ fn print_method_call_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, 
 				types.print_from_c_conversion_prefix(w, &*rtype, generics);
 				write!(w, "ret").unwrap();
 				types.print_from_c_conversion_suffix(w, &*rtype, generics);
+			} else if let syn::Type::Reference(r) = &**rtype {
+				if let syn::Type::Reference(_) = &**rtype {
+					write!(w, "let mut ret = unsafe {{ (*ret).clone() }};\n\t{}", extra_indent).unwrap();
+				}
+				let new_var = types.print_to_c_conversion_new_var(w, &syn::Ident::new("ret", Span::call_site()), &r.elem, generics);
+				if new_var {
+					write!(w, "\n\t{}", extra_indent).unwrap();
+				}
+				types.print_to_c_conversion_inline_prefix(w, &r.elem, generics, true);
+				write!(w, "ret").unwrap();
+				types.print_to_c_conversion_inline_suffix(w, &r.elem, generics, true);
 			} else {
-				let new_var = types.print_to_c_conversion_new_var(w, &syn::Ident::new("ret", Span::call_site()), rtype, generics, true);
+				let new_var = types.print_to_c_conversion_new_var(w, &syn::Ident::new("ret", Span::call_site()), rtype, generics);
 				if new_var {
 					write!(w, "\n\t{}", extra_indent).unwrap();
 				}
@@ -368,7 +444,7 @@ fn learn_associated_types<'a>(t: &'a syn::ItemTrait) -> HashMap<&'a syn::Ident, 
 	associated_types
 }
 
-fn println_trait<'a, 'b, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types: &mut TypeResolver<'b, 'a>, cpp_headers: &mut File) {
+fn println_trait<'a, 'b, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, types: &mut TypeResolver<'b, 'a>, extra_headers: &mut File, cpp_headers: &mut File) {
 	let trait_name = format!("{}", t.ident);
 	match export_status(&t.attrs) {
 		ExportStatus::Export => {},
@@ -400,7 +476,30 @@ fn println_trait<'a, 'b, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, ty
 					ExportStatus::TestOnly => continue,
 				}
 				if m.default.is_some() { unimplemented!(); }
+
 				println_docs(w, &m.attrs, "\t");
+
+				if let syn::ReturnType::Type(_, rtype) = &m.sig.output {
+					if let syn::Type::Reference(r) = &**rtype {
+						write!(w, "\tpub {}: ", m.sig.ident).unwrap();
+						types.print_c_type(w, &*r.elem, None, false);
+						writeln!(w, ",").unwrap();
+						// TODO: free field!
+						writeln!(w, "\t/// Fill in the {} field as a reference to it will be given to Rust after this returns", m.sig.ident).unwrap();
+						writeln!(w, "\t/// Note that this takes a pointer to this object, not the this_ptr like other methods do").unwrap();
+						writeln!(w, "\tpub set_{}: Option<extern \"C\" fn(&{})>,", m.sig.ident, trait_name).unwrap();
+						// Note that cbindgen will now generate
+						// typedef struct Thing {..., set_thing: (const Thing*), ...} Thing;
+						// which does not compile since Thing is not defined before it is used.
+						writeln!(extra_headers, "struct LDK{};", trait_name).unwrap();
+						writeln!(extra_headers, "typedef struct LDK{} LDK{};", trait_name, trait_name).unwrap();
+						continue;
+					}
+					// Sadly, this currently doesn't do what we want, but it should be easy to get
+					// cbindgen to support it. See https://github.com/eqrion/cbindgen/issues/531
+					writeln!(w, "\t#[must_use]").unwrap();
+				}
+
 				write!(w, "\tpub {}: extern \"C\" fn (", m.sig.ident).unwrap();
 				print_method_params(w, &m.sig, &associated_types, "c_void", types, None, true, false);
 				writeln!(w, ",").unwrap();
@@ -433,13 +532,14 @@ fn println_trait<'a, 'b, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, ty
 			writeln!(w, "\tfn hash<H: std::hash::Hasher>(&self, hasher: &mut H) {{ hasher.write_u64((self.hash)(self.this_arg)) }}\n}}").unwrap();
 		},
 		("Clone", _) => {},
-		(s, _) => {
+		(s, i) => {
 			if s != "util::events::MessageSendEventsProvider" { unimplemented!(); }
-			// We straight-up cheat here. Sadly this really requires knowledg of the fns in a trait
-			// in another file, which we don't have any ability to get in the current setup
+			// We straight-up cheat here - instead of bothering to get the trait object we just
+			// print what we need since this is only used in one place.
 			writeln!(w, "impl lightning::{} for {} {{", s, trait_name).unwrap();
 			writeln!(w, "\tfn get_and_clear_pending_msg_events(&self) -> Vec<lightning::util::events::MessageSendEvent> {{").unwrap();
-			writeln!(w, "\t\tunimplemented!()\n\t}}\n}}").unwrap();
+			writeln!(w, "\t\t<crate::{} as lightning::{}>::get_and_clear_pending_msg_events(&self.{})", s, s, i).unwrap();
+			writeln!(w, "\t}}\n}}").unwrap();
 		}
 	) );
 	writeln!(w, "\nuse {}::{}::{} as ln{};", types.orig_crate, types.module_path, t.ident, trait_name).unwrap();
@@ -504,6 +604,19 @@ fn println_trait<'a, 'b, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, ty
 					},
 					_ => {},
 				}
+				if let syn::ReturnType::Type(_, rtype) = &m.sig.output {
+					if let syn::Type::Reference(r) = &**rtype {
+						assert_eq!(m.sig.inputs.len(), 1); // Must only take self!
+						writeln!(w, "if let Some(f) = self.set_{} {{", m.sig.ident).unwrap();
+						writeln!(w, "\t\t\t(f)(self);").unwrap();
+						write!(w, "\t\t}}\n\t\t").unwrap();
+						types.print_from_c_conversion_to_ref_prefix(w, &*r.elem, None);
+						write!(w, "self.{}", m.sig.ident).unwrap();
+						types.print_from_c_conversion_to_ref_suffix(w, &*r.elem, None);
+						writeln!(w, "\n\t}}").unwrap();
+						continue;
+					}
+				}
 				print_method_var_decl_body(w, &m.sig, "\t", types, None, true);
 				write!(w, "(self.{})(", m.sig.ident).unwrap();
 				print_method_call_params(w, &m.sig, &associated_types, "\t", types, None, "", true);
@@ -545,13 +658,41 @@ fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name:
 	writeln!(w, ";\n").unwrap();
 	writeln!(extra_headers, "struct ln{}Opaque;\ntypedef struct ln{}Opaque LDKln{};", ident, ident, ident).unwrap();
 	println_docs(w, &attrs, "");
-	writeln!(w, "#[repr(C)]\npub struct {} {{\n\t/// Nearly everyhwere, inner must be non-null, however in places where", struct_name).unwrap();
+	writeln!(w, "#[must_use]\n#[repr(C)]\npub struct {} {{\n\t/// Nearly everyhwere, inner must be non-null, however in places where", struct_name).unwrap();
 	writeln!(w, "\t///the Rust equivalent takes an Option, it may be set to null to indicate None.").unwrap();
 	writeln!(w, "\tpub inner: *const ln{},\n\tpub _underlying_ref: bool,\n}}\n", ident).unwrap();
 	writeln!(w, "impl Drop for {} {{\n\tfn drop(&mut self) {{", struct_name).unwrap();
 	writeln!(w, "\t\tif !self._underlying_ref && !self.inner.is_null() {{").unwrap();
 	writeln!(w, "\t\t\tlet _ = unsafe {{ Box::from_raw(self.inner as *mut ln{}) }};\n\t\t}}\n\t}}\n}}", struct_name).unwrap();
 	writeln!(w, "#[no_mangle]\npub extern \"C\" fn {}_free(this_ptr: {}) {{ }}", struct_name, struct_name).unwrap();
+
+	'attr_loop: for attr in attrs.iter() {
+		let tokens_clone = attr.tokens.clone();
+		let mut token_iter = tokens_clone.into_iter();
+		if let Some(token) = token_iter.next() {
+			match token {
+				TokenTree::Group(g) => {
+					if format!("{}", single_ident_generic_path_to_ident(&attr.path).unwrap()) == "derive" {
+						for id in g.stream().into_iter() {
+							if let TokenTree::Ident(i) = id {
+								if i == "Clone" {
+									writeln!(w, "impl Clone for {} {{", struct_name).unwrap();
+									writeln!(w, "\tfn clone(&self) -> Self {{").unwrap();
+									writeln!(w, "\t\tSelf {{").unwrap();
+									writeln!(w, "\t\t\tinner: Box::into_raw(Box::new(unsafe {{ &*self.inner }}.clone())),").unwrap();
+									writeln!(w, "\t\t\t_underlying_ref: false,").unwrap();
+									writeln!(w, "\t\t}}\n\t}}\n}}").unwrap();
+									break 'attr_loop;
+								}
+							}
+						}
+					}
+				},
+				_ => {},
+			}
+		}
+	}
+
 	writeln!(cpp_headers, "class {} {{\nprivate:", ident).unwrap();
 	writeln!(cpp_headers, "\tLDK{} self;", ident).unwrap();
 	writeln!(cpp_headers, "public:").unwrap();
@@ -561,6 +702,7 @@ fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name:
 	writeln!(cpp_headers, "\t{}(LDK{}&& m_self) : self(m_self) {{ m_self.inner = NULL; }}", ident, ident).unwrap();
 	writeln!(cpp_headers, "\toperator LDK{}() {{ LDK{} res = self; self.inner = NULL; return res; }}", ident, ident).unwrap();
 	writeln!(cpp_headers, "\tLDK{}* operator &() {{ return &self; }}", ident).unwrap();
+	writeln!(cpp_headers, "\tLDK{}* operator ->() {{ return &self; }}", ident).unwrap();
 	writeln!(cpp_headers, "}};").unwrap();
 }
 
@@ -604,7 +746,7 @@ fn println_struct<'a, 'b, W: std::io::Write>(w: &mut W, s: &'a syn::ItemStruct, 
 						write!(w, "#[no_mangle]\npub extern \"C\" fn {}_get_{}(this_ptr: &{}) -> ", struct_name, ident, struct_name).unwrap();
 						types.print_c_type(w, &ref_type, Some(&gen_types), true);
 						write!(w, " {{\n\tlet inner_val = &unsafe {{ &*this_ptr.inner }}.{};\n\t", ident).unwrap();
-						let local_var = types.print_to_c_conversion_new_var(w, &syn::Ident::new("inner_val", Span::call_site()), &ref_type, Some(&gen_types), true);
+						let local_var = types.print_to_c_conversion_new_var(w, &syn::Ident::new("inner_val", Span::call_site()), &ref_type, Some(&gen_types));
 						if local_var { write!(w, "\n\t").unwrap(); }
 						types.print_to_c_conversion_inline_prefix(w, &ref_type, Some(&gen_types), true);
 						if local_var {
@@ -635,7 +777,7 @@ fn println_struct<'a, 'b, W: std::io::Write>(w: &mut W, s: &'a syn::ItemStruct, 
 
 		if all_fields_settable {
 			// Build a constructor!
-			write!(w, "#[no_mangle]\npub extern \"C\" fn {}_new(", struct_name).unwrap();
+			write!(w, "#[must_use]\n#[no_mangle]\npub extern \"C\" fn {}_new(", struct_name).unwrap();
 			for (idx, field) in fields.named.iter().enumerate() {
 				if idx != 0 { write!(w, ", ").unwrap(); }
 				write!(w, "mut {}_arg: ", field.ident.as_ref().unwrap()).unwrap();
@@ -721,7 +863,19 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 									},
 									ExportStatus::TestOnly => continue,
 								}
-								write!(w, "{}\t\t{}: {}_{}_{},\n", $indent, $m.sig.ident, ident, trait_obj.ident, $m.sig.ident).unwrap();
+
+								let mut printed = false;
+								if let syn::ReturnType::Type(_, rtype) = &$m.sig.output {
+									if let syn::Type::Reference(r) = &**rtype {
+										write!(w, "\n\t\t{}{}: ", $indent, $m.sig.ident).unwrap();
+										types.print_empty_rust_val(w, &*r.elem);
+										writeln!(w, ",\n{}\t\tset_{}: Some({}_{}_set_{}),", $indent, $m.sig.ident, ident, trait_obj.ident, $m.sig.ident).unwrap();
+										printed = true;
+									}
+								}
+								if !printed {
+									write!(w, "{}\t\t{}: {}_{}_{},\n", $indent, $m.sig.ident, ident, trait_obj.ident, $m.sig.ident).unwrap();
+								}
 							}
 						}
 						for item in trait_obj.items.iter() {
@@ -760,6 +914,10 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 									ExportStatus::Export => {},
 									ExportStatus::NoExport|ExportStatus::TestOnly => continue,
 								}
+
+								if let syn::ReturnType::Type(_, _) = &$m.sig.output {
+									writeln!(w, "#[must_use]").unwrap();
+								}
 								write!(w, "extern \"C\" fn {}_{}_{}(", ident, trait_obj.ident, $m.sig.ident).unwrap();
 								print_method_params(w, &$m.sig, &trait_associated_types, "c_void", types, Some(&gen_types), true, true);
 								write!(w, " {{\n\t").unwrap();
@@ -789,6 +947,20 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 								}
 								print_method_call_params(w, &$m.sig, &trait_associated_types, "", types, Some(&gen_types), &real_type, false);
 								write!(w, "\n}}\n").unwrap();
+								if let syn::ReturnType::Type(_, rtype) = &$m.sig.output {
+									if let syn::Type::Reference(r) = &**rtype {
+										assert_eq!($m.sig.inputs.len(), 1); // Must only take self
+										writeln!(w, "extern \"C\" fn {}_{}_set_{}(trait_self_arg: &{}) {{", ident, trait_obj.ident, $m.sig.ident, trait_obj.ident).unwrap();
+										writeln!(w, "\t// This is a bit race-y in the general case, but for our specific use-cases today, we're safe").unwrap();
+										writeln!(w, "\t// Specifically, we must ensure that the first time we're called it can never be in parallel").unwrap();
+										write!(w, "\tif ").unwrap();
+										types.print_empty_rust_val_check(w, &*r.elem, &format!("trait_self_arg.{}", $m.sig.ident));
+										writeln!(w, " {{").unwrap();
+										writeln!(w, "\t\tunsafe {{ &mut *(trait_self_arg as *const {}  as *mut {}) }}.{} = {}_{}_{}(trait_self_arg.this_arg);", trait_obj.ident, trait_obj.ident, $m.sig.ident, ident, trait_obj.ident, $m.sig.ident).unwrap();
+										writeln!(w, "\t}}").unwrap();
+										writeln!(w, "}}").unwrap();
+									}
+								}
 							}
 						}
 
@@ -823,13 +995,18 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 						match &format!("{}", trait_ident) as &str {
 							"From" => {},
 							"Default" => {
-								write!(w, "#[no_mangle]\npub extern \"C\" fn {}_default() -> {} {{\n", ident, ident).unwrap();
+								write!(w, "#[must_use]\n#[no_mangle]\npub extern \"C\" fn {}_default() -> {} {{\n", ident, ident).unwrap();
 								write!(w, "\t{} {{ inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }}\n", ident).unwrap();
 								write!(w, "}}\n").unwrap();
 							},
 							"PartialEq" => {},
+							// If we have no generics, try a manual implementation:
+							_ if p.path.get_ident().is_some() => maybe_convert_trait_impl(w, &trait_path.1, &ident, types),
 							_ => {},
 						}
+					} else if p.path.get_ident().is_some() {
+						// If we have no generics, try a manual implementation:
+						maybe_convert_trait_impl(w, &trait_path.1, &ident, types);
 					}
 				} else {
 					let declared_type = (*types.get_declared_type(&ident).unwrap()).clone();
@@ -843,6 +1020,9 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 									}
 									if m.defaultness.is_some() { unimplemented!(); }
 									println_docs(w, &m.attrs, "");
+									if let syn::ReturnType::Type(_, _) = &m.sig.output {
+										writeln!(w, "#[must_use]").unwrap();
+									}
 									write!(w, "#[no_mangle]\npub extern \"C\" fn {}_{}(", ident, m.sig.ident).unwrap();
 									let ret_type = match &declared_type {
 										DeclType::MirroredEnum => format!("{}", ident),
@@ -884,7 +1064,15 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 
 fn is_enum_opaque(e: &syn::ItemEnum) -> bool {
 	for var in e.variants.iter() {
-		if let syn::Fields::Unit = var.fields {} else {
+		if let syn::Fields::Unit = var.fields {
+		} else if let syn::Fields::Named(fields) = &var.fields {
+			for field in fields.named.iter() {
+				match export_status(&field.attrs) {
+					ExportStatus::Export|ExportStatus::TestOnly => {},
+					ExportStatus::NoExport => return true,
+				}
+			}
+		} else {
 			return true;
 		}
 	}
@@ -909,27 +1097,123 @@ fn println_enum<'a, 'b, W: std::io::Write>(w: &mut W, e: &'a syn::ItemEnum, type
 		unimplemented!();
 	}
 	types.mirrored_enum_declared(&e.ident);
+
+	let mut needs_free = false;
+
 	writeln!(w, "#[repr(C)]\npub enum {} {{", e.ident).unwrap();
 	for var in e.variants.iter() {
 		assert_eq!(export_status(&var.attrs), ExportStatus::Export); // We can't partially-export a mirrored enum
 		println_docs(w, &var.attrs, "\t");
-		if let syn::Fields::Unit = var.fields {} else { unimplemented!(); }
+		write!(w, "\t{}", var.ident).unwrap();
+		if let syn::Fields::Named(fields) = &var.fields {
+			needs_free = true;
+			writeln!(w, " {{").unwrap();
+			for field in fields.named.iter() {
+				if export_status(&field.attrs) == ExportStatus::TestOnly { continue; }
+				write!(w, "\t\t{}: ", field.ident.as_ref().unwrap()).unwrap();
+				types.print_c_type(w, &field.ty, None, false);
+				writeln!(w, ",").unwrap();
+			}
+			write!(w, "\t}}").unwrap();
+		}
 		if var.discriminant.is_some() { unimplemented!(); }
-		writeln!(w, "\t{},", var.ident).unwrap();
+		writeln!(w, ",").unwrap();
 	}
 	writeln!(w, "}}\nuse {}::{}::{} as ln{};\nimpl {} {{", types.orig_crate, types.module_path, e.ident, e.ident, e.ident).unwrap();
-	writeln!(w, "\t#[allow(unused)]\n\tpub(crate) fn to_ln(&self) -> ln{} {{\n\t\tmatch self {{", e.ident).unwrap();
-	for var in e.variants.iter() {
-		writeln!(w, "\t\t\t{}::{} => ln{}::{},", e.ident, var.ident, e.ident, var.ident).unwrap();
-	}
-	writeln!(w, "\t\t}}\n\t}}").unwrap();
-	writeln!(w, "\t#[allow(unused)]\n\tpub(crate) fn from_ln(lnt: ln{}) -> Self {{\n\t\tmatch lnt {{", e.ident).unwrap();
-	for var in e.variants.iter() {
-		writeln!(w, "\t\t\tln{}::{} => {}::{},", e.ident, var.ident, e.ident, var.ident).unwrap();
-	}
-	writeln!(w, "\t\t}}\n\t}}\n}}").unwrap();
 
-	writeln!(cpp_headers, "typedef LDK{} {};", e.ident, e.ident).unwrap();
+	macro_rules! print_conv {
+		($fn_sig: expr, $to_c: expr, $ref: expr) => {
+			writeln!(w, "\t#[allow(unused)]\n\tpub(crate) fn {} {{\n\t\tmatch {} {{", $fn_sig, if $to_c { "lnt" } else { "self" }).unwrap();
+			for var in e.variants.iter() {
+				write!(w, "\t\t\t{}{}::{} ", if $to_c { "ln" } else { "" }, e.ident, var.ident).unwrap();
+				if let syn::Fields::Named(fields) = &var.fields {
+					write!(w, "{{").unwrap();
+					for field in fields.named.iter() {
+						if export_status(&field.attrs) == ExportStatus::TestOnly { continue; }
+						write!(w, "{}{}, ", if $ref { "ref " } else { "mut " }, field.ident.as_ref().unwrap()).unwrap();
+					}
+					write!(w, "}} ").unwrap();
+				}
+				write!(w, "=>").unwrap();
+				if let syn::Fields::Named(fields) = &var.fields {
+					write!(w, " {{\n\t\t\t\t").unwrap();
+					for field in fields.named.iter() {
+						if export_status(&field.attrs) == ExportStatus::TestOnly { continue; }
+						let mut sink = ::std::io::sink();
+						let mut out: &mut dyn std::io::Write = if $ref { &mut sink } else { w };
+						let new_var = if $to_c {
+							types.print_to_c_conversion_new_var(&mut out, field.ident.as_ref().unwrap(), &field.ty, None)
+						} else {
+							types.print_from_c_conversion_new_var(&mut out, field.ident.as_ref().unwrap(), &field.ty, None)
+						};
+						if $ref || new_var {
+							if $ref {
+								write!(w, "let mut {}_nonref = (*{}).clone();", field.ident.as_ref().unwrap(), field.ident.as_ref().unwrap()).unwrap();
+								if new_var {
+									let nonref_ident = syn::Ident::new(&format!("{}_nonref", field.ident.as_ref().unwrap()), Span::call_site());
+									if $to_c {
+										types.print_to_c_conversion_new_var(w, &nonref_ident, &field.ty, None);
+									} else {
+										types.print_from_c_conversion_new_var(w, &nonref_ident, &field.ty, None);
+									}
+								}
+							}
+							write!(w, "\n\t\t\t\t").unwrap();
+						}
+					}
+				} else { write!(w, " ").unwrap(); }
+				write!(w, "{}{}::{}", if $to_c { "" } else { "ln" }, e.ident, var.ident).unwrap();
+				if let syn::Fields::Named(fields) = &var.fields {
+					write!(w, " {{").unwrap();
+					for field in fields.named.iter() {
+						if export_status(&field.attrs) == ExportStatus::TestOnly { continue; }
+						write!(w, "\n\t\t\t\t\t{}: ", field.ident.as_ref().unwrap()).unwrap();
+						if $to_c {
+							types.print_to_c_conversion_inline_prefix(w, &field.ty, None, false);
+						} else {
+							types.print_from_c_conversion_prefix(w, &field.ty, None);
+						}
+						write!(w, "{}{}",
+							field.ident.as_ref().unwrap(),
+							if $ref { "_nonref" } else { "" }).unwrap();
+						if $to_c {
+							types.print_to_c_conversion_inline_suffix(w, &field.ty, None, false);
+						} else {
+							types.print_from_c_conversion_suffix(w, &field.ty, None);
+						}
+						write!(w, ",").unwrap();
+					}
+					writeln!(w, "\n\t\t\t\t}}").unwrap();
+					write!(w, "\t\t\t}}").unwrap();
+				}
+				writeln!(w, ",").unwrap();
+			}
+			writeln!(w, "\t\t}}\n\t}}").unwrap();
+		}
+	}
+
+	print_conv!(format!("to_ln(&self) -> ln{}", e.ident), false, true);
+	print_conv!(format!("into_ln(self) -> ln{}", e.ident), false, false);
+	print_conv!(format!("from_ln(lnt: &ln{}) -> Self", e.ident), true, true);
+	print_conv!(format!("ln_into(lnt: ln{}) -> Self", e.ident), true, false);
+	writeln!(w, "}}").unwrap();
+
+	if needs_free {
+		writeln!(w, "#[no_mangle]\npub extern \"C\" fn {}_free(this_ptr: {}) {{ }}", e.ident, e.ident).unwrap();
+		writeln!(cpp_headers, "class {} {{\nprivate:", e.ident).unwrap();
+		writeln!(cpp_headers, "\tLDK{} self;", e.ident).unwrap();
+		writeln!(cpp_headers, "public:").unwrap();
+		writeln!(cpp_headers, "\t{}(const {}&) = delete;", e.ident, e.ident).unwrap();
+		writeln!(cpp_headers, "\t~{}() {{ if (self.tag != LDK{}_Sentinel) {{ {}_free(self); }} }}", e.ident, e.ident, e.ident).unwrap();
+		writeln!(cpp_headers, "\t{}({}&& o) : self(o.self) {{ o.self.tag = LDK{}_Sentinel; }}", e.ident, e.ident, e.ident).unwrap();
+		writeln!(cpp_headers, "\t{}(LDK{}&& m_self) : self(m_self) {{ m_self.tag = LDK{}_Sentinel; }}", e.ident, e.ident, e.ident).unwrap();
+		writeln!(cpp_headers, "\toperator LDK{}() {{ LDK{} res = self; self.tag = LDK{}_Sentinel; return res; }}", e.ident, e.ident, e.ident).unwrap();
+		writeln!(cpp_headers, "\tLDK{}* operator &() {{ return &self; }}", e.ident).unwrap();
+		writeln!(cpp_headers, "\tLDK{}* operator ->() {{ return &self; }}", e.ident).unwrap();
+		writeln!(cpp_headers, "}};").unwrap();
+	} else {
+		writeln!(cpp_headers, "typedef LDK{} {};", e.ident, e.ident).unwrap();
+	}
 }
 
 struct FullLibraryAST {
@@ -950,6 +1234,7 @@ fn convert_file<'a, 'b>(libast: &'a FullLibraryAST, crate_types: &mut CrateTypes
 	println_docs(&mut out, &syntax.attrs, "");
 
 	if path.ends_with("/lib.rs") {
+		writeln!(out, "#![allow(unknown_lints)]").unwrap();
 		writeln!(out, "#![allow(non_camel_case_types)]").unwrap();
 		writeln!(out, "#![allow(non_snake_case)]").unwrap();
 		writeln!(out, "#![allow(unused_imports)]").unwrap();
@@ -957,10 +1242,11 @@ fn convert_file<'a, 'b>(libast: &'a FullLibraryAST, crate_types: &mut CrateTypes
 		writeln!(out, "#![allow(unused_mut)]").unwrap();
 		writeln!(out, "#![allow(unused_parens)]").unwrap();
 		writeln!(out, "#![allow(unused_unsafe)]").unwrap();
+		writeln!(out, "#![allow(unused_braces)]").unwrap();
 		writeln!(out, "mod c_types;").unwrap();
 		writeln!(out, "mod bitcoin;").unwrap();
 	} else {
-		writeln!(out, "\nuse std::ffi::c_void;\nuse bitcoin::hashes::Hash;\nuse crate::c_types::TakePointer;\n").unwrap();
+		writeln!(out, "\nuse std::ffi::c_void;\nuse bitcoin::hashes::Hash;\nuse crate::c_types::*;\n").unwrap();
 	}
 
 	for item in syntax.items.iter() {
@@ -1016,7 +1302,7 @@ fn convert_file<'a, 'b>(libast: &'a FullLibraryAST, crate_types: &mut CrateTypes
 			},
 			syn::Item::Trait(t) => {
 				if let syn::Visibility::Public(_) = t.vis {
-					println_trait(&mut out, &t, &mut type_resolver, cpp_header_file);
+					println_trait(&mut out, &t, &mut type_resolver, header_file, cpp_header_file);
 				}
 			},
 			syn::Item::Mod(_) => {},
@@ -1036,7 +1322,11 @@ fn convert_file<'a, 'b>(libast: &'a FullLibraryAST, crate_types: &mut CrateTypes
 			},
 			syn::Item::Fn(_c) => {
 			},
-			syn::Item::Macro(_) => {},
+			syn::Item::Macro(m) => {
+				if m.ident.is_none() { // If its not a macro definition
+					convert_macro(&mut out, &m.mac.path, &m.mac.tokens, &type_resolver);
+				}
+			},
 			syn::Item::Verbatim(_) => {},
 			syn::Item::ExternCrate(_) => {},
 			_ => unimplemented!(),
@@ -1135,6 +1425,16 @@ fn walk_ast<'a>(path: &str, module: String, ast_storage: &'a FullLibraryAST, cra
 					crate_types.opaques.insert(enum_path, &e.ident);
 				}
 			},
+			syn::Item::Enum(e) => {
+				if let syn::Visibility::Public(_) = e.vis {
+					match export_status(&e.attrs) {
+						ExportStatus::Export => {},
+						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+					}
+					let enum_path = format!("{}::{}", module, e.ident);
+					crate_types.mirrored_enums.insert(enum_path, &e);
+				}
+			},
 			syn::Item::Impl(i) => {
 				match export_status(&i.attrs) {
 					ExportStatus::Export => {},
@@ -1168,26 +1468,34 @@ fn main() {
 		.open(&args[5]).expect("Unable to open new header file");
 	let mut cpp_header_file = std::fs::OpenOptions::new().write(true).create(true).truncate(true)
 		.open(&args[6]).expect("Unable to open new header file");
+
+	writeln!(header_file, "#if defined(__GNUC__)\n#define MUST_USE_STRUCT __attribute__((warn_unused))").unwrap();
+	writeln!(header_file, "#else\n#define MUST_USE_STRUCT\n#endif").unwrap();
+	writeln!(header_file, "#if defined(__GNUC__)\n#define MUST_USE_RES __attribute__((warn_unused_result))").unwrap();
+	writeln!(header_file, "#else\n#define MUST_USE_RES\n#endif").unwrap();
 	writeln!(cpp_header_file, "#include <string.h>\nnamespace LDK {{").unwrap();
 
 	let mut libast = FullLibraryAST { files: HashMap::new() };
 	load_ast(&(args[1].clone() + "/lib.rs"), "".to_string(), &mut libast);
 
 	let mut libtypes = CrateTypes { traits: HashMap::new(), trait_impls: HashMap::new(), opaques: HashMap::new(),
-		templates_defined: HashSet::new(), template_file: &mut derived_templates };
+		mirrored_enums: HashMap::new(), templates_defined: HashMap::new(), template_file: &mut derived_templates };
 	walk_ast(&(args[1].clone() + "/lib.rs"), "".to_string(), &libast, &mut libtypes);
 
 	convert_file(&libast, &mut libtypes, &(args[1].clone() + "/lib.rs"), &(args[2].clone() + "lib.rs"), &args[3], "", &mut header_file, &mut cpp_header_file);
 
-	for ty in libtypes.templates_defined.iter() {
+	for (ty, has_destructor) in libtypes.templates_defined.iter() {
 		writeln!(cpp_header_file, "struct {} {{", ty).unwrap();
 		writeln!(cpp_header_file, "\tLDK{} self;", ty).unwrap();
 		writeln!(cpp_header_file, "\t{}(const {}&) = delete;", ty, ty).unwrap();
-		writeln!(cpp_header_file, "\t~{}() {{ {}_free(self); }}", ty, ty).unwrap();
+		if *has_destructor {
+			writeln!(cpp_header_file, "\t~{}() {{ {}_free(self); }}", ty, ty).unwrap();
+		}
 		writeln!(cpp_header_file, "\t{}({}&& o) : self(o.self) {{ memset(&o, 0, sizeof({})); }}", ty, ty, ty).unwrap();
 		writeln!(cpp_header_file, "\t{}(LDK{}&& m_self) : self(m_self) {{ memset(&m_self, 0, sizeof(LDK{})); }}", ty, ty, ty).unwrap();
 		writeln!(cpp_header_file, "\toperator LDK{}() {{ LDK{} res = self; memset(&self, 0, sizeof(LDK{})); return res; }}", ty, ty, ty).unwrap();
 		writeln!(cpp_header_file, "\tLDK{}* operator &() {{ return &self; }}", ty).unwrap();
+		writeln!(cpp_header_file, "\tLDK{}* operator ->() {{ return &self; }}", ty).unwrap();
 		writeln!(cpp_header_file, "}};").unwrap();
 	}
 	writeln!(cpp_header_file, "}}").unwrap();
