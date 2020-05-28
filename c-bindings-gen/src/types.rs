@@ -598,8 +598,8 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 			"util::logger::Record" => Some(".as_ptr()"),
 
 			// List of structs we map (possibly during processing of other files):
-			"ln::features::InitFeatures" if is_ref => Some(" }))"),
-			"ln::features::InitFeatures" => Some(")) }"),
+			"ln::features::InitFeatures" if is_ref => Some(", _underlying_ref: true }))"),
+			"ln::features::InitFeatures" => Some(")), _underlying_ref: false }"),
 
 			// List of traits we map (possibly during processing of other files):
 			"crate::ln::msgs::ChannelMessageHandler" => Some(""),
@@ -986,9 +986,9 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 				|a, b| self.to_c_conversion_inline_suffix_from_path(a, b),
 				|w, decl_type, _ident, is_ref| match decl_type {
 					DeclType::MirroredEnum => write!(w, ")").unwrap(),
-					DeclType::EnumIgnored|DeclType::StructImported(_) if is_ref && ptr_for_ref => write!(w, " }} ))").unwrap(),
-					DeclType::EnumIgnored|DeclType::StructImported(_) if is_ref => write!(w, " }}").unwrap(),
-					DeclType::EnumIgnored|DeclType::StructImported(_) if !is_ref => write!(w, ")) }}").unwrap(),
+					DeclType::EnumIgnored|DeclType::StructImported(_) if is_ref && ptr_for_ref => write!(w, ", _underlying_ref: true }} ))").unwrap(),
+					DeclType::EnumIgnored|DeclType::StructImported(_) if is_ref => write!(w, ", _underlying_ref: true }}").unwrap(),
+					DeclType::EnumIgnored|DeclType::StructImported(_) if !is_ref => write!(w, ")), _underlying_ref: false }}").unwrap(),
 					_ => unimplemented!(),
 				});
 	}
