@@ -8,3 +8,7 @@ members = [
 # Our tests do actual crypo and lots of work, the tradeoff for -O1 is well worth it
 [profile.dev]
 opt-level = 1
+
+[patch.crates-io]
+bitcoin_hashes = { git = "https://github.com/rust-bitcoin/bitcoin_hashes" }
+secp256k1 = { git = "https://github.com/TheBlueMatt/rust-secp256k1" }
