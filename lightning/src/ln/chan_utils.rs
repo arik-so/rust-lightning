@@ -344,7 +344,7 @@ pub fn get_revokeable_redeemscript(revocation_key: &PublicKey, to_self_delay: u1
 	              .into_script()
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 /// Information about an HTLC as it appears in a commitment transaction
 pub struct HTLCOutputInCommitment {
 	/// Whether the HTLC was "offered" (ie outbound in relation to this commitment transaction).
