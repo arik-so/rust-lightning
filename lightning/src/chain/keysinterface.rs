@@ -24,7 +24,7 @@ use util::ser::{Writeable, Writer, Readable};
 
 use ln::chan_utils;
 use ln::chan_utils::{TxCreationKeys, HTLCOutputInCommitment, make_funding_redeemscript, ChannelPublicKeys, LocalCommitmentTransaction};
-use ln::msgs;
+use ln::msgs::UnsignedChannelAnnouncement;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::io::Error;
@@ -298,7 +298,7 @@ pub trait ChannelKeys : Send+Clone {
 	/// Note that if this fails or is rejected, the channel will not be publicly announced and
 	/// our counterparty may (though likely will not) close the channel on us for violating the
 	/// protocol.
-	fn sign_channel_announcement<T: secp256k1::Signing>(&self, msg: &msgs::UnsignedChannelAnnouncement, secp_ctx: &Secp256k1<T>) -> Result<Signature, ()>;
+	fn sign_channel_announcement<T: secp256k1::Signing>(&self, msg: &UnsignedChannelAnnouncement, secp_ctx: &Secp256k1<T>) -> Result<Signature, ()>;
 
 	/// Set the remote channel basepoints.  This is done immediately on incoming channels
 	/// and as soon as the channel is accepted on outgoing channels.
@@ -520,7 +520,7 @@ impl ChannelKeys for InMemoryChannelKeys {
 		Ok(secp_ctx.sign(&sighash, &self.funding_key))
 	}
 
-	fn sign_channel_announcement<T: secp256k1::Signing>(&self, msg: &msgs::UnsignedChannelAnnouncement, secp_ctx: &Secp256k1<T>) -> Result<Signature, ()> {
+	fn sign_channel_announcement<T: secp256k1::Signing>(&self, msg: &UnsignedChannelAnnouncement, secp_ctx: &Secp256k1<T>) -> Result<Signature, ()> {
 		let msghash = hash_to_message!(&Sha256dHash::hash(&msg.encode()[..])[..]);
 		Ok(secp_ctx.sign(&msghash, &self.funding_key))
 	}
