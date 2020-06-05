@@ -23,6 +23,13 @@ use std::collections::BTreeMap;
 use std::collections::btree_map::Entry as BtreeEntry;
 use std::ops::Deref;
 
+/// Represents the network as nodes and channels between them
+#[derive(PartialEq)]
+pub struct NetworkGraph {
+	channels: BTreeMap<u64, ChannelInfo>,
+	nodes: BTreeMap<PublicKey, NodeInfo>,
+}
+
 /// Receives and validates network updates from peers,
 /// stores authentic and relevant data as a network graph.
 /// This network graph is then used for routing payments.
@@ -58,10 +65,10 @@ impl<C: Deref, L: Deref> NetGraphMsgHandler<C, L> where C::Target: ChainWatchInt
 
 	/// Creates a new tracker of the actual state of the network of channels and nodes,
 	/// assuming an existing Network Graph.
-	pub fn from_net_graph(chain_monitor: C, logger: L, network_graph: RwLock<NetworkGraph>) -> Self {
+	pub fn from_net_graph(chain_monitor: C, logger: L, network_graph: NetworkGraph) -> Self {
 		NetGraphMsgHandler {
 			secp_ctx: Secp256k1::verification_only(),
-			network_graph,
+			network_graph: RwLock::new(network_graph),
 			full_syncs_requested: AtomicUsize::new(0),
 			chain_monitor,
 			logger,
@@ -427,13 +434,6 @@ impl Readable for NodeInfo {
 	}
 }
 
-/// Represents the network as nodes and channels between them
-#[derive(PartialEq)]
-pub struct NetworkGraph {
-	channels: BTreeMap<u64, ChannelInfo>,
-	nodes: BTreeMap<PublicKey, NodeInfo>,
-}
-
 impl Writeable for NetworkGraph {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ::std::io::Error> {
 		(self.channels.len() as u64).write(writer)?;
@@ -503,6 +503,14 @@ impl NetworkGraph {
 			}
 		}
 		None
+	}
+
+	/// Creates a new, empty, network graph.
+	pub fn new() -> NetworkGraph {
+		Self {
+			channels: BTreeMap::new(),
+			nodes: BTreeMap::new(),
+		}
 	}
 
 	/// For an already known node (from channel announcements), update its stored properties from a given node announcement
