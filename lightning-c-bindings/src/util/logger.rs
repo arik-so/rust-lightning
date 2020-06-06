@@ -7,7 +7,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
-use crate::c_types::TakePointer;
+use crate::c_types::*;
 
 /// " An enum representing the available verbosity levels of the logger."
 #[repr(C)]
@@ -52,7 +52,7 @@ impl Level {
 }
 /// " Returns the most verbose logging level."
 #[no_mangle]
-pub extern "C" fn Level_max() -> Level {
+pub extern "C" fn Level_max() -> crate::util::logger::Level {
 	let mut ret = lightning::util::logger::Level::max();
 	crate::util::logger::Level::from_ln(ret)
 }

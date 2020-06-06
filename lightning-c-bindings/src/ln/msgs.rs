@@ -17,7 +17,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
-use crate::c_types::TakePointer;
+use crate::c_types::*;
 
 
 use lightning::ln::msgs::DecodeError as lnDecodeErrorImport;
@@ -85,6 +85,14 @@ impl Drop for ErrorMessage {
 }
 #[no_mangle]
 pub extern "C" fn ErrorMessage_free(this_ptr: ErrorMessage) { }
+impl Clone for ErrorMessage {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::Ping as lnPingImport;
 type lnPing = lnPingImport;
@@ -151,6 +159,14 @@ impl Drop for OpenChannel {
 }
 #[no_mangle]
 pub extern "C" fn OpenChannel_free(this_ptr: OpenChannel) { }
+impl Clone for OpenChannel {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::AcceptChannel as lnAcceptChannelImport;
 type lnAcceptChannel = lnAcceptChannelImport;
@@ -173,6 +189,14 @@ impl Drop for AcceptChannel {
 }
 #[no_mangle]
 pub extern "C" fn AcceptChannel_free(this_ptr: AcceptChannel) { }
+impl Clone for AcceptChannel {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::FundingCreated as lnFundingCreatedImport;
 type lnFundingCreated = lnFundingCreatedImport;
@@ -195,6 +219,14 @@ impl Drop for FundingCreated {
 }
 #[no_mangle]
 pub extern "C" fn FundingCreated_free(this_ptr: FundingCreated) { }
+impl Clone for FundingCreated {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::FundingSigned as lnFundingSignedImport;
 type lnFundingSigned = lnFundingSignedImport;
@@ -217,6 +249,14 @@ impl Drop for FundingSigned {
 }
 #[no_mangle]
 pub extern "C" fn FundingSigned_free(this_ptr: FundingSigned) { }
+impl Clone for FundingSigned {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::FundingLocked as lnFundingLockedImport;
 type lnFundingLocked = lnFundingLockedImport;
@@ -239,6 +279,14 @@ impl Drop for FundingLocked {
 }
 #[no_mangle]
 pub extern "C" fn FundingLocked_free(this_ptr: FundingLocked) { }
+impl Clone for FundingLocked {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 #[no_mangle]
 pub extern "C" fn FundingLocked_get_channel_id(this_ptr: &FundingLocked) -> *const [u8; 32] {
 	let inner_val = &unsafe { &*this_ptr.inner }.channel_id;
@@ -286,6 +334,14 @@ impl Drop for Shutdown {
 }
 #[no_mangle]
 pub extern "C" fn Shutdown_free(this_ptr: Shutdown) { }
+impl Clone for Shutdown {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::ClosingSigned as lnClosingSignedImport;
 type lnClosingSigned = lnClosingSignedImport;
@@ -308,6 +364,14 @@ impl Drop for ClosingSigned {
 }
 #[no_mangle]
 pub extern "C" fn ClosingSigned_free(this_ptr: ClosingSigned) { }
+impl Clone for ClosingSigned {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::UpdateAddHTLC as lnUpdateAddHTLCImport;
 type lnUpdateAddHTLC = lnUpdateAddHTLCImport;
@@ -330,6 +394,14 @@ impl Drop for UpdateAddHTLC {
 }
 #[no_mangle]
 pub extern "C" fn UpdateAddHTLC_free(this_ptr: UpdateAddHTLC) { }
+impl Clone for UpdateAddHTLC {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::UpdateFulfillHTLC as lnUpdateFulfillHTLCImport;
 type lnUpdateFulfillHTLC = lnUpdateFulfillHTLCImport;
@@ -352,6 +424,14 @@ impl Drop for UpdateFulfillHTLC {
 }
 #[no_mangle]
 pub extern "C" fn UpdateFulfillHTLC_free(this_ptr: UpdateFulfillHTLC) { }
+impl Clone for UpdateFulfillHTLC {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::UpdateFailHTLC as lnUpdateFailHTLCImport;
 type lnUpdateFailHTLC = lnUpdateFailHTLCImport;
@@ -374,6 +454,14 @@ impl Drop for UpdateFailHTLC {
 }
 #[no_mangle]
 pub extern "C" fn UpdateFailHTLC_free(this_ptr: UpdateFailHTLC) { }
+impl Clone for UpdateFailHTLC {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::UpdateFailMalformedHTLC as lnUpdateFailMalformedHTLCImport;
 type lnUpdateFailMalformedHTLC = lnUpdateFailMalformedHTLCImport;
@@ -396,6 +484,14 @@ impl Drop for UpdateFailMalformedHTLC {
 }
 #[no_mangle]
 pub extern "C" fn UpdateFailMalformedHTLC_free(this_ptr: UpdateFailMalformedHTLC) { }
+impl Clone for UpdateFailMalformedHTLC {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::CommitmentSigned as lnCommitmentSignedImport;
 type lnCommitmentSigned = lnCommitmentSignedImport;
@@ -418,6 +514,14 @@ impl Drop for CommitmentSigned {
 }
 #[no_mangle]
 pub extern "C" fn CommitmentSigned_free(this_ptr: CommitmentSigned) { }
+impl Clone for CommitmentSigned {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::RevokeAndACK as lnRevokeAndACKImport;
 type lnRevokeAndACK = lnRevokeAndACKImport;
@@ -440,6 +544,14 @@ impl Drop for RevokeAndACK {
 }
 #[no_mangle]
 pub extern "C" fn RevokeAndACK_free(this_ptr: RevokeAndACK) { }
+impl Clone for RevokeAndACK {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::UpdateFee as lnUpdateFeeImport;
 type lnUpdateFee = lnUpdateFeeImport;
@@ -462,6 +574,14 @@ impl Drop for UpdateFee {
 }
 #[no_mangle]
 pub extern "C" fn UpdateFee_free(this_ptr: UpdateFee) { }
+impl Clone for UpdateFee {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::ChannelReestablish as lnChannelReestablishImport;
 type lnChannelReestablish = lnChannelReestablishImport;
@@ -484,6 +604,14 @@ impl Drop for ChannelReestablish {
 }
 #[no_mangle]
 pub extern "C" fn ChannelReestablish_free(this_ptr: ChannelReestablish) { }
+impl Clone for ChannelReestablish {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::AnnouncementSignatures as lnAnnouncementSignaturesImport;
 type lnAnnouncementSignatures = lnAnnouncementSignaturesImport;
@@ -506,6 +634,14 @@ impl Drop for AnnouncementSignatures {
 }
 #[no_mangle]
 pub extern "C" fn AnnouncementSignatures_free(this_ptr: AnnouncementSignatures) { }
+impl Clone for AnnouncementSignatures {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::NetAddress as lnNetAddressImport;
 type lnNetAddress = lnNetAddressImport;
@@ -528,6 +664,10 @@ impl Drop for NetAddress {
 }
 #[no_mangle]
 pub extern "C" fn NetAddress_free(this_ptr: NetAddress) { }
+#[no_mangle]
+pub extern "C" fn NetAddress_write(obj: *const NetAddress) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
 
 use lightning::ln::msgs::UnsignedNodeAnnouncement as lnUnsignedNodeAnnouncementImport;
 type lnUnsignedNodeAnnouncement = lnUnsignedNodeAnnouncementImport;
@@ -550,6 +690,14 @@ impl Drop for UnsignedNodeAnnouncement {
 }
 #[no_mangle]
 pub extern "C" fn UnsignedNodeAnnouncement_free(this_ptr: UnsignedNodeAnnouncement) { }
+impl Clone for UnsignedNodeAnnouncement {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 /// " The node_id this announcement originated from (don't rebroadcast the node_announcement back"
 /// " to this node)."
 #[no_mangle]
@@ -585,6 +733,14 @@ impl Drop for NodeAnnouncement {
 }
 #[no_mangle]
 pub extern "C" fn NodeAnnouncement_free(this_ptr: NodeAnnouncement) { }
+impl Clone for NodeAnnouncement {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::UnsignedChannelAnnouncement as lnUnsignedChannelAnnouncementImport;
 type lnUnsignedChannelAnnouncement = lnUnsignedChannelAnnouncementImport;
@@ -607,6 +763,14 @@ impl Drop for UnsignedChannelAnnouncement {
 }
 #[no_mangle]
 pub extern "C" fn UnsignedChannelAnnouncement_free(this_ptr: UnsignedChannelAnnouncement) { }
+impl Clone for UnsignedChannelAnnouncement {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 /// " One of the two node_ids which are endpoints of this channel"
 #[no_mangle]
 pub extern "C" fn UnsignedChannelAnnouncement_get_node_id_1(this_ptr: &UnsignedChannelAnnouncement) -> crate::c_types::PublicKey {
@@ -651,6 +815,14 @@ impl Drop for ChannelAnnouncement {
 }
 #[no_mangle]
 pub extern "C" fn ChannelAnnouncement_free(this_ptr: ChannelAnnouncement) { }
+impl Clone for ChannelAnnouncement {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::ChannelUpdate as lnChannelUpdateImport;
 type lnChannelUpdate = lnChannelUpdateImport;
@@ -673,6 +845,14 @@ impl Drop for ChannelUpdate {
 }
 #[no_mangle]
 pub extern "C" fn ChannelUpdate_free(this_ptr: ChannelUpdate) { }
+impl Clone for ChannelUpdate {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 
 use lightning::ln::msgs::LightningError as lnLightningErrorImport;
 type lnLightningError = lnLightningErrorImport;
@@ -718,6 +898,14 @@ impl Drop for CommitmentUpdate {
 }
 #[no_mangle]
 pub extern "C" fn CommitmentUpdate_free(this_ptr: CommitmentUpdate) { }
+impl Clone for CommitmentUpdate {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 /// " update_add_htlc messages which should be sent"
 #[no_mangle]
 pub extern "C" fn CommitmentUpdate_set_update_add_htlcs(this_ptr: &mut CommitmentUpdate, mut val: crate::c_types::derived::CVec_UpdateAddHTLCZ) {
@@ -744,30 +932,30 @@ pub extern "C" fn CommitmentUpdate_set_update_fail_malformed_htlcs(this_ptr: &mu
 }
 /// " An update_fee message which should be sent"
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_get_update_fee(this_ptr: &CommitmentUpdate) -> *const UpdateFee {
+pub extern "C" fn CommitmentUpdate_get_update_fee(this_ptr: &CommitmentUpdate) -> *const crate::ln::msgs::UpdateFee {
 	let inner_val = &unsafe { &*this_ptr.inner }.update_fee;
-	let mut local_inner_val = if inner_val.is_none() { return std::ptr::null(); } else {  { Box::into_raw(Box::new(crate::ln::msgs::UpdateFee { inner: &(*inner_val.as_ref().unwrap()), _underlying_ref: true } )) } };
+	let mut local_inner_val = &crate::ln::msgs::UpdateFee { inner: if inner_val.is_none() { std::ptr::null() } else {  { (inner_val.as_ref().unwrap()) } }, _underlying_ref: true };
 	local_inner_val
 }
 /// " An update_fee message which should be sent"
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_set_update_fee(this_ptr: &mut CommitmentUpdate, mut val: UpdateFee) {
+pub extern "C" fn CommitmentUpdate_set_update_fee(this_ptr: &mut CommitmentUpdate, mut val: crate::ln::msgs::UpdateFee) {
 	let mut local_val = if val.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) } }) };
 	unsafe { &mut *(this_ptr.inner as *mut lnCommitmentUpdate) }.update_fee = local_val;
 }
 /// " Finally, the commitment_signed message which should be sent"
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_get_commitment_signed(this_ptr: &CommitmentUpdate) -> *const CommitmentSigned {
+pub extern "C" fn CommitmentUpdate_get_commitment_signed(this_ptr: &CommitmentUpdate) -> *const crate::ln::msgs::CommitmentSigned {
 	let inner_val = &unsafe { &*this_ptr.inner }.commitment_signed;
 	Box::into_raw(Box::new(crate::ln::msgs::CommitmentSigned { inner: &(*inner_val), _underlying_ref: true } ))
 }
 /// " Finally, the commitment_signed message which should be sent"
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_set_commitment_signed(this_ptr: &mut CommitmentUpdate, mut val: CommitmentSigned) {
+pub extern "C" fn CommitmentUpdate_set_commitment_signed(this_ptr: &mut CommitmentUpdate, mut val: crate::ln::msgs::CommitmentSigned) {
 	unsafe { &mut *(this_ptr.inner as *mut lnCommitmentUpdate) }.commitment_signed = *unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) };
 }
 #[no_mangle]
-pub extern "C" fn CommitmentUpdate_new(mut update_add_htlcs_arg: crate::c_types::derived::CVec_UpdateAddHTLCZ, mut update_fulfill_htlcs_arg: crate::c_types::derived::CVec_UpdateFulfillHTLCZ, mut update_fail_htlcs_arg: crate::c_types::derived::CVec_UpdateFailHTLCZ, mut update_fail_malformed_htlcs_arg: crate::c_types::derived::CVec_UpdateFailMalformedHTLCZ, mut update_fee_arg: UpdateFee, mut commitment_signed_arg: CommitmentSigned) -> CommitmentUpdate {
+pub extern "C" fn CommitmentUpdate_new(mut update_add_htlcs_arg: crate::c_types::derived::CVec_UpdateAddHTLCZ, mut update_fulfill_htlcs_arg: crate::c_types::derived::CVec_UpdateFulfillHTLCZ, mut update_fail_htlcs_arg: crate::c_types::derived::CVec_UpdateFailHTLCZ, mut update_fail_malformed_htlcs_arg: crate::c_types::derived::CVec_UpdateFailMalformedHTLCZ, mut update_fee_arg: crate::ln::msgs::UpdateFee, mut commitment_signed_arg: crate::ln::msgs::CommitmentSigned) -> CommitmentUpdate {
 	let mut local_update_add_htlcs_arg = Vec::new(); for mut item in update_add_htlcs_arg.into_rust().drain(..) { local_update_add_htlcs_arg.push( { *unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) } }); };
 	let mut local_update_fulfill_htlcs_arg = Vec::new(); for mut item in update_fulfill_htlcs_arg.into_rust().drain(..) { local_update_fulfill_htlcs_arg.push( { *unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) } }); };
 	let mut local_update_fail_htlcs_arg = Vec::new(); for mut item in update_fail_htlcs_arg.into_rust().drain(..) { local_update_fail_htlcs_arg.push( { *unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) } }); };
@@ -814,51 +1002,51 @@ pub extern "C" fn HTLCFailChannelUpdate_free(this_ptr: HTLCFailChannelUpdate) { 
 pub struct ChannelMessageHandler {
 	pub this_arg: *mut c_void,
 	/// " Handle an incoming open_channel message from the given peer."
-	pub handle_open_channel: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: &OpenChannel),
+	pub handle_open_channel: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: &crate::ln::msgs::OpenChannel),
 	/// " Handle an incoming accept_channel message from the given peer."
-	pub handle_accept_channel: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: &AcceptChannel),
+	pub handle_accept_channel: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, their_features: crate::ln::features::InitFeatures, msg: &crate::ln::msgs::AcceptChannel),
 	/// " Handle an incoming funding_created message from the given peer."
-	pub handle_funding_created: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &FundingCreated),
+	pub handle_funding_created: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::FundingCreated),
 	/// " Handle an incoming funding_signed message from the given peer."
-	pub handle_funding_signed: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &FundingSigned),
+	pub handle_funding_signed: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::FundingSigned),
 	/// " Handle an incoming funding_locked message from the given peer."
-	pub handle_funding_locked: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &FundingLocked),
+	pub handle_funding_locked: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::FundingLocked),
 	/// " Handle an incoming shutdown message from the given peer."
-	pub handle_shutdown: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &Shutdown),
+	pub handle_shutdown: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::Shutdown),
 	/// " Handle an incoming closing_signed message from the given peer."
-	pub handle_closing_signed: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &ClosingSigned),
+	pub handle_closing_signed: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::ClosingSigned),
 	/// " Handle an incoming update_add_htlc message from the given peer."
-	pub handle_update_add_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateAddHTLC),
+	pub handle_update_add_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::UpdateAddHTLC),
 	/// " Handle an incoming update_fulfill_htlc message from the given peer."
-	pub handle_update_fulfill_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFulfillHTLC),
+	pub handle_update_fulfill_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::UpdateFulfillHTLC),
 	/// " Handle an incoming update_fail_htlc message from the given peer."
-	pub handle_update_fail_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFailHTLC),
+	pub handle_update_fail_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::UpdateFailHTLC),
 	/// " Handle an incoming update_fail_malformed_htlc message from the given peer."
-	pub handle_update_fail_malformed_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFailMalformedHTLC),
+	pub handle_update_fail_malformed_htlc: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::UpdateFailMalformedHTLC),
 	/// " Handle an incoming commitment_signed message from the given peer."
-	pub handle_commitment_signed: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &CommitmentSigned),
+	pub handle_commitment_signed: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::CommitmentSigned),
 	/// " Handle an incoming revoke_and_ack message from the given peer."
-	pub handle_revoke_and_ack: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &RevokeAndACK),
+	pub handle_revoke_and_ack: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::RevokeAndACK),
 	/// " Handle an incoming update_fee message from the given peer."
-	pub handle_update_fee: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &UpdateFee),
+	pub handle_update_fee: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::UpdateFee),
 	/// " Handle an incoming announcement_signatures message from the given peer."
-	pub handle_announcement_signatures: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &AnnouncementSignatures),
+	pub handle_announcement_signatures: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::AnnouncementSignatures),
 	/// " Indicates a connection to the peer failed/an existing connection was lost. If no connection"
 	/// " is believed to be possible in the future (eg they're sending us messages we don't"
 	/// " understand or indicate they require unknown feature bits), no_connection_possible is set"
 	/// " and any outstanding channels should be failed."
 	pub peer_disconnected: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, no_connection_possible: bool),
 	/// " Handle a peer reconnecting, possibly generating channel_reestablish message(s)."
-	pub peer_connected: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &Init),
+	pub peer_connected: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::Init),
 	/// " Handle an incoming channel_reestablish message from the given peer."
-	pub handle_channel_reestablish: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &ChannelReestablish),
+	pub handle_channel_reestablish: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::ChannelReestablish),
 	/// " Handle an incoming error message from the given peer."
-	pub handle_error: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &ErrorMessage),
+	pub handle_error: extern "C" fn (this_arg: *const c_void, their_node_id: crate::c_types::PublicKey, msg: &crate::ln::msgs::ErrorMessage),
 	pub MessageSendEventsProvider: crate::util::events::MessageSendEventsProvider,
 }
 impl lightning::util::events::MessageSendEventsProvider for ChannelMessageHandler {
 	fn get_and_clear_pending_msg_events(&self) -> Vec<lightning::util::events::MessageSendEvent> {
-		unimplemented!()
+		<crate::util::events::MessageSendEventsProvider as lightning::util::events::MessageSendEventsProvider>::get_and_clear_pending_msg_events(&self.MessageSendEventsProvider)
 	}
 }
 unsafe impl Send for ChannelMessageHandler {}
@@ -939,17 +1127,24 @@ pub struct RoutingMessageHandler {
 	pub this_arg: *mut c_void,
 	/// " Handle an incoming node_announcement message, returning true if it should be forwarded on,"
 	/// " false or returning an Err otherwise."
-	pub handle_node_announcement: extern "C" fn (this_arg: *const c_void, msg: &NodeAnnouncement) -> crate::c_types::derived::CResult_boolLightningErrorZ,
+	pub handle_node_announcement: extern "C" fn (this_arg: *const c_void, msg: &crate::ln::msgs::NodeAnnouncement) -> crate::c_types::derived::CResult_boolLightningErrorZ,
 	/// " Handle a channel_announcement message, returning true if it should be forwarded on, false"
 	/// " or returning an Err otherwise."
-	pub handle_channel_announcement: extern "C" fn (this_arg: *const c_void, msg: &ChannelAnnouncement) -> crate::c_types::derived::CResult_boolLightningErrorZ,
+	pub handle_channel_announcement: extern "C" fn (this_arg: *const c_void, msg: &crate::ln::msgs::ChannelAnnouncement) -> crate::c_types::derived::CResult_boolLightningErrorZ,
 	/// " Handle an incoming channel_update message, returning true if it should be forwarded on,"
 	/// " false or returning an Err otherwise."
-	pub handle_channel_update: extern "C" fn (this_arg: *const c_void, msg: &ChannelUpdate) -> crate::c_types::derived::CResult_boolLightningErrorZ,
+	pub handle_channel_update: extern "C" fn (this_arg: *const c_void, msg: &crate::ln::msgs::ChannelUpdate) -> crate::c_types::derived::CResult_boolLightningErrorZ,
 	/// " Handle some updates to the route graph that we learned due to an outbound failed payment."
-	pub handle_htlc_fail_channel_update: extern "C" fn (this_arg: *const c_void, update: & HTLCFailChannelUpdate),
-	//XXX: Need to export get_next_channel_announcements
-	//XXX: Need to export get_next_node_announcements
+	pub handle_htlc_fail_channel_update: extern "C" fn (this_arg: *const c_void, update: & crate::ln::msgs::HTLCFailChannelUpdate),
+	/// " Gets a subset of the channel announcements and updates required to dump our routing table"
+	/// " to a remote node, starting at the short_channel_id indicated by starting_point and"
+	/// " including the batch_amount entries immediately higher in numerical value than starting_point."
+	pub get_next_channel_announcements: extern "C" fn (this_arg: *const c_void, starting_point: u64, batch_amount: u8) -> crate::c_types::derived::CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ,
+	/// " Gets a subset of the node announcements required to dump our routing table to a remote node,"
+	/// " starting at the node *after* the provided publickey and including batch_amount entries"
+	/// " immediately higher (as defined by <PublicKey as Ord>::cmp) than starting_point."
+	/// " If None is provided for starting_point, we start at the first node."
+	pub get_next_node_announcements: extern "C" fn (this_arg: *const c_void, starting_point: *const crate::c_types::PublicKey, batch_amount: u8) -> crate::c_types::derived::CVec_NodeAnnouncementZ,
 	/// " Returns whether a full sync should be requested from a peer."
 	pub should_request_full_sync: extern "C" fn (this_arg: *const c_void, node_id: crate::c_types::PublicKey) -> bool,
 }
@@ -960,27 +1155,32 @@ use lightning::ln::msgs::RoutingMessageHandler as lnRoutingMessageHandler;
 impl lnRoutingMessageHandler for RoutingMessageHandler {
 	fn handle_node_announcement(&self, msg: &lightning::ln::msgs::NodeAnnouncement) -> Result<bool, lightning::ln::msgs::LightningError> {
 		let mut ret = (self.handle_node_announcement)(self.this_arg, &crate::ln::msgs::NodeAnnouncement { inner: msg, _underlying_ref: true });
-		let mut local_ret = match ret.result_good { true => Ok( { (*unsafe { Box::from_raw(ret.contents.result) }) }), false => Err( { *unsafe { Box::from_raw((*unsafe { Box::from_raw(ret.contents.err) }).inner.take_ptr() as *mut _) } })};
+		let mut local_ret = match ret.result_good { true => Ok( { (*unsafe { Box::from_raw(ret.contents.result.take_ptr()) }) }), false => Err( { *unsafe { Box::from_raw((*unsafe { Box::from_raw(ret.contents.err.take_ptr()) }).inner.take_ptr() as *mut _) } })};
 		local_ret
 	}
 	fn handle_channel_announcement(&self, msg: &lightning::ln::msgs::ChannelAnnouncement) -> Result<bool, lightning::ln::msgs::LightningError> {
 		let mut ret = (self.handle_channel_announcement)(self.this_arg, &crate::ln::msgs::ChannelAnnouncement { inner: msg, _underlying_ref: true });
-		let mut local_ret = match ret.result_good { true => Ok( { (*unsafe { Box::from_raw(ret.contents.result) }) }), false => Err( { *unsafe { Box::from_raw((*unsafe { Box::from_raw(ret.contents.err) }).inner.take_ptr() as *mut _) } })};
+		let mut local_ret = match ret.result_good { true => Ok( { (*unsafe { Box::from_raw(ret.contents.result.take_ptr()) }) }), false => Err( { *unsafe { Box::from_raw((*unsafe { Box::from_raw(ret.contents.err.take_ptr()) }).inner.take_ptr() as *mut _) } })};
 		local_ret
 	}
 	fn handle_channel_update(&self, msg: &lightning::ln::msgs::ChannelUpdate) -> Result<bool, lightning::ln::msgs::LightningError> {
 		let mut ret = (self.handle_channel_update)(self.this_arg, &crate::ln::msgs::ChannelUpdate { inner: msg, _underlying_ref: true });
-		let mut local_ret = match ret.result_good { true => Ok( { (*unsafe { Box::from_raw(ret.contents.result) }) }), false => Err( { *unsafe { Box::from_raw((*unsafe { Box::from_raw(ret.contents.err) }).inner.take_ptr() as *mut _) } })};
+		let mut local_ret = match ret.result_good { true => Ok( { (*unsafe { Box::from_raw(ret.contents.result.take_ptr()) }) }), false => Err( { *unsafe { Box::from_raw((*unsafe { Box::from_raw(ret.contents.err.take_ptr()) }).inner.take_ptr() as *mut _) } })};
 		local_ret
 	}
 	fn handle_htlc_fail_channel_update(&self, update: &lightning::ln::msgs::HTLCFailChannelUpdate) {
 		(self.handle_htlc_fail_channel_update)(self.this_arg, &crate::ln::msgs::HTLCFailChannelUpdate { inner: update, _underlying_ref: true })
 	}
 	fn get_next_channel_announcements(&self, starting_point: u64, batch_amount: u8) -> Vec<(lightning::ln::msgs::ChannelAnnouncement, Option<lightning::ln::msgs::ChannelUpdate>, Option<lightning::ln::msgs::ChannelUpdate>)> {
-		unimplemented!();
+		let mut ret = (self.get_next_channel_announcements)(self.this_arg, starting_point, batch_amount);
+		let mut local_ret = Vec::new(); for mut item in ret.into_rust().drain(..) { local_ret.push( { let (mut orig_ret_0_0, mut orig_ret_0_1, mut orig_ret_0_2) = item.to_rust(); let mut local_orig_ret_0_1 = if orig_ret_0_1.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(orig_ret_0_1.inner.take_ptr() as *mut _) } }) }; let mut local_orig_ret_0_2 = if orig_ret_0_2.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(orig_ret_0_2.inner.take_ptr() as *mut _) } }) }; let local_ret_0 = (*unsafe { Box::from_raw(orig_ret_0_0.inner.take_ptr() as *mut _) }, local_orig_ret_0_1, local_orig_ret_0_2); local_ret_0 }); };
+		local_ret
 	}
 	fn get_next_node_announcements(&self, starting_point: Option<&bitcoin::secp256k1::key::PublicKey>, batch_amount: u8) -> Vec<lightning::ln::msgs::NodeAnnouncement> {
-		unimplemented!();
+		let mut local_starting_point = if starting_point.is_none() { std::ptr::null() } else {  { Box::into_raw(Box::new(crate::c_types::PublicKey::from_rust(&(*starting_point.as_ref().unwrap())))) } };
+		let mut ret = (self.get_next_node_announcements)(self.this_arg, local_starting_point, batch_amount);
+		let mut local_ret = Vec::new(); for mut item in ret.into_rust().drain(..) { local_ret.push( { *unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) } }); };
+		local_ret
 	}
 	fn should_request_full_sync(&self, node_id: &bitcoin::secp256k1::key::PublicKey) -> bool {
 		let mut ret = (self.should_request_full_sync)(self.this_arg, crate::c_types::PublicKey::from_rust(&node_id));
@@ -994,5 +1194,305 @@ impl std::ops::Deref for RoutingMessageHandler {
 	type Target = Self;
 	fn deref(&self) -> &Self {
 		self
+	}
+}
+#[no_mangle]
+pub extern "C" fn AcceptChannel_write(obj: *const AcceptChannel) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn AcceptChannel_read(ser: crate::c_types::u8slice) -> AcceptChannel {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		AcceptChannel { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		AcceptChannel { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn AnnouncementSignatures_write(obj: *const AnnouncementSignatures) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn AnnouncementSignatures_read(ser: crate::c_types::u8slice) -> AnnouncementSignatures {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		AnnouncementSignatures { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		AnnouncementSignatures { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn ChannelReestablish_write(obj: *const ChannelReestablish) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn ChannelReestablish_read(ser: crate::c_types::u8slice) -> ChannelReestablish {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		ChannelReestablish { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		ChannelReestablish { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn ClosingSigned_write(obj: *const ClosingSigned) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn ClosingSigned_read(ser: crate::c_types::u8slice) -> ClosingSigned {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		ClosingSigned { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		ClosingSigned { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn CommitmentSigned_write(obj: *const CommitmentSigned) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn CommitmentSigned_read(ser: crate::c_types::u8slice) -> CommitmentSigned {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		CommitmentSigned { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		CommitmentSigned { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn FundingCreated_write(obj: *const FundingCreated) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn FundingCreated_read(ser: crate::c_types::u8slice) -> FundingCreated {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		FundingCreated { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		FundingCreated { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn FundingSigned_write(obj: *const FundingSigned) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn FundingSigned_read(ser: crate::c_types::u8slice) -> FundingSigned {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		FundingSigned { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		FundingSigned { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn FundingLocked_write(obj: *const FundingLocked) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn FundingLocked_read(ser: crate::c_types::u8slice) -> FundingLocked {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		FundingLocked { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		FundingLocked { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn Init_write(obj: *const Init) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn Init_read(ser: crate::c_types::u8slice) -> Init {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		Init { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		Init { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn OpenChannel_write(obj: *const OpenChannel) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn OpenChannel_read(ser: crate::c_types::u8slice) -> OpenChannel {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		OpenChannel { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		OpenChannel { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn RevokeAndACK_write(obj: *const RevokeAndACK) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn RevokeAndACK_read(ser: crate::c_types::u8slice) -> RevokeAndACK {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		RevokeAndACK { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		RevokeAndACK { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn Shutdown_write(obj: *const Shutdown) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn Shutdown_read(ser: crate::c_types::u8slice) -> Shutdown {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		Shutdown { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		Shutdown { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn UpdateFailHTLC_write(obj: *const UpdateFailHTLC) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn UpdateFailHTLC_read(ser: crate::c_types::u8slice) -> UpdateFailHTLC {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		UpdateFailHTLC { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		UpdateFailHTLC { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn UpdateFailMalformedHTLC_write(obj: *const UpdateFailMalformedHTLC) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn UpdateFailMalformedHTLC_read(ser: crate::c_types::u8slice) -> UpdateFailMalformedHTLC {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		UpdateFailMalformedHTLC { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		UpdateFailMalformedHTLC { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn UpdateFee_write(obj: *const UpdateFee) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn UpdateFee_read(ser: crate::c_types::u8slice) -> UpdateFee {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		UpdateFee { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		UpdateFee { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn UpdateFulfillHTLC_write(obj: *const UpdateFulfillHTLC) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn UpdateFulfillHTLC_read(ser: crate::c_types::u8slice) -> UpdateFulfillHTLC {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		UpdateFulfillHTLC { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		UpdateFulfillHTLC { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn UpdateAddHTLC_write(obj: *const UpdateAddHTLC) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn UpdateAddHTLC_read(ser: crate::c_types::u8slice) -> UpdateAddHTLC {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		UpdateAddHTLC { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		UpdateAddHTLC { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn Ping_write(obj: *const Ping) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn Ping_read(ser: crate::c_types::u8slice) -> Ping {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		Ping { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		Ping { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn Pong_write(obj: *const Pong) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn Pong_read(ser: crate::c_types::u8slice) -> Pong {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		Pong { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		Pong { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn UnsignedChannelAnnouncement_write(obj: *const UnsignedChannelAnnouncement) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn UnsignedChannelAnnouncement_read(ser: crate::c_types::u8slice) -> UnsignedChannelAnnouncement {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		UnsignedChannelAnnouncement { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		UnsignedChannelAnnouncement { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn ChannelAnnouncement_write(obj: *const ChannelAnnouncement) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn ChannelAnnouncement_read(ser: crate::c_types::u8slice) -> ChannelAnnouncement {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		ChannelAnnouncement { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		ChannelAnnouncement { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn ChannelUpdate_write(obj: *const ChannelUpdate) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn ChannelUpdate_read(ser: crate::c_types::u8slice) -> ChannelUpdate {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		ChannelUpdate { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		ChannelUpdate { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn ErrorMessage_write(obj: *const ErrorMessage) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn ErrorMessage_read(ser: crate::c_types::u8slice) -> ErrorMessage {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		ErrorMessage { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		ErrorMessage { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn UnsignedNodeAnnouncement_write(obj: *const UnsignedNodeAnnouncement) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn UnsignedNodeAnnouncement_read(ser: crate::c_types::u8slice) -> UnsignedNodeAnnouncement {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		UnsignedNodeAnnouncement { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		UnsignedNodeAnnouncement { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
+#[no_mangle]
+pub extern "C" fn NodeAnnouncement_write(obj: *const NodeAnnouncement) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn NodeAnnouncement_read(ser: crate::c_types::u8slice) -> NodeAnnouncement {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		NodeAnnouncement { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		NodeAnnouncement { inner: std::ptr::null(), _underlying_ref: false }
 	}
 }

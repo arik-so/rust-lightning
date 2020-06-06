@@ -12,6 +12,7 @@ use bitcoin::blockdata::opcodes;
 use chain::chaininterface::{ChainError, ChainWatchInterface};
 use ln::features::{ChannelFeatures, NodeFeatures};
 use ln::msgs::{DecodeError,ErrorAction,LightningError,RoutingMessageHandler,NetAddress};
+use ln::msgs::{ChannelAnnouncement, ChannelUpdate, NodeAnnouncement};
 use ln::msgs;
 use util::ser::{Writeable, Readable, Writer};
 use util::logger::Logger;
@@ -22,6 +23,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry as BtreeEntry;
 use std::ops::Deref;
+
+/// Represents the network as nodes and channels between them
+#[derive(PartialEq)]
+pub struct NetworkGraph {
+	channels: BTreeMap<u64, ChannelInfo>,
+	nodes: BTreeMap<PublicKey, NodeInfo>,
+}
 
 /// Receives and validates network updates from peers,
 /// stores authentic and relevant data as a network graph.
@@ -43,7 +51,6 @@ impl<C: Deref, L: Deref> NetGraphMsgHandler<C, L> where C::Target: ChainWatchInt
 	/// Chain monitor is used to make sure announced channels exist on-chain,
 	/// channel data is correct, and that the announcement is signed with
 	/// channel owners' keys.
-	/// (C-not exported) cause buggy
 	pub fn new(chain_monitor: C, logger: L) -> Self {
 		NetGraphMsgHandler {
 			secp_ctx: Secp256k1::verification_only(),
@@ -59,11 +66,10 @@ impl<C: Deref, L: Deref> NetGraphMsgHandler<C, L> where C::Target: ChainWatchInt
 
 	/// Creates a new tracker of the actual state of the network of channels and nodes,
 	/// assuming an existing Network Graph.
-	/// (C-not exported) due to RwLock
-	pub fn from_net_graph(chain_monitor: C, logger: L, network_graph: RwLock<NetworkGraph>) -> Self {
+	pub fn from_net_graph(chain_monitor: C, logger: L, network_graph: NetworkGraph) -> Self {
 		NetGraphMsgHandler {
 			secp_ctx: Secp256k1::verification_only(),
-			network_graph,
+			network_graph: RwLock::new(network_graph),
 			full_syncs_requested: AtomicUsize::new(0),
 			chain_monitor,
 			logger,
@@ -139,7 +145,7 @@ impl<C: Deref + Sync + Send, L: Deref + Sync + Send> RoutingMessageHandler for N
 		self.network_graph.write().unwrap().update_channel(msg, Some(&self.secp_ctx))
 	}
 
-	fn get_next_channel_announcements(&self, starting_point: u64, batch_amount: u8) -> Vec<(msgs::ChannelAnnouncement, Option<msgs::ChannelUpdate>, Option<msgs::ChannelUpdate>)> {
+	fn get_next_channel_announcements(&self, starting_point: u64, batch_amount: u8) -> Vec<(ChannelAnnouncement, Option<ChannelUpdate>, Option<ChannelUpdate>)> {
 		let network_graph = self.network_graph.read().unwrap();
 		let mut result = Vec::with_capacity(batch_amount as usize);
 		let mut iter = network_graph.get_channels().range(starting_point..);
@@ -167,7 +173,7 @@ impl<C: Deref + Sync + Send, L: Deref + Sync + Send> RoutingMessageHandler for N
 		result
 	}
 
-	fn get_next_node_announcements(&self, starting_point: Option<&PublicKey>, batch_amount: u8) -> Vec<msgs::NodeAnnouncement> {
+	fn get_next_node_announcements(&self, starting_point: Option<&PublicKey>, batch_amount: u8) -> Vec<NodeAnnouncement> {
 		let network_graph = self.network_graph.read().unwrap();
 		let mut result = Vec::with_capacity(batch_amount as usize);
 		let mut iter = if let Some(pubkey) = starting_point {
@@ -432,13 +438,6 @@ impl Readable for NodeInfo {
 	}
 }
 
-/// Represents the network as nodes and channels between them
-#[derive(PartialEq)]
-pub struct NetworkGraph {
-	channels: BTreeMap<u64, ChannelInfo>,
-	nodes: BTreeMap<PublicKey, NodeInfo>,
-}
-
 impl Writeable for NetworkGraph {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ::std::io::Error> {
 		(self.channels.len() as u64).write(writer)?;
@@ -511,6 +510,14 @@ impl NetworkGraph {
 			}
 		}
 		None
+	}
+
+	/// Creates a new, empty, network graph.
+	pub fn new() -> NetworkGraph {
+		Self {
+			channels: BTreeMap::new(),
+			nodes: BTreeMap::new(),
+		}
 	}
 
 	/// For an already known node (from channel announcements), update its stored properties from a given node announcement

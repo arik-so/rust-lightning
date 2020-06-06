@@ -12,11 +12,25 @@ pub static CVec_EventZ_free: extern "C" fn(CVec_EventZ) = crate::c_types::CVecTe
 pub type C2Tuple_Txidu32Z = crate::c_types::C2TupleTempl<crate::c_types::ThirtyTwoBytes, u32>;
 #[no_mangle]
 pub static C2Tuple_Txidu32Z_free: extern "C" fn(C2Tuple_Txidu32Z) = crate::c_types::C2TupleTempl_free::<crate::c_types::ThirtyTwoBytes, u32>;
+#[no_mangle]
+pub extern "C" fn C2Tuple_Txidu32Z_new(a: crate::c_types::ThirtyTwoBytes, b: u32) -> C2Tuple_Txidu32Z {
+	C2Tuple_Txidu32Z {
+		a: Box::into_raw(Box::new(a)),
+		b: Box::into_raw(Box::new(b)),
+	}
+}
 
 #[no_mangle]
 pub type C2Tuple_Scriptu64Z = crate::c_types::C2TupleTempl<crate::c_types::derived::CVec_u8Z, u64>;
 #[no_mangle]
 pub static C2Tuple_Scriptu64Z_free: extern "C" fn(C2Tuple_Scriptu64Z) = crate::c_types::C2TupleTempl_free::<crate::c_types::derived::CVec_u8Z, u64>;
+#[no_mangle]
+pub extern "C" fn C2Tuple_Scriptu64Z_new(a: crate::c_types::derived::CVec_u8Z, b: u64) -> C2Tuple_Scriptu64Z {
+	C2Tuple_Scriptu64Z {
+		a: Box::into_raw(Box::new(a)),
+		b: Box::into_raw(Box::new(b)),
+	}
+}
 
 #[no_mangle]
 pub type CResult_C2Tuple_Scriptu64ZChainErrorZ = crate::c_types::CResultTempl<crate::c_types::C2TupleTempl<crate::c_types::derived::CVec_u8Z, u64>, crate::chain::chaininterface::ChainError>;
@@ -29,6 +43,60 @@ pub static CResult_C2Tuple_Scriptu64ZChainErrorZ_good: extern "C" fn (C2Tuple_Sc
 #[no_mangle]
 pub static CResult_C2Tuple_Scriptu64ZChainErrorZ_err: extern "C" fn (crate::chain::chaininterface::ChainError) -> CResult_C2Tuple_Scriptu64ZChainErrorZ =
 	crate::c_types::CResultTempl::<crate::c_types::C2TupleTempl<crate::c_types::derived::CVec_u8Z, u64>, crate::chain::chaininterface::ChainError>::err;
+
+#[no_mangle]
+pub type C2Tuple_u64u64Z = crate::c_types::C2TupleTempl<u64, u64>;
+#[no_mangle]
+pub static C2Tuple_u64u64Z_free: extern "C" fn(C2Tuple_u64u64Z) = crate::c_types::C2TupleTempl_free::<u64, u64>;
+#[no_mangle]
+pub extern "C" fn C2Tuple_u64u64Z_new(a: u64, b: u64) -> C2Tuple_u64u64Z {
+	C2Tuple_u64u64Z {
+		a: Box::into_raw(Box::new(a)),
+		b: Box::into_raw(Box::new(b)),
+	}
+}
+
+#[no_mangle]
+pub type CHTLCOutputInCommitmentSlice = crate::c_types::CSliceTempl<crate::ln::chan_utils::HTLCOutputInCommitment>;
+impl From<&[&lightning::ln::chan_utils::HTLCOutputInCommitment]> for CHTLCOutputInCommitmentSlice {
+	fn from(Slice: &[&lightning::ln::chan_utils::HTLCOutputInCommitment]) -> Self {
+		unimplemented!();
+	}
+}
+impl Into<&[&lightning::ln::chan_utils::HTLCOutputInCommitment]> for CHTLCOutputInCommitmentSlice {
+	fn into(self) -> &'static [&'static lightning::ln::chan_utils::HTLCOutputInCommitment] {
+		unimplemented!();
+	}
+}
+#[no_mangle]
+pub type CVec_SignatureZ = crate::c_types::CVecTempl<crate::c_types::Signature>;
+#[no_mangle]
+pub static CVec_SignatureZ_free: extern "C" fn(CVec_SignatureZ) = crate::c_types::CVecTempl_free::<crate::c_types::Signature>;
+
+#[no_mangle]
+pub type C2Tuple_SignatureCVec_SignatureZZ = crate::c_types::C2TupleTempl<crate::c_types::Signature, crate::c_types::CVecTempl<crate::c_types::Signature>>;
+#[no_mangle]
+pub static C2Tuple_SignatureCVec_SignatureZZ_free: extern "C" fn(C2Tuple_SignatureCVec_SignatureZZ) = crate::c_types::C2TupleTempl_free::<crate::c_types::Signature, crate::c_types::CVecTempl<crate::c_types::Signature>>;
+#[no_mangle]
+pub extern "C" fn C2Tuple_SignatureCVec_SignatureZZ_new(a: crate::c_types::Signature, b: crate::c_types::derived::CVec_SignatureZ) -> C2Tuple_SignatureCVec_SignatureZZ {
+	C2Tuple_SignatureCVec_SignatureZZ {
+		a: Box::into_raw(Box::new(a)),
+		b: Box::into_raw(Box::new(b)),
+	}
+}
+
+#[no_mangle]
+pub type CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ = crate::c_types::CResultTempl<crate::c_types::C2TupleTempl<crate::c_types::Signature, crate::c_types::CVecTempl<crate::c_types::Signature>>, u8>;
+#[no_mangle]
+pub static CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ_free: extern "C" fn(CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ) = crate::c_types::CResultTempl_free::<crate::c_types::C2TupleTempl<crate::c_types::Signature, crate::c_types::CVecTempl<crate::c_types::Signature>>, u8>;
+#[no_mangle]
+pub static CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ_good: extern "C" fn (C2Tuple_SignatureCVec_SignatureZZ) -> CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ =
+	crate::c_types::CResultTempl::<crate::c_types::C2TupleTempl<crate::c_types::Signature, crate::c_types::CVecTempl<crate::c_types::Signature>>, u8>::good;
+
+#[no_mangle]
+pub extern "C" fn CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ_err() -> CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ {
+	crate::c_types::CResultTempl::err(0)
+}
 
 #[no_mangle]
 pub type CResult_SignatureNoneZ = crate::c_types::CResultTempl<crate::c_types::Signature, u8>;
@@ -47,6 +115,13 @@ pub extern "C" fn CResult_SignatureNoneZ_err() -> CResult_SignatureNoneZ {
 pub type C2Tuple_SecretKey_u832Z = crate::c_types::C2TupleTempl<crate::c_types::SecretKey, crate::c_types::ThirtyTwoBytes>;
 #[no_mangle]
 pub static C2Tuple_SecretKey_u832Z_free: extern "C" fn(C2Tuple_SecretKey_u832Z) = crate::c_types::C2TupleTempl_free::<crate::c_types::SecretKey, crate::c_types::ThirtyTwoBytes>;
+#[no_mangle]
+pub extern "C" fn C2Tuple_SecretKey_u832Z_new(a: crate::c_types::SecretKey, b: crate::c_types::ThirtyTwoBytes) -> C2Tuple_SecretKey_u832Z {
+	C2Tuple_SecretKey_u832Z {
+		a: Box::into_raw(Box::new(a)),
+		b: Box::into_raw(Box::new(b)),
+	}
+}
 
 #[no_mangle]
 pub type CResult_NoneAPIErrorZ = crate::c_types::CResultTempl<u8, crate::util::errors::APIError>;
@@ -133,6 +208,29 @@ pub static CResult_boolLightningErrorZ_good: extern "C" fn (bool) -> CResult_boo
 #[no_mangle]
 pub static CResult_boolLightningErrorZ_err: extern "C" fn (crate::ln::msgs::LightningError) -> CResult_boolLightningErrorZ =
 	crate::c_types::CResultTempl::<bool, crate::ln::msgs::LightningError>::err;
+
+#[no_mangle]
+pub type C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ = crate::c_types::C3TupleTempl<crate::ln::msgs::ChannelAnnouncement, crate::ln::msgs::ChannelUpdate, crate::ln::msgs::ChannelUpdate>;
+#[no_mangle]
+pub static C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ_free: extern "C" fn(C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ) = crate::c_types::C3TupleTempl_free::<crate::ln::msgs::ChannelAnnouncement, crate::ln::msgs::ChannelUpdate, crate::ln::msgs::ChannelUpdate>;
+#[no_mangle]
+pub extern "C" fn C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ_new(a: crate::ln::msgs::ChannelAnnouncement, b: crate::ln::msgs::ChannelUpdate, c: crate::ln::msgs::ChannelUpdate) -> C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ {
+	C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ {
+		a: Box::into_raw(Box::new(a)),
+		b: Box::into_raw(Box::new(b)),
+		c: Box::into_raw(Box::new(c)),
+	}
+}
+
+#[no_mangle]
+pub type CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ = crate::c_types::CVecTempl<crate::c_types::C3TupleTempl<crate::ln::msgs::ChannelAnnouncement, crate::ln::msgs::ChannelUpdate, crate::ln::msgs::ChannelUpdate>>;
+#[no_mangle]
+pub static CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ_free: extern "C" fn(CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ) = crate::c_types::CVecTempl_free::<crate::c_types::C3TupleTempl<crate::ln::msgs::ChannelAnnouncement, crate::ln::msgs::ChannelUpdate, crate::ln::msgs::ChannelUpdate>>;
+
+#[no_mangle]
+pub type CVec_NodeAnnouncementZ = crate::c_types::CVecTempl<crate::ln::msgs::NodeAnnouncement>;
+#[no_mangle]
+pub static CVec_NodeAnnouncementZ_free: extern "C" fn(CVec_NodeAnnouncementZ) = crate::c_types::CVecTempl_free::<crate::ln::msgs::NodeAnnouncement>;
 
 #[no_mangle]
 pub type CVec_PublicKeyZ = crate::c_types::CVecTempl<crate::c_types::PublicKey>;

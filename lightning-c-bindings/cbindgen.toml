@@ -112,7 +112,7 @@ documentation_style = "doxy"
 # * "both": typedef struct MyType { ... } MyType;
 #
 # default: "both"
-style = "type"
+style = "both"
 
 # A list of substitutions for converting cfg's to ifdefs. cfgs which aren't
 # defined here will just be discarded.

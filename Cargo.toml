@@ -16,3 +16,4 @@ lto = true
 
 [patch.crates-io]
 bitcoin_hashes = { git = "https://github.com/rust-bitcoin/bitcoin_hashes" }
+secp256k1 = { git = "https://github.com/TheBlueMatt/rust-secp256k1" }

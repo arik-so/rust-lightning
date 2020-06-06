@@ -13,7 +13,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
-use crate::c_types::TakePointer;
+use crate::c_types::*;
 
 
 use lightning::ln::channelmonitor::ChannelMonitorUpdate as lnChannelMonitorUpdateImport;
@@ -38,6 +38,14 @@ impl Drop for ChannelMonitorUpdate {
 }
 #[no_mangle]
 pub extern "C" fn ChannelMonitorUpdate_free(this_ptr: ChannelMonitorUpdate) { }
+impl Clone for ChannelMonitorUpdate {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 /// " The sequence number of this update. Updates *must* be replayed in-order according to this"
 /// " sequence number (and updates may panic if they are not). The update_id values are strictly"
 /// " increasing and increase by one for each new update."
@@ -60,6 +68,18 @@ pub extern "C" fn ChannelMonitorUpdate_get_update_id(this_ptr: &ChannelMonitorUp
 #[no_mangle]
 pub extern "C" fn ChannelMonitorUpdate_set_update_id(this_ptr: &mut ChannelMonitorUpdate, mut val: u64) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelMonitorUpdate) }.update_id = val;
+}
+#[no_mangle]
+pub extern "C" fn ChannelMonitorUpdate_write(obj: *const ChannelMonitorUpdate) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn ChannelMonitorUpdate_read(ser: crate::c_types::u8slice) -> ChannelMonitorUpdate {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		ChannelMonitorUpdate { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		ChannelMonitorUpdate { inner: std::ptr::null(), _underlying_ref: false }
+	}
 }
 /// " An error enum representing a failure to persist a channel monitor update."
 #[repr(C)]
@@ -174,6 +194,26 @@ impl Drop for HTLCUpdate {
 }
 #[no_mangle]
 pub extern "C" fn HTLCUpdate_free(this_ptr: HTLCUpdate) { }
+impl Clone for HTLCUpdate {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
+#[no_mangle]
+pub extern "C" fn HTLCUpdate_write(obj: *const HTLCUpdate) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn HTLCUpdate_read(ser: crate::c_types::u8slice) -> HTLCUpdate {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		HTLCUpdate { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		HTLCUpdate { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}
 
 use lightning::ln::channelmonitor::ChannelMonitor as lnChannelMonitorImport;
 type lnChannelMonitor = lnChannelMonitorImport<crate::chain::keysinterface::ChannelKeys>;
@@ -242,7 +282,7 @@ pub struct ManyChannelMonitor {
 	/// ""
 	/// " Any spends of outputs which should have been registered which aren't passed to"
 	/// " ChannelMonitors via block_connected may result in FUNDS LOSS."
-	pub add_monitor: extern "C" fn (this_arg: *const c_void, funding_txo: crate::chain::transaction::OutPoint, monitor: ChannelMonitor) -> crate::c_types::derived::CResult_NoneChannelMonitorUpdateErrZ,
+	pub add_monitor: extern "C" fn (this_arg: *const c_void, funding_txo: crate::chain::transaction::OutPoint, monitor: crate::ln::channelmonitor::ChannelMonitor) -> crate::c_types::derived::CResult_NoneChannelMonitorUpdateErrZ,
 	/// " Updates a monitor for the given `funding_txo`."
 	/// ""
 	/// " Implementer must also ensure that the funding_txo txid *and* outpoint are registered with"
@@ -255,7 +295,7 @@ pub struct ManyChannelMonitor {
 	/// ""
 	/// " Any spends of outputs which should have been registered which aren't passed to"
 	/// " ChannelMonitors via block_connected may result in FUNDS LOSS."
-	pub update_monitor: extern "C" fn (this_arg: *const c_void, funding_txo: crate::chain::transaction::OutPoint, monitor: ChannelMonitorUpdate) -> crate::c_types::derived::CResult_NoneChannelMonitorUpdateErrZ,
+	pub update_monitor: extern "C" fn (this_arg: *const c_void, funding_txo: crate::chain::transaction::OutPoint, monitor: crate::ln::channelmonitor::ChannelMonitorUpdate) -> crate::c_types::derived::CResult_NoneChannelMonitorUpdateErrZ,
 	/// " Used by ChannelManager to get list of HTLC resolved onchain and which needed to be updated"
 	/// " with success or failure."
 	/// ""
@@ -272,12 +312,12 @@ impl lnManyChannelMonitor for ManyChannelMonitor {
 	type Keys = crate::chain::keysinterface::ChannelKeys;
 	fn add_monitor(&self, funding_txo: lightning::chain::transaction::OutPoint, monitor: lightning::ln::channelmonitor::ChannelMonitor<Self::Keys>) -> Result<(), lightning::ln::channelmonitor::ChannelMonitorUpdateErr> {
 		let mut ret = (self.add_monitor)(self.this_arg, crate::chain::transaction::OutPoint { inner: Box::into_raw(Box::new(funding_txo)), _underlying_ref: false }, crate::ln::channelmonitor::ChannelMonitor { inner: Box::into_raw(Box::new(monitor)), _underlying_ref: false });
-		let mut local_ret = match ret.result_good { true => Ok( { () /*(*unsafe { Box::from_raw(ret.contents.result) })*/ }), false => Err( { (*unsafe { Box::from_raw(ret.contents.err) }).to_ln() })};
+		let mut local_ret = match ret.result_good { true => Ok( { () /*(*unsafe { Box::from_raw(ret.contents.result.take_ptr()) })*/ }), false => Err( { (*unsafe { Box::from_raw(ret.contents.err.take_ptr()) }).to_ln() })};
 		local_ret
 	}
 	fn update_monitor(&self, funding_txo: lightning::chain::transaction::OutPoint, monitor: lightning::ln::channelmonitor::ChannelMonitorUpdate) -> Result<(), lightning::ln::channelmonitor::ChannelMonitorUpdateErr> {
 		let mut ret = (self.update_monitor)(self.this_arg, crate::chain::transaction::OutPoint { inner: Box::into_raw(Box::new(funding_txo)), _underlying_ref: false }, crate::ln::channelmonitor::ChannelMonitorUpdate { inner: Box::into_raw(Box::new(monitor)), _underlying_ref: false });
-		let mut local_ret = match ret.result_good { true => Ok( { () /*(*unsafe { Box::from_raw(ret.contents.result) })*/ }), false => Err( { (*unsafe { Box::from_raw(ret.contents.err) }).to_ln() })};
+		let mut local_ret = match ret.result_good { true => Ok( { () /*(*unsafe { Box::from_raw(ret.contents.result.take_ptr()) })*/ }), false => Err( { (*unsafe { Box::from_raw(ret.contents.err.take_ptr()) }).to_ln() })};
 		local_ret
 	}
 	fn get_and_clear_pending_htlcs_updated(&self) -> Vec<lightning::ln::channelmonitor::HTLCUpdate> {

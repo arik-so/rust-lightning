@@ -2,7 +2,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
-use crate::c_types::TakePointer;
+use crate::c_types::*;
 
 
 use lightning::chain::transaction::OutPoint as lnOutPointImport;
@@ -29,6 +29,14 @@ impl Drop for OutPoint {
 }
 #[no_mangle]
 pub extern "C" fn OutPoint_free(this_ptr: OutPoint) { }
+impl Clone for OutPoint {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 /// " The referenced transaction's txid."
 #[no_mangle]
 pub extern "C" fn OutPoint_get_txid(this_ptr: &OutPoint) -> *const [u8; 32] {
@@ -65,3 +73,15 @@ pub extern "C" fn OutPoint_to_channel_id(this_arg: &OutPoint) -> crate::c_types:
 	crate::c_types::ThirtyTwoBytes { data: ret }
 }
 
+#[no_mangle]
+pub extern "C" fn OutPoint_write(obj: *const OutPoint) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn OutPoint_read(ser: crate::c_types::u8slice) -> OutPoint {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		OutPoint { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		OutPoint { inner: std::ptr::null(), _underlying_ref: false }
+	}
+}

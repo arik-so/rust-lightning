@@ -116,6 +116,10 @@ jobs:
           toolchain: ${{ env.TOOLCHAIN }}
           override: true
           profile: minimal
+      - name: Install Valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install valgrind
       - name: Install cbindgen
         run: cargo install --force cbindgen
       - name: Rebuild bindings, and check the sample app builds + links

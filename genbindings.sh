@@ -30,8 +30,8 @@ echo "Bin size w/o optimization:"
 ls -lha a.out
 ./a.out
 
-g++ -g -static -pthread demo.cpp ../target/debug/liblightning.a -ldl
-./a.out
+g++ -g -pthread demo.cpp -L../target/debug/ -llightning -ldl
+LD_LIBRARY_PATH=../target/debug/ valgrind --memcheck:leak-check=full ./a.out
 
 cargo rustc -v --release -- -C lto
 clang -flto -O2 -static -pthread demo.c ../target/release/liblightning.a -ldl

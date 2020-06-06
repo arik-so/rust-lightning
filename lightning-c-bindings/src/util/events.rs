@@ -7,7 +7,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
-use crate::c_types::TakePointer;
+use crate::c_types::*;
 
 
 use lightning::util::events::Event as lnEventImport;
@@ -35,6 +35,10 @@ impl Drop for Event {
 }
 #[no_mangle]
 pub extern "C" fn Event_free(this_ptr: Event) { }
+#[no_mangle]
+pub extern "C" fn Event_write(obj: *const Event) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
 
 use lightning::util::events::MessageSendEvent as lnMessageSendEventImport;
 type lnMessageSendEvent = lnMessageSendEventImport;

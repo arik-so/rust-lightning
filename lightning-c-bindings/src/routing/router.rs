@@ -5,7 +5,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
-use crate::c_types::TakePointer;
+use crate::c_types::*;
 
 
 use lightning::routing::router::RouteHop as lnRouteHopImport;
@@ -29,6 +29,14 @@ impl Drop for RouteHop {
 }
 #[no_mangle]
 pub extern "C" fn RouteHop_free(this_ptr: RouteHop) { }
+impl Clone for RouteHop {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 /// " The node_id of the node at this hop."
 #[no_mangle]
 pub extern "C" fn RouteHop_get_pubkey(this_ptr: &RouteHop) -> crate::c_types::PublicKey {
@@ -98,6 +106,14 @@ impl Drop for Route {
 }
 #[no_mangle]
 pub extern "C" fn Route_free(this_ptr: Route) { }
+impl Clone for Route {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 /// " The list of routes taken for a single (potentially-)multi-part payment. The pubkey of the"
 /// " last RouteHop in each path must be the same."
 /// " Each entry represents a list of hops, NOT INCLUDING our own, where the last hop is the"
@@ -115,6 +131,18 @@ pub extern "C" fn Route_new(mut paths_arg: crate::c_types::derived::CVec_CVec_Ro
 	Route { inner: Box::into_raw(Box::new(lnRoute {
 		paths: local_paths_arg,
 	})), _underlying_ref: false }
+}
+#[no_mangle]
+pub extern "C" fn Route_write(obj: *const Route) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn Route_read(ser: crate::c_types::u8slice) -> Route {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		Route { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		Route { inner: std::ptr::null(), _underlying_ref: false }
+	}
 }
 
 use lightning::routing::router::RouteHint as lnRouteHintImport;

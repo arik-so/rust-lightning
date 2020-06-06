@@ -10,7 +10,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
-use crate::c_types::TakePointer;
+use crate::c_types::*;
 
 
 use lightning::ln::channelmanager::ChannelManager as lnChannelManagerImport;
@@ -361,7 +361,7 @@ pub extern "C" fn ChannelManager_force_close_all_channels(this_arg: &ChannelMana
 /// " we assume the invoice had the basic_mpp feature set."
 #[no_mangle]
 pub extern "C" fn ChannelManager_send_payment(this_arg: &ChannelManager, route: &crate::routing::router::Route, mut payment_hash: [u8; 32], payment_secret: *const [u8; 32]) -> crate::c_types::derived::CResult_NonePaymentSendFailureZ {
-	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some( { ::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }) }) };
+	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some(* { &::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }) }) };
 	let mut ret = unsafe { &*this_arg.inner }.send_payment(unsafe { &*route.inner }, ::lightning::ln::channelmanager::PaymentHash(payment_hash), &local_payment_secret);
 	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { 0u8 /*o*/ }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::channelmanager::PaymentSendFailure { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
 	local_ret
@@ -426,7 +426,7 @@ pub extern "C" fn ChannelManager_timer_chan_freshness_every_min(this_arg: &Chann
 /// " HTLC backwards has been started."
 #[no_mangle]
 pub extern "C" fn ChannelManager_fail_htlc_backwards(this_arg: &ChannelManager, payment_hash: *const [u8; 32], payment_secret: *const [u8; 32]) -> bool {
-	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some( { ::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }) }) };
+	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some(* { &::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }) }) };
 	let mut ret = unsafe { &*this_arg.inner }.fail_htlc_backwards(&::lightning::ln::channelmanager::PaymentHash(unsafe { *payment_hash }), &local_payment_secret);
 	ret
 }
@@ -448,7 +448,7 @@ pub extern "C" fn ChannelManager_fail_htlc_backwards(this_arg: &ChannelManager, 
 /// " May panic if called except in response to a PaymentReceived event."
 #[no_mangle]
 pub extern "C" fn ChannelManager_claim_funds(this_arg: &ChannelManager, mut payment_preimage: [u8; 32], payment_secret: *const [u8; 32], mut expected_amount: u64) -> bool {
-	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some( { ::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }) }) };
+	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some(* { &::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }) }) };
 	let mut ret = unsafe { &*this_arg.inner }.claim_funds(::lightning::ln::channelmanager::PaymentPreimage(payment_preimage), &local_payment_secret, expected_amount);
 	ret
 }

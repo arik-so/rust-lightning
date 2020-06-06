@@ -721,6 +721,17 @@ public:
 	operator LDKRouteHint() { LDKRouteHint res = self; self.inner = NULL; return res; }
 	LDKRouteHint* operator &() { return &self; }
 };
+class NetworkGraph {
+private:
+	LDKNetworkGraph self;
+public:
+	NetworkGraph(const NetworkGraph&) = delete;
+	~NetworkGraph() { NetworkGraph_free(self); }
+	NetworkGraph(NetworkGraph&& o) : self(o.self) { o.self.inner = NULL; }
+	NetworkGraph(LDKNetworkGraph&& m_self) : self(m_self) { m_self.inner = NULL; }
+	operator LDKNetworkGraph() { LDKNetworkGraph res = self; self.inner = NULL; return res; }
+	LDKNetworkGraph* operator &() { return &self; }
+};
 class NetGraphMsgHandler {
 private:
 	LDKNetGraphMsgHandler self;
@@ -787,80 +798,6 @@ public:
 	operator LDKNodeInfo() { LDKNodeInfo res = self; self.inner = NULL; return res; }
 	LDKNodeInfo* operator &() { return &self; }
 };
-class NetworkGraph {
-private:
-	LDKNetworkGraph self;
-public:
-	NetworkGraph(const NetworkGraph&) = delete;
-	~NetworkGraph() { NetworkGraph_free(self); }
-	NetworkGraph(NetworkGraph&& o) : self(o.self) { o.self.inner = NULL; }
-	NetworkGraph(LDKNetworkGraph&& m_self) : self(m_self) { m_self.inner = NULL; }
-	operator LDKNetworkGraph() { LDKNetworkGraph res = self; self.inner = NULL; return res; }
-	LDKNetworkGraph* operator &() { return &self; }
-};
-struct CVec_MessageSendEventZ {
-	LDKCVec_MessageSendEventZ self;
-	CVec_MessageSendEventZ(const CVec_MessageSendEventZ&) = delete;
-	~CVec_MessageSendEventZ() { CVec_MessageSendEventZ_free(self); }
-	CVec_MessageSendEventZ(CVec_MessageSendEventZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_MessageSendEventZ)); }
-	CVec_MessageSendEventZ(LDKCVec_MessageSendEventZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_MessageSendEventZ)); }
-	operator LDKCVec_MessageSendEventZ() { LDKCVec_MessageSendEventZ res = self; memset(&self, 0, sizeof(LDKCVec_MessageSendEventZ)); return res; }
-	LDKCVec_MessageSendEventZ* operator &() { return &self; }
-};
-struct CVec_UpdateFailMalformedHTLCZ {
-	LDKCVec_UpdateFailMalformedHTLCZ self;
-	CVec_UpdateFailMalformedHTLCZ(const CVec_UpdateFailMalformedHTLCZ&) = delete;
-	~CVec_UpdateFailMalformedHTLCZ() { CVec_UpdateFailMalformedHTLCZ_free(self); }
-	CVec_UpdateFailMalformedHTLCZ(CVec_UpdateFailMalformedHTLCZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_UpdateFailMalformedHTLCZ)); }
-	CVec_UpdateFailMalformedHTLCZ(LDKCVec_UpdateFailMalformedHTLCZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_UpdateFailMalformedHTLCZ)); }
-	operator LDKCVec_UpdateFailMalformedHTLCZ() { LDKCVec_UpdateFailMalformedHTLCZ res = self; memset(&self, 0, sizeof(LDKCVec_UpdateFailMalformedHTLCZ)); return res; }
-	LDKCVec_UpdateFailMalformedHTLCZ* operator &() { return &self; }
-};
-struct CVec_CVec_RouteHopZZ {
-	LDKCVec_CVec_RouteHopZZ self;
-	CVec_CVec_RouteHopZZ(const CVec_CVec_RouteHopZZ&) = delete;
-	~CVec_CVec_RouteHopZZ() { CVec_CVec_RouteHopZZ_free(self); }
-	CVec_CVec_RouteHopZZ(CVec_CVec_RouteHopZZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_CVec_RouteHopZZ)); }
-	CVec_CVec_RouteHopZZ(LDKCVec_CVec_RouteHopZZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_CVec_RouteHopZZ)); }
-	operator LDKCVec_CVec_RouteHopZZ() { LDKCVec_CVec_RouteHopZZ res = self; memset(&self, 0, sizeof(LDKCVec_CVec_RouteHopZZ)); return res; }
-	LDKCVec_CVec_RouteHopZZ* operator &() { return &self; }
-};
-struct CVec_ChannelDetailsZ {
-	LDKCVec_ChannelDetailsZ self;
-	CVec_ChannelDetailsZ(const CVec_ChannelDetailsZ&) = delete;
-	~CVec_ChannelDetailsZ() { CVec_ChannelDetailsZ_free(self); }
-	CVec_ChannelDetailsZ(CVec_ChannelDetailsZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_ChannelDetailsZ)); }
-	CVec_ChannelDetailsZ(LDKCVec_ChannelDetailsZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_ChannelDetailsZ)); }
-	operator LDKCVec_ChannelDetailsZ() { LDKCVec_ChannelDetailsZ res = self; memset(&self, 0, sizeof(LDKCVec_ChannelDetailsZ)); return res; }
-	LDKCVec_ChannelDetailsZ* operator &() { return &self; }
-};
-struct CVec_UpdateAddHTLCZ {
-	LDKCVec_UpdateAddHTLCZ self;
-	CVec_UpdateAddHTLCZ(const CVec_UpdateAddHTLCZ&) = delete;
-	~CVec_UpdateAddHTLCZ() { CVec_UpdateAddHTLCZ_free(self); }
-	CVec_UpdateAddHTLCZ(CVec_UpdateAddHTLCZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_UpdateAddHTLCZ)); }
-	CVec_UpdateAddHTLCZ(LDKCVec_UpdateAddHTLCZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_UpdateAddHTLCZ)); }
-	operator LDKCVec_UpdateAddHTLCZ() { LDKCVec_UpdateAddHTLCZ res = self; memset(&self, 0, sizeof(LDKCVec_UpdateAddHTLCZ)); return res; }
-	LDKCVec_UpdateAddHTLCZ* operator &() { return &self; }
-};
-struct C2Tuple_Scriptu64Z {
-	LDKC2Tuple_Scriptu64Z self;
-	C2Tuple_Scriptu64Z(const C2Tuple_Scriptu64Z&) = delete;
-	~C2Tuple_Scriptu64Z() { C2Tuple_Scriptu64Z_free(self); }
-	C2Tuple_Scriptu64Z(C2Tuple_Scriptu64Z&& o) : self(o.self) { memset(&o, 0, sizeof(C2Tuple_Scriptu64Z)); }
-	C2Tuple_Scriptu64Z(LDKC2Tuple_Scriptu64Z&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKC2Tuple_Scriptu64Z)); }
-	operator LDKC2Tuple_Scriptu64Z() { LDKC2Tuple_Scriptu64Z res = self; memset(&self, 0, sizeof(LDKC2Tuple_Scriptu64Z)); return res; }
-	LDKC2Tuple_Scriptu64Z* operator &() { return &self; }
-};
-struct CVec_UpdateFulfillHTLCZ {
-	LDKCVec_UpdateFulfillHTLCZ self;
-	CVec_UpdateFulfillHTLCZ(const CVec_UpdateFulfillHTLCZ&) = delete;
-	~CVec_UpdateFulfillHTLCZ() { CVec_UpdateFulfillHTLCZ_free(self); }
-	CVec_UpdateFulfillHTLCZ(CVec_UpdateFulfillHTLCZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_UpdateFulfillHTLCZ)); }
-	CVec_UpdateFulfillHTLCZ(LDKCVec_UpdateFulfillHTLCZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_UpdateFulfillHTLCZ)); }
-	operator LDKCVec_UpdateFulfillHTLCZ() { LDKCVec_UpdateFulfillHTLCZ res = self; memset(&self, 0, sizeof(LDKCVec_UpdateFulfillHTLCZ)); return res; }
-	LDKCVec_UpdateFulfillHTLCZ* operator &() { return &self; }
-};
 struct CResult_C2Tuple_Scriptu64ZChainErrorZ {
 	LDKCResult_C2Tuple_Scriptu64ZChainErrorZ self;
 	CResult_C2Tuple_Scriptu64ZChainErrorZ(const CResult_C2Tuple_Scriptu64ZChainErrorZ&) = delete;
@@ -870,50 +807,14 @@ struct CResult_C2Tuple_Scriptu64ZChainErrorZ {
 	operator LDKCResult_C2Tuple_Scriptu64ZChainErrorZ() { LDKCResult_C2Tuple_Scriptu64ZChainErrorZ res = self; memset(&self, 0, sizeof(LDKCResult_C2Tuple_Scriptu64ZChainErrorZ)); return res; }
 	LDKCResult_C2Tuple_Scriptu64ZChainErrorZ* operator &() { return &self; }
 };
-struct CVec_UpdateFailHTLCZ {
-	LDKCVec_UpdateFailHTLCZ self;
-	CVec_UpdateFailHTLCZ(const CVec_UpdateFailHTLCZ&) = delete;
-	~CVec_UpdateFailHTLCZ() { CVec_UpdateFailHTLCZ_free(self); }
-	CVec_UpdateFailHTLCZ(CVec_UpdateFailHTLCZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_UpdateFailHTLCZ)); }
-	CVec_UpdateFailHTLCZ(LDKCVec_UpdateFailHTLCZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_UpdateFailHTLCZ)); }
-	operator LDKCVec_UpdateFailHTLCZ() { LDKCVec_UpdateFailHTLCZ res = self; memset(&self, 0, sizeof(LDKCVec_UpdateFailHTLCZ)); return res; }
-	LDKCVec_UpdateFailHTLCZ* operator &() { return &self; }
-};
-struct CVec_u8Z {
-	LDKCVec_u8Z self;
-	CVec_u8Z(const CVec_u8Z&) = delete;
-	~CVec_u8Z() { CVec_u8Z_free(self); }
-	CVec_u8Z(CVec_u8Z&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_u8Z)); }
-	CVec_u8Z(LDKCVec_u8Z&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_u8Z)); }
-	operator LDKCVec_u8Z() { LDKCVec_u8Z res = self; memset(&self, 0, sizeof(LDKCVec_u8Z)); return res; }
-	LDKCVec_u8Z* operator &() { return &self; }
-};
-struct CResult_NonePeerHandleErrorZ {
-	LDKCResult_NonePeerHandleErrorZ self;
-	CResult_NonePeerHandleErrorZ(const CResult_NonePeerHandleErrorZ&) = delete;
-	~CResult_NonePeerHandleErrorZ() { CResult_NonePeerHandleErrorZ_free(self); }
-	CResult_NonePeerHandleErrorZ(CResult_NonePeerHandleErrorZ&& o) : self(o.self) { memset(&o, 0, sizeof(CResult_NonePeerHandleErrorZ)); }
-	CResult_NonePeerHandleErrorZ(LDKCResult_NonePeerHandleErrorZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCResult_NonePeerHandleErrorZ)); }
-	operator LDKCResult_NonePeerHandleErrorZ() { LDKCResult_NonePeerHandleErrorZ res = self; memset(&self, 0, sizeof(LDKCResult_NonePeerHandleErrorZ)); return res; }
-	LDKCResult_NonePeerHandleErrorZ* operator &() { return &self; }
-};
-struct CResult_NoneChannelMonitorUpdateErrZ {
-	LDKCResult_NoneChannelMonitorUpdateErrZ self;
-	CResult_NoneChannelMonitorUpdateErrZ(const CResult_NoneChannelMonitorUpdateErrZ&) = delete;
-	~CResult_NoneChannelMonitorUpdateErrZ() { CResult_NoneChannelMonitorUpdateErrZ_free(self); }
-	CResult_NoneChannelMonitorUpdateErrZ(CResult_NoneChannelMonitorUpdateErrZ&& o) : self(o.self) { memset(&o, 0, sizeof(CResult_NoneChannelMonitorUpdateErrZ)); }
-	CResult_NoneChannelMonitorUpdateErrZ(LDKCResult_NoneChannelMonitorUpdateErrZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCResult_NoneChannelMonitorUpdateErrZ)); }
-	operator LDKCResult_NoneChannelMonitorUpdateErrZ() { LDKCResult_NoneChannelMonitorUpdateErrZ res = self; memset(&self, 0, sizeof(LDKCResult_NoneChannelMonitorUpdateErrZ)); return res; }
-	LDKCResult_NoneChannelMonitorUpdateErrZ* operator &() { return &self; }
-};
-struct CResult_NoneAPIErrorZ {
-	LDKCResult_NoneAPIErrorZ self;
-	CResult_NoneAPIErrorZ(const CResult_NoneAPIErrorZ&) = delete;
-	~CResult_NoneAPIErrorZ() { CResult_NoneAPIErrorZ_free(self); }
-	CResult_NoneAPIErrorZ(CResult_NoneAPIErrorZ&& o) : self(o.self) { memset(&o, 0, sizeof(CResult_NoneAPIErrorZ)); }
-	CResult_NoneAPIErrorZ(LDKCResult_NoneAPIErrorZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCResult_NoneAPIErrorZ)); }
-	operator LDKCResult_NoneAPIErrorZ() { LDKCResult_NoneAPIErrorZ res = self; memset(&self, 0, sizeof(LDKCResult_NoneAPIErrorZ)); return res; }
-	LDKCResult_NoneAPIErrorZ* operator &() { return &self; }
+struct CResult_SignatureNoneZ {
+	LDKCResult_SignatureNoneZ self;
+	CResult_SignatureNoneZ(const CResult_SignatureNoneZ&) = delete;
+	~CResult_SignatureNoneZ() { CResult_SignatureNoneZ_free(self); }
+	CResult_SignatureNoneZ(CResult_SignatureNoneZ&& o) : self(o.self) { memset(&o, 0, sizeof(CResult_SignatureNoneZ)); }
+	CResult_SignatureNoneZ(LDKCResult_SignatureNoneZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCResult_SignatureNoneZ)); }
+	operator LDKCResult_SignatureNoneZ() { LDKCResult_SignatureNoneZ res = self; memset(&self, 0, sizeof(LDKCResult_SignatureNoneZ)); return res; }
+	LDKCResult_SignatureNoneZ* operator &() { return &self; }
 };
 struct CResult_NonePaymentSendFailureZ {
 	LDKCResult_NonePaymentSendFailureZ self;
@@ -924,14 +825,85 @@ struct CResult_NonePaymentSendFailureZ {
 	operator LDKCResult_NonePaymentSendFailureZ() { LDKCResult_NonePaymentSendFailureZ res = self; memset(&self, 0, sizeof(LDKCResult_NonePaymentSendFailureZ)); return res; }
 	LDKCResult_NonePaymentSendFailureZ* operator &() { return &self; }
 };
-struct CVec_u64Z {
-	LDKCVec_u64Z self;
-	CVec_u64Z(const CVec_u64Z&) = delete;
-	~CVec_u64Z() { CVec_u64Z_free(self); }
-	CVec_u64Z(CVec_u64Z&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_u64Z)); }
-	CVec_u64Z(LDKCVec_u64Z&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_u64Z)); }
-	operator LDKCVec_u64Z() { LDKCVec_u64Z res = self; memset(&self, 0, sizeof(LDKCVec_u64Z)); return res; }
-	LDKCVec_u64Z* operator &() { return &self; }
+struct CVec_HTLCUpdateZ {
+	LDKCVec_HTLCUpdateZ self;
+	CVec_HTLCUpdateZ(const CVec_HTLCUpdateZ&) = delete;
+	~CVec_HTLCUpdateZ() { CVec_HTLCUpdateZ_free(self); }
+	CVec_HTLCUpdateZ(CVec_HTLCUpdateZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_HTLCUpdateZ)); }
+	CVec_HTLCUpdateZ(LDKCVec_HTLCUpdateZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_HTLCUpdateZ)); }
+	operator LDKCVec_HTLCUpdateZ() { LDKCVec_HTLCUpdateZ res = self; memset(&self, 0, sizeof(LDKCVec_HTLCUpdateZ)); return res; }
+	LDKCVec_HTLCUpdateZ* operator &() { return &self; }
+};
+struct CVec_ChannelDetailsZ {
+	LDKCVec_ChannelDetailsZ self;
+	CVec_ChannelDetailsZ(const CVec_ChannelDetailsZ&) = delete;
+	~CVec_ChannelDetailsZ() { CVec_ChannelDetailsZ_free(self); }
+	CVec_ChannelDetailsZ(CVec_ChannelDetailsZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_ChannelDetailsZ)); }
+	CVec_ChannelDetailsZ(LDKCVec_ChannelDetailsZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_ChannelDetailsZ)); }
+	operator LDKCVec_ChannelDetailsZ() { LDKCVec_ChannelDetailsZ res = self; memset(&self, 0, sizeof(LDKCVec_ChannelDetailsZ)); return res; }
+	LDKCVec_ChannelDetailsZ* operator &() { return &self; }
+};
+struct CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ {
+	LDKCVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ self;
+	CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ(const CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ&) = delete;
+	~CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ() { CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ_free(self); }
+	CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ(CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ)); }
+	CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ(LDKCVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ)); }
+	operator LDKCVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ() { LDKCVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ res = self; memset(&self, 0, sizeof(LDKCVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ)); return res; }
+	LDKCVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ* operator &() { return &self; }
+};
+struct C2Tuple_u64u64Z {
+	LDKC2Tuple_u64u64Z self;
+	C2Tuple_u64u64Z(const C2Tuple_u64u64Z&) = delete;
+	~C2Tuple_u64u64Z() { C2Tuple_u64u64Z_free(self); }
+	C2Tuple_u64u64Z(C2Tuple_u64u64Z&& o) : self(o.self) { memset(&o, 0, sizeof(C2Tuple_u64u64Z)); }
+	C2Tuple_u64u64Z(LDKC2Tuple_u64u64Z&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKC2Tuple_u64u64Z)); }
+	operator LDKC2Tuple_u64u64Z() { LDKC2Tuple_u64u64Z res = self; memset(&self, 0, sizeof(LDKC2Tuple_u64u64Z)); return res; }
+	LDKC2Tuple_u64u64Z* operator &() { return &self; }
+};
+struct CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ {
+	LDKCResult_C2Tuple_SignatureCVec_SignatureZZNoneZ self;
+	CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ(const CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ&) = delete;
+	~CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ() { CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ_free(self); }
+	CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ(CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ&& o) : self(o.self) { memset(&o, 0, sizeof(CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ)); }
+	CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ(LDKCResult_C2Tuple_SignatureCVec_SignatureZZNoneZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCResult_C2Tuple_SignatureCVec_SignatureZZNoneZ)); }
+	operator LDKCResult_C2Tuple_SignatureCVec_SignatureZZNoneZ() { LDKCResult_C2Tuple_SignatureCVec_SignatureZZNoneZ res = self; memset(&self, 0, sizeof(LDKCResult_C2Tuple_SignatureCVec_SignatureZZNoneZ)); return res; }
+	LDKCResult_C2Tuple_SignatureCVec_SignatureZZNoneZ* operator &() { return &self; }
+};
+struct C2Tuple_Scriptu64Z {
+	LDKC2Tuple_Scriptu64Z self;
+	C2Tuple_Scriptu64Z(const C2Tuple_Scriptu64Z&) = delete;
+	~C2Tuple_Scriptu64Z() { C2Tuple_Scriptu64Z_free(self); }
+	C2Tuple_Scriptu64Z(C2Tuple_Scriptu64Z&& o) : self(o.self) { memset(&o, 0, sizeof(C2Tuple_Scriptu64Z)); }
+	C2Tuple_Scriptu64Z(LDKC2Tuple_Scriptu64Z&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKC2Tuple_Scriptu64Z)); }
+	operator LDKC2Tuple_Scriptu64Z() { LDKC2Tuple_Scriptu64Z res = self; memset(&self, 0, sizeof(LDKC2Tuple_Scriptu64Z)); return res; }
+	LDKC2Tuple_Scriptu64Z* operator &() { return &self; }
+};
+struct CResult_NonePeerHandleErrorZ {
+	LDKCResult_NonePeerHandleErrorZ self;
+	CResult_NonePeerHandleErrorZ(const CResult_NonePeerHandleErrorZ&) = delete;
+	~CResult_NonePeerHandleErrorZ() { CResult_NonePeerHandleErrorZ_free(self); }
+	CResult_NonePeerHandleErrorZ(CResult_NonePeerHandleErrorZ&& o) : self(o.self) { memset(&o, 0, sizeof(CResult_NonePeerHandleErrorZ)); }
+	CResult_NonePeerHandleErrorZ(LDKCResult_NonePeerHandleErrorZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCResult_NonePeerHandleErrorZ)); }
+	operator LDKCResult_NonePeerHandleErrorZ() { LDKCResult_NonePeerHandleErrorZ res = self; memset(&self, 0, sizeof(LDKCResult_NonePeerHandleErrorZ)); return res; }
+	LDKCResult_NonePeerHandleErrorZ* operator &() { return &self; }
+};
+struct CVec_u8Z {
+	LDKCVec_u8Z self;
+	CVec_u8Z(const CVec_u8Z&) = delete;
+	~CVec_u8Z() { CVec_u8Z_free(self); }
+	CVec_u8Z(CVec_u8Z&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_u8Z)); }
+	CVec_u8Z(LDKCVec_u8Z&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_u8Z)); }
+	operator LDKCVec_u8Z() { LDKCVec_u8Z res = self; memset(&self, 0, sizeof(LDKCVec_u8Z)); return res; }
+	LDKCVec_u8Z* operator &() { return &self; }
+};
+struct CHTLCOutputInCommitmentSlice {
+	LDKCHTLCOutputInCommitmentSlice self;
+	CHTLCOutputInCommitmentSlice(const CHTLCOutputInCommitmentSlice&) = delete;
+	CHTLCOutputInCommitmentSlice(CHTLCOutputInCommitmentSlice&& o) : self(o.self) { memset(&o, 0, sizeof(CHTLCOutputInCommitmentSlice)); }
+	CHTLCOutputInCommitmentSlice(LDKCHTLCOutputInCommitmentSlice&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCHTLCOutputInCommitmentSlice)); }
+	operator LDKCHTLCOutputInCommitmentSlice() { LDKCHTLCOutputInCommitmentSlice res = self; memset(&self, 0, sizeof(LDKCHTLCOutputInCommitmentSlice)); return res; }
+	LDKCHTLCOutputInCommitmentSlice* operator &() { return &self; }
 };
 struct CResult_boolLightningErrorZ {
 	LDKCResult_boolLightningErrorZ self;
@@ -942,23 +914,14 @@ struct CResult_boolLightningErrorZ {
 	operator LDKCResult_boolLightningErrorZ() { LDKCResult_boolLightningErrorZ res = self; memset(&self, 0, sizeof(LDKCResult_boolLightningErrorZ)); return res; }
 	LDKCResult_boolLightningErrorZ* operator &() { return &self; }
 };
-struct C2Tuple_SecretKey_u832Z {
-	LDKC2Tuple_SecretKey_u832Z self;
-	C2Tuple_SecretKey_u832Z(const C2Tuple_SecretKey_u832Z&) = delete;
-	~C2Tuple_SecretKey_u832Z() { C2Tuple_SecretKey_u832Z_free(self); }
-	C2Tuple_SecretKey_u832Z(C2Tuple_SecretKey_u832Z&& o) : self(o.self) { memset(&o, 0, sizeof(C2Tuple_SecretKey_u832Z)); }
-	C2Tuple_SecretKey_u832Z(LDKC2Tuple_SecretKey_u832Z&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKC2Tuple_SecretKey_u832Z)); }
-	operator LDKC2Tuple_SecretKey_u832Z() { LDKC2Tuple_SecretKey_u832Z res = self; memset(&self, 0, sizeof(LDKC2Tuple_SecretKey_u832Z)); return res; }
-	LDKC2Tuple_SecretKey_u832Z* operator &() { return &self; }
-};
-struct CVec_HTLCUpdateZ {
-	LDKCVec_HTLCUpdateZ self;
-	CVec_HTLCUpdateZ(const CVec_HTLCUpdateZ&) = delete;
-	~CVec_HTLCUpdateZ() { CVec_HTLCUpdateZ_free(self); }
-	CVec_HTLCUpdateZ(CVec_HTLCUpdateZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_HTLCUpdateZ)); }
-	CVec_HTLCUpdateZ(LDKCVec_HTLCUpdateZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_HTLCUpdateZ)); }
-	operator LDKCVec_HTLCUpdateZ() { LDKCVec_HTLCUpdateZ res = self; memset(&self, 0, sizeof(LDKCVec_HTLCUpdateZ)); return res; }
-	LDKCVec_HTLCUpdateZ* operator &() { return &self; }
+struct CVec_u64Z {
+	LDKCVec_u64Z self;
+	CVec_u64Z(const CVec_u64Z&) = delete;
+	~CVec_u64Z() { CVec_u64Z_free(self); }
+	CVec_u64Z(CVec_u64Z&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_u64Z)); }
+	CVec_u64Z(LDKCVec_u64Z&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_u64Z)); }
+	operator LDKCVec_u64Z() { LDKCVec_u64Z res = self; memset(&self, 0, sizeof(LDKCVec_u64Z)); return res; }
+	LDKCVec_u64Z* operator &() { return &self; }
 };
 struct CVec_PublicKeyZ {
 	LDKCVec_PublicKeyZ self;
@@ -969,50 +932,32 @@ struct CVec_PublicKeyZ {
 	operator LDKCVec_PublicKeyZ() { LDKCVec_PublicKeyZ res = self; memset(&self, 0, sizeof(LDKCVec_PublicKeyZ)); return res; }
 	LDKCVec_PublicKeyZ* operator &() { return &self; }
 };
-struct CVec_RouteHopZ {
-	LDKCVec_RouteHopZ self;
-	CVec_RouteHopZ(const CVec_RouteHopZ&) = delete;
-	~CVec_RouteHopZ() { CVec_RouteHopZ_free(self); }
-	CVec_RouteHopZ(CVec_RouteHopZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_RouteHopZ)); }
-	CVec_RouteHopZ(LDKCVec_RouteHopZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_RouteHopZ)); }
-	operator LDKCVec_RouteHopZ() { LDKCVec_RouteHopZ res = self; memset(&self, 0, sizeof(LDKCVec_RouteHopZ)); return res; }
-	LDKCVec_RouteHopZ* operator &() { return &self; }
+struct CVec_CVec_RouteHopZZ {
+	LDKCVec_CVec_RouteHopZZ self;
+	CVec_CVec_RouteHopZZ(const CVec_CVec_RouteHopZZ&) = delete;
+	~CVec_CVec_RouteHopZZ() { CVec_CVec_RouteHopZZ_free(self); }
+	CVec_CVec_RouteHopZZ(CVec_CVec_RouteHopZZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_CVec_RouteHopZZ)); }
+	CVec_CVec_RouteHopZZ(LDKCVec_CVec_RouteHopZZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_CVec_RouteHopZZ)); }
+	operator LDKCVec_CVec_RouteHopZZ() { LDKCVec_CVec_RouteHopZZ res = self; memset(&self, 0, sizeof(LDKCVec_CVec_RouteHopZZ)); return res; }
+	LDKCVec_CVec_RouteHopZZ* operator &() { return &self; }
 };
-struct CResult_CVec_u8ZPeerHandleErrorZ {
-	LDKCResult_CVec_u8ZPeerHandleErrorZ self;
-	CResult_CVec_u8ZPeerHandleErrorZ(const CResult_CVec_u8ZPeerHandleErrorZ&) = delete;
-	~CResult_CVec_u8ZPeerHandleErrorZ() { CResult_CVec_u8ZPeerHandleErrorZ_free(self); }
-	CResult_CVec_u8ZPeerHandleErrorZ(CResult_CVec_u8ZPeerHandleErrorZ&& o) : self(o.self) { memset(&o, 0, sizeof(CResult_CVec_u8ZPeerHandleErrorZ)); }
-	CResult_CVec_u8ZPeerHandleErrorZ(LDKCResult_CVec_u8ZPeerHandleErrorZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCResult_CVec_u8ZPeerHandleErrorZ)); }
-	operator LDKCResult_CVec_u8ZPeerHandleErrorZ() { LDKCResult_CVec_u8ZPeerHandleErrorZ res = self; memset(&self, 0, sizeof(LDKCResult_CVec_u8ZPeerHandleErrorZ)); return res; }
-	LDKCResult_CVec_u8ZPeerHandleErrorZ* operator &() { return &self; }
+struct CVec_UpdateFailMalformedHTLCZ {
+	LDKCVec_UpdateFailMalformedHTLCZ self;
+	CVec_UpdateFailMalformedHTLCZ(const CVec_UpdateFailMalformedHTLCZ&) = delete;
+	~CVec_UpdateFailMalformedHTLCZ() { CVec_UpdateFailMalformedHTLCZ_free(self); }
+	CVec_UpdateFailMalformedHTLCZ(CVec_UpdateFailMalformedHTLCZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_UpdateFailMalformedHTLCZ)); }
+	CVec_UpdateFailMalformedHTLCZ(LDKCVec_UpdateFailMalformedHTLCZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_UpdateFailMalformedHTLCZ)); }
+	operator LDKCVec_UpdateFailMalformedHTLCZ() { LDKCVec_UpdateFailMalformedHTLCZ res = self; memset(&self, 0, sizeof(LDKCVec_UpdateFailMalformedHTLCZ)); return res; }
+	LDKCVec_UpdateFailMalformedHTLCZ* operator &() { return &self; }
 };
-struct C2Tuple_Txidu32Z {
-	LDKC2Tuple_Txidu32Z self;
-	C2Tuple_Txidu32Z(const C2Tuple_Txidu32Z&) = delete;
-	~C2Tuple_Txidu32Z() { C2Tuple_Txidu32Z_free(self); }
-	C2Tuple_Txidu32Z(C2Tuple_Txidu32Z&& o) : self(o.self) { memset(&o, 0, sizeof(C2Tuple_Txidu32Z)); }
-	C2Tuple_Txidu32Z(LDKC2Tuple_Txidu32Z&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKC2Tuple_Txidu32Z)); }
-	operator LDKC2Tuple_Txidu32Z() { LDKC2Tuple_Txidu32Z res = self; memset(&self, 0, sizeof(LDKC2Tuple_Txidu32Z)); return res; }
-	LDKC2Tuple_Txidu32Z* operator &() { return &self; }
-};
-struct CVec_EventZ {
-	LDKCVec_EventZ self;
-	CVec_EventZ(const CVec_EventZ&) = delete;
-	~CVec_EventZ() { CVec_EventZ_free(self); }
-	CVec_EventZ(CVec_EventZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_EventZ)); }
-	CVec_EventZ(LDKCVec_EventZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_EventZ)); }
-	operator LDKCVec_EventZ() { LDKCVec_EventZ res = self; memset(&self, 0, sizeof(LDKCVec_EventZ)); return res; }
-	LDKCVec_EventZ* operator &() { return &self; }
-};
-struct CResult_boolPeerHandleErrorZ {
-	LDKCResult_boolPeerHandleErrorZ self;
-	CResult_boolPeerHandleErrorZ(const CResult_boolPeerHandleErrorZ&) = delete;
-	~CResult_boolPeerHandleErrorZ() { CResult_boolPeerHandleErrorZ_free(self); }
-	CResult_boolPeerHandleErrorZ(CResult_boolPeerHandleErrorZ&& o) : self(o.self) { memset(&o, 0, sizeof(CResult_boolPeerHandleErrorZ)); }
-	CResult_boolPeerHandleErrorZ(LDKCResult_boolPeerHandleErrorZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCResult_boolPeerHandleErrorZ)); }
-	operator LDKCResult_boolPeerHandleErrorZ() { LDKCResult_boolPeerHandleErrorZ res = self; memset(&self, 0, sizeof(LDKCResult_boolPeerHandleErrorZ)); return res; }
-	LDKCResult_boolPeerHandleErrorZ* operator &() { return &self; }
+struct CVec_UpdateAddHTLCZ {
+	LDKCVec_UpdateAddHTLCZ self;
+	CVec_UpdateAddHTLCZ(const CVec_UpdateAddHTLCZ&) = delete;
+	~CVec_UpdateAddHTLCZ() { CVec_UpdateAddHTLCZ_free(self); }
+	CVec_UpdateAddHTLCZ(CVec_UpdateAddHTLCZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_UpdateAddHTLCZ)); }
+	CVec_UpdateAddHTLCZ(LDKCVec_UpdateAddHTLCZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_UpdateAddHTLCZ)); }
+	operator LDKCVec_UpdateAddHTLCZ() { LDKCVec_UpdateAddHTLCZ res = self; memset(&self, 0, sizeof(LDKCVec_UpdateAddHTLCZ)); return res; }
+	LDKCVec_UpdateAddHTLCZ* operator &() { return &self; }
 };
 struct CVec_NetAddressZ {
 	LDKCVec_NetAddressZ self;
@@ -1023,13 +968,139 @@ struct CVec_NetAddressZ {
 	operator LDKCVec_NetAddressZ() { LDKCVec_NetAddressZ res = self; memset(&self, 0, sizeof(LDKCVec_NetAddressZ)); return res; }
 	LDKCVec_NetAddressZ* operator &() { return &self; }
 };
-struct CResult_SignatureNoneZ {
-	LDKCResult_SignatureNoneZ self;
-	CResult_SignatureNoneZ(const CResult_SignatureNoneZ&) = delete;
-	~CResult_SignatureNoneZ() { CResult_SignatureNoneZ_free(self); }
-	CResult_SignatureNoneZ(CResult_SignatureNoneZ&& o) : self(o.self) { memset(&o, 0, sizeof(CResult_SignatureNoneZ)); }
-	CResult_SignatureNoneZ(LDKCResult_SignatureNoneZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCResult_SignatureNoneZ)); }
-	operator LDKCResult_SignatureNoneZ() { LDKCResult_SignatureNoneZ res = self; memset(&self, 0, sizeof(LDKCResult_SignatureNoneZ)); return res; }
-	LDKCResult_SignatureNoneZ* operator &() { return &self; }
+struct CResult_CVec_u8ZPeerHandleErrorZ {
+	LDKCResult_CVec_u8ZPeerHandleErrorZ self;
+	CResult_CVec_u8ZPeerHandleErrorZ(const CResult_CVec_u8ZPeerHandleErrorZ&) = delete;
+	~CResult_CVec_u8ZPeerHandleErrorZ() { CResult_CVec_u8ZPeerHandleErrorZ_free(self); }
+	CResult_CVec_u8ZPeerHandleErrorZ(CResult_CVec_u8ZPeerHandleErrorZ&& o) : self(o.self) { memset(&o, 0, sizeof(CResult_CVec_u8ZPeerHandleErrorZ)); }
+	CResult_CVec_u8ZPeerHandleErrorZ(LDKCResult_CVec_u8ZPeerHandleErrorZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCResult_CVec_u8ZPeerHandleErrorZ)); }
+	operator LDKCResult_CVec_u8ZPeerHandleErrorZ() { LDKCResult_CVec_u8ZPeerHandleErrorZ res = self; memset(&self, 0, sizeof(LDKCResult_CVec_u8ZPeerHandleErrorZ)); return res; }
+	LDKCResult_CVec_u8ZPeerHandleErrorZ* operator &() { return &self; }
+};
+struct C2Tuple_SignatureCVec_SignatureZZ {
+	LDKC2Tuple_SignatureCVec_SignatureZZ self;
+	C2Tuple_SignatureCVec_SignatureZZ(const C2Tuple_SignatureCVec_SignatureZZ&) = delete;
+	~C2Tuple_SignatureCVec_SignatureZZ() { C2Tuple_SignatureCVec_SignatureZZ_free(self); }
+	C2Tuple_SignatureCVec_SignatureZZ(C2Tuple_SignatureCVec_SignatureZZ&& o) : self(o.self) { memset(&o, 0, sizeof(C2Tuple_SignatureCVec_SignatureZZ)); }
+	C2Tuple_SignatureCVec_SignatureZZ(LDKC2Tuple_SignatureCVec_SignatureZZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKC2Tuple_SignatureCVec_SignatureZZ)); }
+	operator LDKC2Tuple_SignatureCVec_SignatureZZ() { LDKC2Tuple_SignatureCVec_SignatureZZ res = self; memset(&self, 0, sizeof(LDKC2Tuple_SignatureCVec_SignatureZZ)); return res; }
+	LDKC2Tuple_SignatureCVec_SignatureZZ* operator &() { return &self; }
+};
+struct CVec_SignatureZ {
+	LDKCVec_SignatureZ self;
+	CVec_SignatureZ(const CVec_SignatureZ&) = delete;
+	~CVec_SignatureZ() { CVec_SignatureZ_free(self); }
+	CVec_SignatureZ(CVec_SignatureZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_SignatureZ)); }
+	CVec_SignatureZ(LDKCVec_SignatureZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_SignatureZ)); }
+	operator LDKCVec_SignatureZ() { LDKCVec_SignatureZ res = self; memset(&self, 0, sizeof(LDKCVec_SignatureZ)); return res; }
+	LDKCVec_SignatureZ* operator &() { return &self; }
+};
+struct CResult_NoneAPIErrorZ {
+	LDKCResult_NoneAPIErrorZ self;
+	CResult_NoneAPIErrorZ(const CResult_NoneAPIErrorZ&) = delete;
+	~CResult_NoneAPIErrorZ() { CResult_NoneAPIErrorZ_free(self); }
+	CResult_NoneAPIErrorZ(CResult_NoneAPIErrorZ&& o) : self(o.self) { memset(&o, 0, sizeof(CResult_NoneAPIErrorZ)); }
+	CResult_NoneAPIErrorZ(LDKCResult_NoneAPIErrorZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCResult_NoneAPIErrorZ)); }
+	operator LDKCResult_NoneAPIErrorZ() { LDKCResult_NoneAPIErrorZ res = self; memset(&self, 0, sizeof(LDKCResult_NoneAPIErrorZ)); return res; }
+	LDKCResult_NoneAPIErrorZ* operator &() { return &self; }
+};
+struct C2Tuple_SecretKey_u832Z {
+	LDKC2Tuple_SecretKey_u832Z self;
+	C2Tuple_SecretKey_u832Z(const C2Tuple_SecretKey_u832Z&) = delete;
+	~C2Tuple_SecretKey_u832Z() { C2Tuple_SecretKey_u832Z_free(self); }
+	C2Tuple_SecretKey_u832Z(C2Tuple_SecretKey_u832Z&& o) : self(o.self) { memset(&o, 0, sizeof(C2Tuple_SecretKey_u832Z)); }
+	C2Tuple_SecretKey_u832Z(LDKC2Tuple_SecretKey_u832Z&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKC2Tuple_SecretKey_u832Z)); }
+	operator LDKC2Tuple_SecretKey_u832Z() { LDKC2Tuple_SecretKey_u832Z res = self; memset(&self, 0, sizeof(LDKC2Tuple_SecretKey_u832Z)); return res; }
+	LDKC2Tuple_SecretKey_u832Z* operator &() { return &self; }
+};
+struct CVec_UpdateFulfillHTLCZ {
+	LDKCVec_UpdateFulfillHTLCZ self;
+	CVec_UpdateFulfillHTLCZ(const CVec_UpdateFulfillHTLCZ&) = delete;
+	~CVec_UpdateFulfillHTLCZ() { CVec_UpdateFulfillHTLCZ_free(self); }
+	CVec_UpdateFulfillHTLCZ(CVec_UpdateFulfillHTLCZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_UpdateFulfillHTLCZ)); }
+	CVec_UpdateFulfillHTLCZ(LDKCVec_UpdateFulfillHTLCZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_UpdateFulfillHTLCZ)); }
+	operator LDKCVec_UpdateFulfillHTLCZ() { LDKCVec_UpdateFulfillHTLCZ res = self; memset(&self, 0, sizeof(LDKCVec_UpdateFulfillHTLCZ)); return res; }
+	LDKCVec_UpdateFulfillHTLCZ* operator &() { return &self; }
+};
+struct CVec_UpdateFailHTLCZ {
+	LDKCVec_UpdateFailHTLCZ self;
+	CVec_UpdateFailHTLCZ(const CVec_UpdateFailHTLCZ&) = delete;
+	~CVec_UpdateFailHTLCZ() { CVec_UpdateFailHTLCZ_free(self); }
+	CVec_UpdateFailHTLCZ(CVec_UpdateFailHTLCZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_UpdateFailHTLCZ)); }
+	CVec_UpdateFailHTLCZ(LDKCVec_UpdateFailHTLCZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_UpdateFailHTLCZ)); }
+	operator LDKCVec_UpdateFailHTLCZ() { LDKCVec_UpdateFailHTLCZ res = self; memset(&self, 0, sizeof(LDKCVec_UpdateFailHTLCZ)); return res; }
+	LDKCVec_UpdateFailHTLCZ* operator &() { return &self; }
+};
+struct C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ {
+	LDKC3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ self;
+	C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ(const C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ&) = delete;
+	~C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ() { C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ_free(self); }
+	C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ(C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ&& o) : self(o.self) { memset(&o, 0, sizeof(C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ)); }
+	C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ(LDKC3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKC3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ)); }
+	operator LDKC3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ() { LDKC3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ res = self; memset(&self, 0, sizeof(LDKC3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ)); return res; }
+	LDKC3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ* operator &() { return &self; }
+};
+struct CVec_MessageSendEventZ {
+	LDKCVec_MessageSendEventZ self;
+	CVec_MessageSendEventZ(const CVec_MessageSendEventZ&) = delete;
+	~CVec_MessageSendEventZ() { CVec_MessageSendEventZ_free(self); }
+	CVec_MessageSendEventZ(CVec_MessageSendEventZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_MessageSendEventZ)); }
+	CVec_MessageSendEventZ(LDKCVec_MessageSendEventZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_MessageSendEventZ)); }
+	operator LDKCVec_MessageSendEventZ() { LDKCVec_MessageSendEventZ res = self; memset(&self, 0, sizeof(LDKCVec_MessageSendEventZ)); return res; }
+	LDKCVec_MessageSendEventZ* operator &() { return &self; }
+};
+struct CVec_EventZ {
+	LDKCVec_EventZ self;
+	CVec_EventZ(const CVec_EventZ&) = delete;
+	~CVec_EventZ() { CVec_EventZ_free(self); }
+	CVec_EventZ(CVec_EventZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_EventZ)); }
+	CVec_EventZ(LDKCVec_EventZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_EventZ)); }
+	operator LDKCVec_EventZ() { LDKCVec_EventZ res = self; memset(&self, 0, sizeof(LDKCVec_EventZ)); return res; }
+	LDKCVec_EventZ* operator &() { return &self; }
+};
+struct CVec_NodeAnnouncementZ {
+	LDKCVec_NodeAnnouncementZ self;
+	CVec_NodeAnnouncementZ(const CVec_NodeAnnouncementZ&) = delete;
+	~CVec_NodeAnnouncementZ() { CVec_NodeAnnouncementZ_free(self); }
+	CVec_NodeAnnouncementZ(CVec_NodeAnnouncementZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_NodeAnnouncementZ)); }
+	CVec_NodeAnnouncementZ(LDKCVec_NodeAnnouncementZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_NodeAnnouncementZ)); }
+	operator LDKCVec_NodeAnnouncementZ() { LDKCVec_NodeAnnouncementZ res = self; memset(&self, 0, sizeof(LDKCVec_NodeAnnouncementZ)); return res; }
+	LDKCVec_NodeAnnouncementZ* operator &() { return &self; }
+};
+struct C2Tuple_Txidu32Z {
+	LDKC2Tuple_Txidu32Z self;
+	C2Tuple_Txidu32Z(const C2Tuple_Txidu32Z&) = delete;
+	~C2Tuple_Txidu32Z() { C2Tuple_Txidu32Z_free(self); }
+	C2Tuple_Txidu32Z(C2Tuple_Txidu32Z&& o) : self(o.self) { memset(&o, 0, sizeof(C2Tuple_Txidu32Z)); }
+	C2Tuple_Txidu32Z(LDKC2Tuple_Txidu32Z&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKC2Tuple_Txidu32Z)); }
+	operator LDKC2Tuple_Txidu32Z() { LDKC2Tuple_Txidu32Z res = self; memset(&self, 0, sizeof(LDKC2Tuple_Txidu32Z)); return res; }
+	LDKC2Tuple_Txidu32Z* operator &() { return &self; }
+};
+struct CResult_NoneChannelMonitorUpdateErrZ {
+	LDKCResult_NoneChannelMonitorUpdateErrZ self;
+	CResult_NoneChannelMonitorUpdateErrZ(const CResult_NoneChannelMonitorUpdateErrZ&) = delete;
+	~CResult_NoneChannelMonitorUpdateErrZ() { CResult_NoneChannelMonitorUpdateErrZ_free(self); }
+	CResult_NoneChannelMonitorUpdateErrZ(CResult_NoneChannelMonitorUpdateErrZ&& o) : self(o.self) { memset(&o, 0, sizeof(CResult_NoneChannelMonitorUpdateErrZ)); }
+	CResult_NoneChannelMonitorUpdateErrZ(LDKCResult_NoneChannelMonitorUpdateErrZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCResult_NoneChannelMonitorUpdateErrZ)); }
+	operator LDKCResult_NoneChannelMonitorUpdateErrZ() { LDKCResult_NoneChannelMonitorUpdateErrZ res = self; memset(&self, 0, sizeof(LDKCResult_NoneChannelMonitorUpdateErrZ)); return res; }
+	LDKCResult_NoneChannelMonitorUpdateErrZ* operator &() { return &self; }
+};
+struct CResult_boolPeerHandleErrorZ {
+	LDKCResult_boolPeerHandleErrorZ self;
+	CResult_boolPeerHandleErrorZ(const CResult_boolPeerHandleErrorZ&) = delete;
+	~CResult_boolPeerHandleErrorZ() { CResult_boolPeerHandleErrorZ_free(self); }
+	CResult_boolPeerHandleErrorZ(CResult_boolPeerHandleErrorZ&& o) : self(o.self) { memset(&o, 0, sizeof(CResult_boolPeerHandleErrorZ)); }
+	CResult_boolPeerHandleErrorZ(LDKCResult_boolPeerHandleErrorZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCResult_boolPeerHandleErrorZ)); }
+	operator LDKCResult_boolPeerHandleErrorZ() { LDKCResult_boolPeerHandleErrorZ res = self; memset(&self, 0, sizeof(LDKCResult_boolPeerHandleErrorZ)); return res; }
+	LDKCResult_boolPeerHandleErrorZ* operator &() { return &self; }
+};
+struct CVec_RouteHopZ {
+	LDKCVec_RouteHopZ self;
+	CVec_RouteHopZ(const CVec_RouteHopZ&) = delete;
+	~CVec_RouteHopZ() { CVec_RouteHopZ_free(self); }
+	CVec_RouteHopZ(CVec_RouteHopZ&& o) : self(o.self) { memset(&o, 0, sizeof(CVec_RouteHopZ)); }
+	CVec_RouteHopZ(LDKCVec_RouteHopZ&& m_self) : self(m_self) { memset(&m_self, 0, sizeof(LDKCVec_RouteHopZ)); }
+	operator LDKCVec_RouteHopZ() { LDKCVec_RouteHopZ res = self; memset(&self, 0, sizeof(LDKCVec_RouteHopZ)); return res; }
+	LDKCVec_RouteHopZ* operator &() { return &self; }
 };
 }

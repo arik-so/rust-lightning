@@ -3,7 +3,7 @@
 
 use std::ffi::c_void;
 use bitcoin::hashes::Hash;
-use crate::c_types::TakePointer;
+use crate::c_types::*;
 
 
 use lightning::util::config::UserConfig as lnUserConfigImport;
@@ -30,6 +30,14 @@ impl Drop for UserConfig {
 }
 #[no_mangle]
 pub extern "C" fn UserConfig_free(this_ptr: UserConfig) { }
+impl Clone for UserConfig {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 #[no_mangle]
 pub extern "C" fn UserConfig_default() -> UserConfig {
 	UserConfig { inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }
@@ -58,6 +66,14 @@ impl Drop for ChannelHandshakeConfig {
 }
 #[no_mangle]
 pub extern "C" fn ChannelHandshakeConfig_free(this_ptr: ChannelHandshakeConfig) { }
+impl Clone for ChannelHandshakeConfig {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 /// " Confirmations we will wait for before considering the channel locked in."
 /// " Applied only for inbound channels (see ChannelHandshakeLimits::max_minimum_depth for the"
 /// " equivalent limit applied to outbound channels)."
@@ -177,6 +193,14 @@ impl Drop for ChannelHandshakeLimits {
 }
 #[no_mangle]
 pub extern "C" fn ChannelHandshakeLimits_free(this_ptr: ChannelHandshakeLimits) { }
+impl Clone for ChannelHandshakeLimits {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 /// " Minimum allowed satoshis when a channel is funded, this is supplied by the sender and so"
 /// " only applies to inbound channels."
 /// ""
@@ -415,6 +439,14 @@ impl Drop for ChannelConfig {
 }
 #[no_mangle]
 pub extern "C" fn ChannelConfig_free(this_ptr: ChannelConfig) { }
+impl Clone for ChannelConfig {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 /// " Amount (in millionths of a satoshi) the channel will charge per transferred satoshi."
 /// " This may be allowed to change at runtime in a later update, however doing so must result in"
 /// " update messages sent to notify all nodes of our updated relay fee."
@@ -507,4 +539,16 @@ pub extern "C" fn ChannelConfig_new(mut fee_proportional_millionths_arg: u32, mu
 #[no_mangle]
 pub extern "C" fn ChannelConfig_default() -> ChannelConfig {
 	ChannelConfig { inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }
+}
+#[no_mangle]
+pub extern "C" fn ChannelConfig_write(obj: *const ChannelConfig) -> crate::c_types::derived::CVec_u8Z {
+	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
+}
+#[no_mangle]
+pub extern "C" fn ChannelConfig_read(ser: crate::c_types::u8slice) -> ChannelConfig {
+	if let Ok(res) = crate::c_types::deserialize_obj(ser) {
+		ChannelConfig { inner: Box::into_raw(Box::new(res)), _underlying_ref: false }
+	} else {
+		ChannelConfig { inner: std::ptr::null(), _underlying_ref: false }
+	}
 }

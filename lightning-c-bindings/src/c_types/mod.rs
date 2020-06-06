@@ -20,6 +20,14 @@ impl PublicKey {
 		SecpPublicKey::from_slice(&self.compressed_form).unwrap()
 	}
 }
+pub(crate) trait IntoRust<O> {
+	fn into_rust(self) -> O;
+}
+impl IntoRust<SecpPublicKey> for *const PublicKey {
+	fn into_rust(self) -> SecpPublicKey {
+		SecpPublicKey::from_slice(&unsafe { (*self).compressed_form }).unwrap()
+	}
+}
 
 #[repr(C)]
 pub struct SecretKey {
@@ -90,6 +98,7 @@ impl u8slice {
 }
 
 #[repr(C)]
+#[derive(Clone)]
 /// Arbitrary 32 bytes, which could represent one of a few different things. You probably want to
 /// look up the corresponding function in rust-lightning's docs.
 pub struct ThirtyTwoBytes {
@@ -101,8 +110,33 @@ pub struct ThreeBytes {
 	pub data: [u8; 3],
 }
 
+pub(crate) struct VecWriter(pub Vec<u8>);
+impl lightning::util::ser::Writer for VecWriter {
+	fn write_all(&mut self, buf: &[u8]) -> Result<(), ::std::io::Error> {
+		self.0.extend_from_slice(buf);
+		Ok(())
+	}
+	fn size_hint(&mut self, size: usize) {
+		self.0.reserve_exact(size);
+	}
+}
+pub(crate) fn serialize_obj<I: lightning::util::ser::Writeable>(i: &I) -> derived::CVec_u8Z {
+	let mut out = VecWriter(Vec::new());
+	i.write(&mut out).unwrap();
+	CVecTempl::from(out.0)
+}
+pub(crate) fn deserialize_obj<I: lightning::util::ser::Readable>(s: u8slice) -> Result<I, lightning::ln::msgs::DecodeError> {
+	I::read(&mut s.to_slice())
+}
+
 // Note that the C++ headers memset(0) all the Templ types to avoid deallocation!
 // Thus, they must gracefully handle being completely null in _free.
+
+#[repr(C)]
+pub struct CSliceTempl<T> {
+	pub data: *const T,
+	pub datalen: usize
+}
 
 // TODO: Integer/bool primitives should avoid the pointer indirection for underlying types
 // everywhere in the containers.
@@ -152,8 +186,11 @@ pub struct CVecTempl<T> {
 	pub datalen: usize
 }
 impl<T> CVecTempl<T> {
-	pub(crate) fn into_rust(self) -> Vec<T> {
-		unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.data, self.datalen)) }.into()
+	pub(crate) fn into_rust(mut self) -> Vec<T> {
+		let ret = unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.data, self.datalen)) }.into();
+		self.data = std::ptr::null_mut();
+		self.datalen = 0;
+		ret
 	}
 }
 impl<T> From<Vec<T>> for CVecTempl<T> {
@@ -186,8 +223,11 @@ impl<A, B> From<(A, B)> for C2TupleTempl<A, B> {
 	}
 }
 impl<A, B> C2TupleTempl<A, B> {
-	pub(crate) fn to_rust(self) -> (A, B) {
-		(unsafe { *Box::from_raw(self.a) }, unsafe { *Box::from_raw(self.b) })
+	pub(crate) fn to_rust(mut self) -> (A, B) {
+		let res = (unsafe { *Box::from_raw(self.a) }, unsafe { *Box::from_raw(self.b) });
+		self.a = std::ptr::null_mut();
+		self.b = std::ptr::null_mut();
+		res
 	}
 }
 pub extern "C" fn C2TupleTempl_free<A, B>(_res: C2TupleTempl<A, B>) { }
@@ -202,14 +242,60 @@ impl<A, B> Drop for C2TupleTempl<A, B> {
 	}
 }
 
+#[repr(C)]
+pub struct C3TupleTempl<A, B, C> {
+	pub a: *mut A,
+	pub b: *mut B,
+	pub c: *mut C,
+}
+impl<A, B, C> From<(A, B, C)> for C3TupleTempl<A, B, C> {
+	fn from(tup: (A, B, C)) -> Self {
+		Self {
+			a: Box::into_raw(Box::new(tup.0)),
+			b: Box::into_raw(Box::new(tup.1)),
+			c: Box::into_raw(Box::new(tup.2)),
+		}
+	}
+}
+impl<A, B, C> C3TupleTempl<A, B, C> {
+	pub(crate) fn to_rust(mut self) -> (A, B, C) {
+		let res = (unsafe { *Box::from_raw(self.a) }, unsafe { *Box::from_raw(self.b) }, unsafe { *Box::from_raw(self.c) });
+		self.a = std::ptr::null_mut();
+		self.b = std::ptr::null_mut();
+		self.c = std::ptr::null_mut();
+		res
+	}
+}
+pub extern "C" fn C3TupleTempl_free<A, B, C>(_res: C3TupleTempl<A, B, C>) { }
+impl<A, B, C> Drop for C3TupleTempl<A, B, C> {
+	fn drop(&mut self) {
+		if !self.a.is_null() {
+			unsafe { Box::from_raw(self.a) };
+		}
+		if !self.b.is_null() {
+			unsafe { Box::from_raw(self.b) };
+		}
+		if !self.c.is_null() {
+			unsafe { Box::from_raw(self.c) };
+		}
+	}
+}
+
 /// Utility to make it easy to set a pointer to null and get its original value in line.
 pub(crate) trait TakePointer<T> {
-	fn take_ptr(&mut self) -> *const T;
+	fn take_ptr(&mut self) -> T;
 }
-impl<T> TakePointer<T> for *const T {
+impl<T> TakePointer<*const T> for *const T {
 	fn take_ptr(&mut self) -> *const T {
 		let ret = *self;
 		*self = std::ptr::null();
+		ret
+	}
+}
+impl<T> TakePointer<*mut T> for *mut T {
+	fn take_ptr(&mut self) -> *mut T {
+		let ret = *self;
+		*self = std::ptr::null_mut();
 		ret
 	}
 }
