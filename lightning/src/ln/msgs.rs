@@ -252,6 +252,7 @@ pub enum NetAddress {
 	/// An IPv4 address/port on which the peer is listening.
 	IPv4 {
 		/// The 4-byte IPv4 address
+        /// (C-not exported)
 		addr: [u8; 4],
 		/// The port on which the node is listening
 		port: u16,

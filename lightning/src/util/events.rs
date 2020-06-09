@@ -226,6 +226,7 @@ pub enum MessageSendEvent {
 		/// The node_id of the node which should receive this message
 		node_id: PublicKey,
 		/// The message which should be sent.
+        /// (C-not exported)
 		msg: msgs::AcceptChannel,
 	},
 	/// Used to indicate that we've initiated a channel open and should send the open_channel

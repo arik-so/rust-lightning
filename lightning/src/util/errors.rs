@@ -9,6 +9,7 @@ pub enum APIError {
 	/// are documented, but generally indicates some precondition of a function was violated.
 	APIMisuseError {
 		/// A human-readable error message
+        /// (C-not exported)
 		err: &'static str
 	},
 	/// Due to a high feerate, we were unable to complete the request.
