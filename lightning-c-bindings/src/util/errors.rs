@@ -10,6 +10,7 @@ type lnAPIError = lnAPIErrorImport;
 
 /// " Indicates an error on the client's part (usually some variant of attempting to use too-low or"
 /// " too-high values)"
+#[must_use]
 #[repr(C)]
 pub struct APIError {
 	/// Nearly everyhwere, inner must be non-null, however in places where

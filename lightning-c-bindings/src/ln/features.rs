@@ -25,6 +25,7 @@ use lightning::ln::features::InitFeatures as lnInitFeaturesImport;
 type lnInitFeatures = lnInitFeaturesImport;
 
 /// " Features used within an `init` message."
+#[must_use]
 #[repr(C)]
 pub struct InitFeatures {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -47,6 +48,7 @@ use lightning::ln::features::NodeFeatures as lnNodeFeaturesImport;
 type lnNodeFeatures = lnNodeFeaturesImport;
 
 /// " Features used within a `node_announcement` message."
+#[must_use]
 #[repr(C)]
 pub struct NodeFeatures {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -69,6 +71,7 @@ use lightning::ln::features::ChannelFeatures as lnChannelFeaturesImport;
 type lnChannelFeatures = lnChannelFeaturesImport;
 
 /// " Features used within a `channel_announcement` message."
+#[must_use]
 #[repr(C)]
 pub struct ChannelFeatures {
 	/// Nearly everyhwere, inner must be non-null, however in places where

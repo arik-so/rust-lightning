@@ -17,7 +17,8 @@ fn convert_macro<W: std::io::Write>(w: &mut W, macro_path: &syn::Path, stream: &
 	match &format!("{}", macro_path.segments.iter().next().unwrap().ident) as &str {
 		"impl_writeable" | "impl_writeable_len_match" => {
 			let struct_for = if let TokenTree::Ident(i) = stream.clone().into_iter().next().unwrap() { i } else { unimplemented!(); };
-			if types.maybe_resolve_ident(&struct_for).is_some() {
+			if let Some(s) = types.maybe_resolve_ident(&struct_for) {
+				if !types.crate_types.opaques.get(&s).is_some() { return; }
 				writeln!(w, "#[no_mangle]").unwrap();
 				writeln!(w, "pub extern \"C\" fn {}_write(obj: *const {}) -> crate::c_types::derived::CVec_u8Z {{", struct_for, struct_for).unwrap();
 				writeln!(w, "\tcrate::c_types::serialize_obj(unsafe {{ &(*(*obj).inner) }})").unwrap();
@@ -37,8 +38,10 @@ fn convert_macro<W: std::io::Write>(w: &mut W, macro_path: &syn::Path, stream: &
 
 /// Manually mapped trait impls
 fn maybe_convert_trait_impl<W: std::io::Write>(w: &mut W, trait_path: &syn::Path, for_obj: &syn::Ident, types: &TypeResolver) {
-	if let Some(s) = types.maybe_resolve_path(&trait_path) {
-		match &s as &str {
+	if let Some(t) = types.maybe_resolve_path(&trait_path) {
+		let s = types.maybe_resolve_ident(for_obj).unwrap();
+		if !types.crate_types.opaques.get(&s).is_some() { return; }
+		match &t as &str {
 			"util::ser::Writeable" => {
 				writeln!(w, "#[no_mangle]").unwrap();
 				writeln!(w, "pub extern \"C\" fn {}_write(obj: *const {}) -> crate::c_types::derived::CVec_u8Z {{", for_obj, for_obj).unwrap();
@@ -492,6 +495,9 @@ fn println_trait<'a, 'b, W: std::io::Write>(w: &mut W, t: &'a syn::ItemTrait, ty
 						writeln!(extra_headers, "typedef struct LDK{} LDK{};", trait_name, trait_name).unwrap();
 						continue;
 					}
+					// Sadly, this currently doesn't do what we want, but it should be easy to get
+					// cbindgen to support it. See https://github.com/eqrion/cbindgen/issues/531
+					writeln!(w, "\t#[must_use]").unwrap();
 				}
 
 				write!(w, "\tpub {}: extern \"C\" fn (", m.sig.ident).unwrap();
@@ -652,40 +658,15 @@ fn println_opaque<W: std::io::Write>(w: &mut W, ident: &syn::Ident, struct_name:
 	writeln!(w, ";\n").unwrap();
 	writeln!(extra_headers, "struct ln{}Opaque;\ntypedef struct ln{}Opaque LDKln{};", ident, ident, ident).unwrap();
 	println_docs(w, &attrs, "");
-	writeln!(w, "#[repr(C)]\npub struct {} {{\n\t/// Nearly everyhwere, inner must be non-null, however in places where", struct_name).unwrap();
+	writeln!(w, "#[must_use]\n#[repr(C)]\npub struct {} {{\n\t/// Nearly everyhwere, inner must be non-null, however in places where", struct_name).unwrap();
 	writeln!(w, "\t///the Rust equivalent takes an Option, it may be set to null to indicate None.").unwrap();
 	writeln!(w, "\tpub inner: *const ln{},\n\tpub _underlying_ref: bool,\n}}\n", ident).unwrap();
 	writeln!(w, "impl Drop for {} {{\n\tfn drop(&mut self) {{", struct_name).unwrap();
 	writeln!(w, "\t\tif !self._underlying_ref && !self.inner.is_null() {{").unwrap();
 	writeln!(w, "\t\t\tlet _ = unsafe {{ Box::from_raw(self.inner as *mut ln{}) }};\n\t\t}}\n\t}}\n}}", struct_name).unwrap();
 	writeln!(w, "#[no_mangle]\npub extern \"C\" fn {}_free(this_ptr: {}) {{ }}", struct_name, struct_name).unwrap();
-	writeln!(cpp_headers, "class {} {{\nprivate:", ident).unwrap();
-	writeln!(cpp_headers, "\tLDK{} self;", ident).unwrap();
-	writeln!(cpp_headers, "public:").unwrap();
-	writeln!(cpp_headers, "\t{}(const {}&) = delete;", ident, ident).unwrap();
-	writeln!(cpp_headers, "\t~{}() {{ {}_free(self); }}", ident, ident).unwrap();
-	writeln!(cpp_headers, "\t{}({}&& o) : self(o.self) {{ o.self.inner = NULL; }}", ident, ident).unwrap();
-	writeln!(cpp_headers, "\t{}(LDK{}&& m_self) : self(m_self) {{ m_self.inner = NULL; }}", ident, ident).unwrap();
-	writeln!(cpp_headers, "\toperator LDK{}() {{ LDK{} res = self; self.inner = NULL; return res; }}", ident, ident).unwrap();
-	writeln!(cpp_headers, "\tLDK{}* operator &() {{ return &self; }}", ident).unwrap();
-	writeln!(cpp_headers, "}};").unwrap();
-}
 
-fn println_struct<'a, 'b, W: std::io::Write>(w: &mut W, s: &'a syn::ItemStruct, types: &mut TypeResolver<'b, 'a>, extra_headers: &mut File, cpp_headers: &mut File) {
-	let struct_name = &format!("{}", s.ident);
-	let export = export_status(&s.attrs);
-	match export {
-		ExportStatus::Export => {},
-		ExportStatus::TestOnly => return,
-		ExportStatus::NoExport => {
-			types.struct_ignored(&s.ident);
-			return;
-		}
-	}
-
-	println_opaque(w, &s.ident, struct_name, &s.generics, &s.attrs, types, extra_headers, cpp_headers);
-
-	'attr_loop: for attr in s.attrs.iter() {
+	'attr_loop: for attr in attrs.iter() {
 		let tokens_clone = attr.tokens.clone();
 		let mut token_iter = tokens_clone.into_iter();
 		if let Some(token) = token_iter.next() {
@@ -711,6 +692,33 @@ fn println_struct<'a, 'b, W: std::io::Write>(w: &mut W, s: &'a syn::ItemStruct, 
 			}
 		}
 	}
+
+	writeln!(cpp_headers, "class {} {{\nprivate:", ident).unwrap();
+	writeln!(cpp_headers, "\tLDK{} self;", ident).unwrap();
+	writeln!(cpp_headers, "public:").unwrap();
+	writeln!(cpp_headers, "\t{}(const {}&) = delete;", ident, ident).unwrap();
+	writeln!(cpp_headers, "\t~{}() {{ {}_free(self); }}", ident, ident).unwrap();
+	writeln!(cpp_headers, "\t{}({}&& o) : self(o.self) {{ o.self.inner = NULL; }}", ident, ident).unwrap();
+	writeln!(cpp_headers, "\t{}(LDK{}&& m_self) : self(m_self) {{ m_self.inner = NULL; }}", ident, ident).unwrap();
+	writeln!(cpp_headers, "\toperator LDK{}() {{ LDK{} res = self; self.inner = NULL; return res; }}", ident, ident).unwrap();
+	writeln!(cpp_headers, "\tLDK{}* operator &() {{ return &self; }}", ident).unwrap();
+	writeln!(cpp_headers, "\tLDK{}* operator ->() {{ return &self; }}", ident).unwrap();
+	writeln!(cpp_headers, "}};").unwrap();
+}
+
+fn println_struct<'a, 'b, W: std::io::Write>(w: &mut W, s: &'a syn::ItemStruct, types: &mut TypeResolver<'b, 'a>, extra_headers: &mut File, cpp_headers: &mut File) {
+	let struct_name = &format!("{}", s.ident);
+	let export = export_status(&s.attrs);
+	match export {
+		ExportStatus::Export => {},
+		ExportStatus::TestOnly => return,
+		ExportStatus::NoExport => {
+			types.struct_ignored(&s.ident);
+			return;
+		}
+	}
+
+	println_opaque(w, &s.ident, struct_name, &s.generics, &s.attrs, types, extra_headers, cpp_headers);
 
 	eprintln!("exporting fields for {}", struct_name);
 	if let syn::Fields::Named(fields) = &s.fields {
@@ -769,7 +777,7 @@ fn println_struct<'a, 'b, W: std::io::Write>(w: &mut W, s: &'a syn::ItemStruct, 
 
 		if all_fields_settable {
 			// Build a constructor!
-			write!(w, "#[no_mangle]\npub extern \"C\" fn {}_new(", struct_name).unwrap();
+			write!(w, "#[must_use]\n#[no_mangle]\npub extern \"C\" fn {}_new(", struct_name).unwrap();
 			for (idx, field) in fields.named.iter().enumerate() {
 				if idx != 0 { write!(w, ", ").unwrap(); }
 				write!(w, "mut {}_arg: ", field.ident.as_ref().unwrap()).unwrap();
@@ -907,6 +915,9 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 									ExportStatus::NoExport|ExportStatus::TestOnly => continue,
 								}
 
+								if let syn::ReturnType::Type(_, _) = &$m.sig.output {
+									writeln!(w, "#[must_use]").unwrap();
+								}
 								write!(w, "extern \"C\" fn {}_{}_{}(", ident, trait_obj.ident, $m.sig.ident).unwrap();
 								print_method_params(w, &$m.sig, &trait_associated_types, "c_void", types, Some(&gen_types), true, true);
 								write!(w, " {{\n\t").unwrap();
@@ -984,7 +995,7 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 						match &format!("{}", trait_ident) as &str {
 							"From" => {},
 							"Default" => {
-								write!(w, "#[no_mangle]\npub extern \"C\" fn {}_default() -> {} {{\n", ident, ident).unwrap();
+								write!(w, "#[must_use]\n#[no_mangle]\npub extern \"C\" fn {}_default() -> {} {{\n", ident, ident).unwrap();
 								write!(w, "\t{} {{ inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }}\n", ident).unwrap();
 								write!(w, "}}\n").unwrap();
 							},
@@ -1009,6 +1020,9 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 									}
 									if m.defaultness.is_some() { unimplemented!(); }
 									println_docs(w, &m.attrs, "");
+									if let syn::ReturnType::Type(_, _) = &m.sig.output {
+										writeln!(w, "#[must_use]").unwrap();
+									}
 									write!(w, "#[no_mangle]\npub extern \"C\" fn {}_{}(", ident, m.sig.ident).unwrap();
 									let ret_type = match &declared_type {
 										DeclType::MirroredEnum => format!("{}", ident),
@@ -1050,7 +1064,15 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 
 fn is_enum_opaque(e: &syn::ItemEnum) -> bool {
 	for var in e.variants.iter() {
-		if let syn::Fields::Unit = var.fields {} else {
+		if let syn::Fields::Unit = var.fields {
+		} else if let syn::Fields::Named(fields) = &var.fields {
+			for field in fields.named.iter() {
+				match export_status(&field.attrs) {
+					ExportStatus::Export|ExportStatus::TestOnly => {},
+					ExportStatus::NoExport => return true,
+				}
+			}
+		} else {
 			return true;
 		}
 	}
@@ -1075,27 +1097,123 @@ fn println_enum<'a, 'b, W: std::io::Write>(w: &mut W, e: &'a syn::ItemEnum, type
 		unimplemented!();
 	}
 	types.mirrored_enum_declared(&e.ident);
+
+	let mut needs_free = false;
+
 	writeln!(w, "#[repr(C)]\npub enum {} {{", e.ident).unwrap();
 	for var in e.variants.iter() {
 		assert_eq!(export_status(&var.attrs), ExportStatus::Export); // We can't partially-export a mirrored enum
 		println_docs(w, &var.attrs, "\t");
-		if let syn::Fields::Unit = var.fields {} else { unimplemented!(); }
+		write!(w, "\t{}", var.ident).unwrap();
+		if let syn::Fields::Named(fields) = &var.fields {
+			needs_free = true;
+			writeln!(w, " {{").unwrap();
+			for field in fields.named.iter() {
+				if export_status(&field.attrs) == ExportStatus::TestOnly { continue; }
+				write!(w, "\t\t{}: ", field.ident.as_ref().unwrap()).unwrap();
+				types.print_c_type(w, &field.ty, None, false);
+				writeln!(w, ",").unwrap();
+			}
+			write!(w, "\t}}").unwrap();
+		}
 		if var.discriminant.is_some() { unimplemented!(); }
-		writeln!(w, "\t{},", var.ident).unwrap();
+		writeln!(w, ",").unwrap();
 	}
 	writeln!(w, "}}\nuse {}::{}::{} as ln{};\nimpl {} {{", types.orig_crate, types.module_path, e.ident, e.ident, e.ident).unwrap();
-	writeln!(w, "\t#[allow(unused)]\n\tpub(crate) fn to_ln(&self) -> ln{} {{\n\t\tmatch self {{", e.ident).unwrap();
-	for var in e.variants.iter() {
-		writeln!(w, "\t\t\t{}::{} => ln{}::{},", e.ident, var.ident, e.ident, var.ident).unwrap();
-	}
-	writeln!(w, "\t\t}}\n\t}}").unwrap();
-	writeln!(w, "\t#[allow(unused)]\n\tpub(crate) fn from_ln(lnt: ln{}) -> Self {{\n\t\tmatch lnt {{", e.ident).unwrap();
-	for var in e.variants.iter() {
-		writeln!(w, "\t\t\tln{}::{} => {}::{},", e.ident, var.ident, e.ident, var.ident).unwrap();
-	}
-	writeln!(w, "\t\t}}\n\t}}\n}}").unwrap();
 
-	writeln!(cpp_headers, "typedef LDK{} {};", e.ident, e.ident).unwrap();
+	macro_rules! print_conv {
+		($fn_sig: expr, $to_c: expr, $ref: expr) => {
+			writeln!(w, "\t#[allow(unused)]\n\tpub(crate) fn {} {{\n\t\tmatch {} {{", $fn_sig, if $to_c { "lnt" } else { "self" }).unwrap();
+			for var in e.variants.iter() {
+				write!(w, "\t\t\t{}{}::{} ", if $to_c { "ln" } else { "" }, e.ident, var.ident).unwrap();
+				if let syn::Fields::Named(fields) = &var.fields {
+					write!(w, "{{").unwrap();
+					for field in fields.named.iter() {
+						if export_status(&field.attrs) == ExportStatus::TestOnly { continue; }
+						write!(w, "{}{}, ", if $ref { "ref " } else { "mut " }, field.ident.as_ref().unwrap()).unwrap();
+					}
+					write!(w, "}} ").unwrap();
+				}
+				write!(w, "=>").unwrap();
+				if let syn::Fields::Named(fields) = &var.fields {
+					write!(w, " {{\n\t\t\t\t").unwrap();
+					for field in fields.named.iter() {
+						if export_status(&field.attrs) == ExportStatus::TestOnly { continue; }
+						let mut sink = ::std::io::sink();
+						let mut out: &mut dyn std::io::Write = if $ref { &mut sink } else { w };
+						let new_var = if $to_c {
+							types.print_to_c_conversion_new_var(&mut out, field.ident.as_ref().unwrap(), &field.ty, None)
+						} else {
+							types.print_from_c_conversion_new_var(&mut out, field.ident.as_ref().unwrap(), &field.ty, None)
+						};
+						if $ref || new_var {
+							if $ref {
+								write!(w, "let mut {}_nonref = (*{}).clone();", field.ident.as_ref().unwrap(), field.ident.as_ref().unwrap()).unwrap();
+								if new_var {
+									let nonref_ident = syn::Ident::new(&format!("{}_nonref", field.ident.as_ref().unwrap()), Span::call_site());
+									if $to_c {
+										types.print_to_c_conversion_new_var(w, &nonref_ident, &field.ty, None);
+									} else {
+										types.print_from_c_conversion_new_var(w, &nonref_ident, &field.ty, None);
+									}
+								}
+							}
+							write!(w, "\n\t\t\t\t").unwrap();
+						}
+					}
+				} else { write!(w, " ").unwrap(); }
+				write!(w, "{}{}::{}", if $to_c { "" } else { "ln" }, e.ident, var.ident).unwrap();
+				if let syn::Fields::Named(fields) = &var.fields {
+					write!(w, " {{").unwrap();
+					for field in fields.named.iter() {
+						if export_status(&field.attrs) == ExportStatus::TestOnly { continue; }
+						write!(w, "\n\t\t\t\t\t{}: ", field.ident.as_ref().unwrap()).unwrap();
+						if $to_c {
+							types.print_to_c_conversion_inline_prefix(w, &field.ty, None, false);
+						} else {
+							types.print_from_c_conversion_prefix(w, &field.ty, None);
+						}
+						write!(w, "{}{}",
+							field.ident.as_ref().unwrap(),
+							if $ref { "_nonref" } else { "" }).unwrap();
+						if $to_c {
+							types.print_to_c_conversion_inline_suffix(w, &field.ty, None, false);
+						} else {
+							types.print_from_c_conversion_suffix(w, &field.ty, None);
+						}
+						write!(w, ",").unwrap();
+					}
+					writeln!(w, "\n\t\t\t\t}}").unwrap();
+					write!(w, "\t\t\t}}").unwrap();
+				}
+				writeln!(w, ",").unwrap();
+			}
+			writeln!(w, "\t\t}}\n\t}}").unwrap();
+		}
+	}
+
+	print_conv!(format!("to_ln(&self) -> ln{}", e.ident), false, true);
+	print_conv!(format!("into_ln(self) -> ln{}", e.ident), false, false);
+	print_conv!(format!("from_ln(lnt: &ln{}) -> Self", e.ident), true, true);
+	print_conv!(format!("ln_into(lnt: ln{}) -> Self", e.ident), true, false);
+	writeln!(w, "}}").unwrap();
+
+	if needs_free {
+		writeln!(w, "#[no_mangle]\npub extern \"C\" fn {}_free(this_ptr: {}) {{ }}", e.ident, e.ident).unwrap();
+		writeln!(cpp_headers, "class {} {{\nprivate:", e.ident).unwrap();
+		writeln!(cpp_headers, "\tLDK{} self;", e.ident).unwrap();
+		writeln!(cpp_headers, "public:").unwrap();
+		writeln!(cpp_headers, "\t{}(const {}&) = delete;", e.ident, e.ident).unwrap();
+		writeln!(cpp_headers, "\t~{}() {{ if (self.tag != LDK{}_Sentinel) {{ {}_free(self); }} }}", e.ident, e.ident, e.ident).unwrap();
+		writeln!(cpp_headers, "\t{}({}&& o) : self(o.self) {{ o.self.tag = LDK{}_Sentinel; }}", e.ident, e.ident, e.ident).unwrap();
+		writeln!(cpp_headers, "\t{}(LDK{}&& m_self) : self(m_self) {{ m_self.tag = LDK{}_Sentinel; }}", e.ident, e.ident, e.ident).unwrap();
+		writeln!(cpp_headers, "\toperator LDK{}() {{ LDK{} res = self; self.tag = LDK{}_Sentinel; return res; }}", e.ident, e.ident, e.ident).unwrap();
+		writeln!(cpp_headers, "\tLDK{}* operator &() {{ return &self; }}", e.ident).unwrap();
+		writeln!(cpp_headers, "\tLDK{}* operator ->() {{ return &self; }}", e.ident).unwrap();
+		writeln!(cpp_headers, "}};").unwrap();
+	} else {
+		writeln!(cpp_headers, "typedef LDK{} {};", e.ident, e.ident).unwrap();
+	}
 }
 
 struct FullLibraryAST {
@@ -1116,6 +1234,7 @@ fn convert_file<'a, 'b>(libast: &'a FullLibraryAST, crate_types: &mut CrateTypes
 	println_docs(&mut out, &syntax.attrs, "");
 
 	if path.ends_with("/lib.rs") {
+		writeln!(out, "#![allow(unknown_lints)]").unwrap();
 		writeln!(out, "#![allow(non_camel_case_types)]").unwrap();
 		writeln!(out, "#![allow(non_snake_case)]").unwrap();
 		writeln!(out, "#![allow(unused_imports)]").unwrap();
@@ -1306,6 +1425,16 @@ fn walk_ast<'a>(path: &str, module: String, ast_storage: &'a FullLibraryAST, cra
 					crate_types.opaques.insert(enum_path, &e.ident);
 				}
 			},
+			syn::Item::Enum(e) => {
+				if let syn::Visibility::Public(_) = e.vis {
+					match export_status(&e.attrs) {
+						ExportStatus::Export => {},
+						ExportStatus::NoExport|ExportStatus::TestOnly => continue,
+					}
+					let enum_path = format!("{}::{}", module, e.ident);
+					crate_types.mirrored_enums.insert(enum_path, &e);
+				}
+			},
 			syn::Item::Impl(i) => {
 				match export_status(&i.attrs) {
 					ExportStatus::Export => {},
@@ -1339,13 +1468,18 @@ fn main() {
 		.open(&args[5]).expect("Unable to open new header file");
 	let mut cpp_header_file = std::fs::OpenOptions::new().write(true).create(true).truncate(true)
 		.open(&args[6]).expect("Unable to open new header file");
+
+	writeln!(header_file, "#if defined(__GNUC__)\n#define MUST_USE_STRUCT __attribute__((warn_unused))").unwrap();
+	writeln!(header_file, "#else\n#define MUST_USE_STRUCT\n#endif").unwrap();
+	writeln!(header_file, "#if defined(__GNUC__)\n#define MUST_USE_RES __attribute__((warn_unused_result))").unwrap();
+	writeln!(header_file, "#else\n#define MUST_USE_RES\n#endif").unwrap();
 	writeln!(cpp_header_file, "#include <string.h>\nnamespace LDK {{").unwrap();
 
 	let mut libast = FullLibraryAST { files: HashMap::new() };
 	load_ast(&(args[1].clone() + "/lib.rs"), "".to_string(), &mut libast);
 
 	let mut libtypes = CrateTypes { traits: HashMap::new(), trait_impls: HashMap::new(), opaques: HashMap::new(),
-		templates_defined: HashMap::new(), template_file: &mut derived_templates };
+		mirrored_enums: HashMap::new(), templates_defined: HashMap::new(), template_file: &mut derived_templates };
 	walk_ast(&(args[1].clone() + "/lib.rs"), "".to_string(), &libast, &mut libtypes);
 
 	convert_file(&libast, &mut libtypes, &(args[1].clone() + "/lib.rs"), &(args[2].clone() + "lib.rs"), &args[3], "", &mut header_file, &mut cpp_header_file);
@@ -1361,6 +1495,7 @@ fn main() {
 		writeln!(cpp_header_file, "\t{}(LDK{}&& m_self) : self(m_self) {{ memset(&m_self, 0, sizeof(LDK{})); }}", ty, ty, ty).unwrap();
 		writeln!(cpp_header_file, "\toperator LDK{}() {{ LDK{} res = self; memset(&self, 0, sizeof(LDK{})); return res; }}", ty, ty, ty).unwrap();
 		writeln!(cpp_header_file, "\tLDK{}* operator &() {{ return &self; }}", ty).unwrap();
+		writeln!(cpp_header_file, "\tLDK{}* operator ->() {{ return &self; }}", ty).unwrap();
 		writeln!(cpp_header_file, "}};").unwrap();
 	}
 	writeln!(cpp_header_file, "}}").unwrap();

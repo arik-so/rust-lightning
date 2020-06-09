@@ -6,6 +6,7 @@ use bitcoin::secp256k1::key::PublicKey as SecpPublicKey;
 use bitcoin::secp256k1::key::SecretKey as SecpSecretKey;
 use bitcoin::secp256k1::Signature as SecpSignature;
 
+#[derive(Clone)]
 #[repr(C)]
 pub struct PublicKey {
 	pub compressed_form: [u8; 33],
@@ -98,7 +99,7 @@ impl u8slice {
 }
 
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 /// Arbitrary 32 bytes, which could represent one of a few different things. You probably want to
 /// look up the corresponding function in rust-lightning's docs.
 pub struct ThirtyTwoBytes {
@@ -134,8 +135,15 @@ pub(crate) fn deserialize_obj<I: lightning::util::ser::Readable>(s: u8slice) -> 
 
 #[repr(C)]
 pub struct CSliceTempl<T> {
-	pub data: *const T,
+	pub data: *mut T,
 	pub datalen: usize
+}
+// Things derived from CSliceTempl require per-item conversion, so is actually a Box<[]> underneath
+// (thus requires a Drop impl)
+impl<T> Drop for CSliceTempl<T> {
+	fn drop(&mut self) {
+		unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.data, self.datalen)) };
+	}
 }
 
 // TODO: Integer/bool primitives should avoid the pointer indirection for underlying types
@@ -173,7 +181,9 @@ pub extern "C" fn CResultTempl_free<O, E>(_res: CResultTempl<O, E>) { }
 impl<O, E> Drop for CResultTempl<O, E> {
 	fn drop(&mut self) {
 		if self.result_good {
-			unsafe { Box::from_raw(self.contents.result) };
+			if unsafe { !self.contents.result.is_null() } {
+				unsafe { Box::from_raw(self.contents.result) };
+			}
 		} else if unsafe { !self.contents.err.is_null() } {
 			unsafe { Box::from_raw(self.contents.err) };
 		}
@@ -206,6 +216,13 @@ impl<T> Drop for CVecTempl<T> {
 		// datalen == 0 is will gracefully be ignored, so we don't have to handle data == null
 		// here.
 		unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.data, self.datalen)) };
+	}
+}
+impl<T: Clone> Clone for CVecTempl<T> {
+	fn clone(&self) -> Self {
+		let mut res = Vec::new();
+		res.clone_from_slice(unsafe { std::slice::from_raw_parts_mut(self.data, self.datalen) });
+		Self::from(res)
 	}
 }
 

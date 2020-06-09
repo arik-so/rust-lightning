@@ -12,6 +12,7 @@ type lnOutPoint = lnOutPointImport;
 /// ""
 /// " Differs from bitcoin::blockdata::transaction::OutPoint as the index is a u16 instead of u32"
 /// " due to LN's restrictions on index values. Should reduce (possibly) unsafe conversions this way."
+#[must_use]
 #[repr(C)]
 pub struct OutPoint {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -59,6 +60,7 @@ pub extern "C" fn OutPoint_get_index(this_ptr: &OutPoint) -> u16 {
 pub extern "C" fn OutPoint_set_index(this_ptr: &mut OutPoint, mut val: u16) {
 	unsafe { &mut *(this_ptr.inner as *mut lnOutPoint) }.index = val;
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn OutPoint_new(mut txid_arg: crate::c_types::ThirtyTwoBytes, mut index_arg: u16) -> OutPoint {
 	OutPoint { inner: Box::into_raw(Box::new(lnOutPoint {
@@ -67,6 +69,7 @@ pub extern "C" fn OutPoint_new(mut txid_arg: crate::c_types::ThirtyTwoBytes, mut
 	})), _underlying_ref: false }
 }
 /// " Convert an `OutPoint` to a lightning channel id."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn OutPoint_to_channel_id(this_arg: &OutPoint) -> crate::c_types::ThirtyTwoBytes {
 	let mut ret = unsafe { &*this_arg.inner }.to_channel_id();

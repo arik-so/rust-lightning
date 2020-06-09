@@ -3300,6 +3300,7 @@ impl<ChanSigner: ChannelKeys> Channel<ChanSigner> {
 		}
 
 		let local_commitment_secret = self.build_local_commitment_secret(self.cur_local_commitment_transaction_number);
+		let local_keys = self.local_keys.pubkeys();
 
 		msgs::OpenChannel {
 			chain_hash: chain_hash,
@@ -3313,11 +3314,11 @@ impl<ChanSigner: ChannelKeys> Channel<ChanSigner> {
 			feerate_per_kw: fee_estimator.get_est_sat_per_1000_weight(ConfirmationTarget::Background) as u32,
 			to_self_delay: self.our_to_self_delay,
 			max_accepted_htlcs: OUR_MAX_HTLCS,
-			funding_pubkey: self.local_keys.pubkeys().funding_pubkey,
-			revocation_basepoint: self.local_keys.pubkeys().revocation_basepoint,
-			payment_point: self.local_keys.pubkeys().payment_point,
-			delayed_payment_basepoint: self.local_keys.pubkeys().delayed_payment_basepoint,
-			htlc_basepoint: self.local_keys.pubkeys().htlc_basepoint,
+			funding_pubkey: local_keys.funding_pubkey,
+			revocation_basepoint: local_keys.revocation_basepoint,
+			payment_point: local_keys.payment_point,
+			delayed_payment_basepoint: local_keys.delayed_payment_basepoint,
+			htlc_basepoint: local_keys.htlc_basepoint,
 			first_per_commitment_point: PublicKey::from_secret_key(&self.secp_ctx, &local_commitment_secret),
 			channel_flags: if self.config.announced_channel {1} else {0},
 			shutdown_scriptpubkey: OptionalField::Present(if self.config.commit_upfront_shutdown_pubkey { self.get_closing_scriptpubkey() } else { Builder::new().into_script() })
@@ -3336,6 +3337,7 @@ impl<ChanSigner: ChannelKeys> Channel<ChanSigner> {
 		}
 
 		let local_commitment_secret = self.build_local_commitment_secret(self.cur_local_commitment_transaction_number);
+		let local_keys = self.local_keys.pubkeys();
 
 		msgs::AcceptChannel {
 			temporary_channel_id: self.channel_id,
@@ -3346,11 +3348,11 @@ impl<ChanSigner: ChannelKeys> Channel<ChanSigner> {
 			minimum_depth: self.minimum_depth,
 			to_self_delay: self.our_to_self_delay,
 			max_accepted_htlcs: OUR_MAX_HTLCS,
-			funding_pubkey: self.local_keys.pubkeys().funding_pubkey,
-			revocation_basepoint: self.local_keys.pubkeys().revocation_basepoint,
-			payment_point: self.local_keys.pubkeys().payment_point,
-			delayed_payment_basepoint: self.local_keys.pubkeys().delayed_payment_basepoint,
-			htlc_basepoint: self.local_keys.pubkeys().htlc_basepoint,
+			funding_pubkey: local_keys.funding_pubkey,
+			revocation_basepoint: local_keys.revocation_basepoint,
+			payment_point: local_keys.payment_point,
+			delayed_payment_basepoint: local_keys.delayed_payment_basepoint,
+			htlc_basepoint: local_keys.htlc_basepoint,
 			first_per_commitment_point: PublicKey::from_secret_key(&self.secp_ctx, &local_commitment_secret),
 			shutdown_scriptpubkey: OptionalField::Present(if self.config.commit_upfront_shutdown_pubkey { self.get_closing_scriptpubkey() } else { Builder::new().into_script() })
 		}

@@ -15,6 +15,7 @@ use lightning::ln::peer_handler::MessageHandler as lnMessageHandlerImport;
 type lnMessageHandler = lnMessageHandlerImport<crate::ln::msgs::ChannelMessageHandler, crate::ln::msgs::RoutingMessageHandler>;
 
 /// " Provides references to trait impls which handle different types of messages."
+#[must_use]
 #[repr(C)]
 pub struct MessageHandler {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -58,6 +59,7 @@ pub extern "C" fn MessageHandler_get_route_handler(this_ptr: &MessageHandler) ->
 pub extern "C" fn MessageHandler_set_route_handler(this_ptr: &mut MessageHandler, mut val: crate::ln::msgs::RoutingMessageHandler) {
 	unsafe { &mut *(this_ptr.inner as *mut lnMessageHandler) }.route_handler = val;
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn MessageHandler_new(mut chan_handler_arg: crate::ln::msgs::ChannelMessageHandler, mut route_handler_arg: crate::ln::msgs::RoutingMessageHandler) -> MessageHandler {
 	MessageHandler { inner: Box::into_raw(Box::new(lnMessageHandler {
@@ -94,6 +96,7 @@ pub struct SocketDescriptor {
 	/// " events should be paused to prevent DoS in the send buffer), resume_read may be set"
 	/// " indicating that read events on this descriptor should resume. A resume_read of false does"
 	/// " *not* imply that further read events should be paused."
+	#[must_use]
 	pub send_data: extern "C" fn (this_arg: *mut c_void, data: crate::c_types::u8slice, resume_read: bool) -> usize,
 	/// " Disconnect the socket pointed to by this SocketDescriptor. Once this function returns, no"
 	/// " more calls to write_buffer_space_avail, read_event or socket_disconnected may be made with"
@@ -141,6 +144,7 @@ type lnPeerHandleError = lnPeerHandleErrorImport;
 /// " triggering a single socket_disconnected call (unless it was provided in response to a"
 /// " new_*_connection event, in which case no such socket_disconnected() must be called and the"
 /// " socket silently disconencted)."
+#[must_use]
 #[repr(C)]
 pub struct PeerHandleError {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -171,6 +175,7 @@ pub extern "C" fn PeerHandleError_get_no_connection_possible(this_ptr: &PeerHand
 pub extern "C" fn PeerHandleError_set_no_connection_possible(this_ptr: &mut PeerHandleError, mut val: bool) {
 	unsafe { &mut *(this_ptr.inner as *mut lnPeerHandleError) }.no_connection_possible = val;
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn PeerHandleError_new(mut no_connection_possible_arg: bool) -> PeerHandleError {
 	PeerHandleError { inner: Box::into_raw(Box::new(lnPeerHandleError {
@@ -189,6 +194,7 @@ type lnPeerManager = lnPeerManagerImport<crate::ln::peer_handler::SocketDescript
 /// " essentially you should default to using a SimpleRefPeerManager, and use a"
 /// " SimpleArcPeerManager when you require a PeerManager with a static lifetime, such as when"
 /// " you're using lightning-net-tokio."
+#[must_use]
 #[repr(C)]
 pub struct PeerManager {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -209,6 +215,7 @@ pub extern "C" fn PeerManager_free(this_ptr: PeerManager) { }
 /// " Constructs a new PeerManager with the given message handlers and node_id secret key"
 /// " ephemeral_random_data is used to derive per-connection ephemeral keys and must be"
 /// " cryptographically secure random bytes."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn PeerManager_new(mut message_handler: crate::ln::peer_handler::MessageHandler, mut our_node_secret: crate::c_types::SecretKey, ephemeral_random_data: *const [u8; 32], mut logger: crate::util::logger::Logger) -> PeerManager {
 	let mut ret = lightning::ln::peer_handler::PeerManager::new(*unsafe { Box::from_raw(message_handler.inner.take_ptr() as *mut _) }, our_node_secret.into_rust(), unsafe { &*ephemeral_random_data}, logger);
@@ -220,6 +227,7 @@ pub extern "C" fn PeerManager_new(mut message_handler: crate::ln::peer_handler::
 /// " For outbound connections, this will be the same as the their_node_id parameter passed in to"
 /// " new_outbound_connection, however entries will only appear once the initial handshake has"
 /// " completed and we are sure the remote peer has the private key for the given node_id."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn PeerManager_get_peer_node_ids(this_arg: &PeerManager) -> crate::c_types::derived::CVec_PublicKeyZ {
 	let mut ret = unsafe { &*this_arg.inner }.get_peer_node_ids();
@@ -235,6 +243,7 @@ pub extern "C" fn PeerManager_get_peer_node_ids(this_arg: &PeerManager) -> crate
 /// ""
 /// " Panics if descriptor is duplicative with some other descriptor which has not yet had a"
 /// " socket_disconnected()."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn PeerManager_new_outbound_connection(this_arg: &PeerManager, mut their_node_id: crate::c_types::PublicKey, mut descriptor: crate::ln::peer_handler::SocketDescriptor) -> crate::c_types::derived::CResult_CVec_u8ZPeerHandleErrorZ {
 	let mut ret = unsafe { &*this_arg.inner }.new_outbound_connection(their_node_id.into_rust(), descriptor);
@@ -251,6 +260,7 @@ pub extern "C" fn PeerManager_new_outbound_connection(this_arg: &PeerManager, mu
 /// ""
 /// " Panics if descriptor is duplicative with some other descriptor which has not yet had"
 /// " socket_disconnected called."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn PeerManager_new_inbound_connection(this_arg: &PeerManager, mut descriptor: crate::ln::peer_handler::SocketDescriptor) -> crate::c_types::derived::CResult_NonePeerHandleErrorZ {
 	let mut ret = unsafe { &*this_arg.inner }.new_inbound_connection(descriptor);
@@ -268,6 +278,7 @@ pub extern "C" fn PeerManager_new_inbound_connection(this_arg: &PeerManager, mut
 /// " must still hold - be ready to call write_buffer_space_avail again if a write call generated"
 /// " here isn't sufficient! Panics if the descriptor was not previously registered in a"
 /// " new_\\*_connection event."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn PeerManager_write_buffer_space_avail(this_arg: &PeerManager, descriptor: &mut crate::ln::peer_handler::SocketDescriptor) -> crate::c_types::derived::CResult_NonePeerHandleErrorZ {
 	let mut ret = unsafe { &*this_arg.inner }.write_buffer_space_avail(descriptor);
@@ -287,6 +298,7 @@ pub extern "C" fn PeerManager_write_buffer_space_avail(this_arg: &PeerManager, d
 /// " on this file descriptor has resume_read set (preventing DoS issues in the send buffer)."
 /// ""
 /// " Panics if the descriptor was not previously registered in a new_*_connection event."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn PeerManager_read_event(this_arg: &PeerManager, peer_descriptor: &mut crate::ln::peer_handler::SocketDescriptor, data: crate::c_types::u8slice) -> crate::c_types::derived::CResult_boolPeerHandleErrorZ {
 	let mut ret = unsafe { &*this_arg.inner }.read_event(peer_descriptor, data.to_slice());

@@ -9,7 +9,7 @@ void print_log(const void *this_arg, const char *record) {
 }
 
 uint64_t get_fee(const void *this_arg, LDKConfirmationTarget target) {
-	if (target == Background) {
+	if (target == LDKConfirmationTarget_Background) {
 		return 253;
 	} else {
 		return 507;
@@ -36,7 +36,7 @@ LDKCVec_HTLCUpdateZ monitors_pending_htlcs_updated(const void *this_arg) {
 int main() {
 	uint8_t node_seed[32];
 
-	LDKNetwork net = Bitcoin;
+	LDKNetwork net = LDKNetwork_Bitcoin;
 
 	LDKLogger logger;
 	logger.this_arg = NULL;

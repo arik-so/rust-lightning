@@ -52,6 +52,7 @@ type lnChannelManager = lnChannelManagerImport<crate::chain::keysinterface::Chan
 /// " essentially you should default to using a SimpleRefChannelManager, and use a"
 /// " SimpleArcChannelManager when you require a ChannelManager with a static lifetime, such as when"
 /// " you're using lightning-net-tokio."
+#[must_use]
 #[repr(C)]
 pub struct ChannelManager {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -74,6 +75,7 @@ use lightning::ln::channelmanager::ChannelDetails as lnChannelDetailsImport;
 type lnChannelDetails = lnChannelDetailsImport;
 
 /// " Details of a channel, as returned by ChannelManager::list_channels and ChannelManager::list_usable_channels"
+#[must_use]
 #[repr(C)]
 pub struct ChannelDetails {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -212,6 +214,7 @@ type lnPaymentSendFailure = lnPaymentSendFailureImport;
 /// " If a payment fails to send, it can be in one of several states. This enum is returned as the"
 /// " Err() type describing which state the payment is in, see the description of individual enum"
 /// " states for more."
+#[must_use]
 #[repr(C)]
 pub struct PaymentSendFailure {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -247,6 +250,7 @@ pub extern "C" fn PaymentSendFailure_free(this_ptr: PaymentSendFailure) { }
 /// " the ChannelManager as a listener to the BlockNotifier and call the BlockNotifier's"
 /// " `block_(dis)connected` methods, which will notify all registered listeners in one"
 /// " go."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelManager_new(mut network: crate::bitcoin::network::Network, mut fee_est: crate::chain::chaininterface::FeeEstimator, mut monitor: crate::ln::channelmonitor::ManyChannelMonitor, mut tx_broadcaster: crate::chain::chaininterface::BroadcasterInterface, mut logger: crate::util::logger::Logger, mut keys_manager: crate::chain::keysinterface::KeysInterface, mut config: crate::util::config::UserConfig, mut current_blockchain_height: usize) -> ChannelManager {
 	let mut ret = lightning::ln::channelmanager::ChannelManager::new(network.into_bitcoin(), fee_est, monitor, tx_broadcaster, logger, keys_manager, *unsafe { Box::from_raw(config.inner.take_ptr() as *mut _) }, current_blockchain_height);
@@ -265,6 +269,7 @@ pub extern "C" fn ChannelManager_new(mut network: crate::bitcoin::network::Netwo
 /// ""
 /// " Raises APIError::APIMisuseError when channel_value_satoshis > 2**24 or push_msat is"
 /// " greater than channel_value_satoshis * 1k or channel_value_satoshis is < 1000."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelManager_create_channel(this_arg: &ChannelManager, mut their_network_key: crate::c_types::PublicKey, mut channel_value_satoshis: u64, mut push_msat: u64, mut user_id: u64, mut override_config: crate::util::config::UserConfig) -> crate::c_types::derived::CResult_NoneAPIErrorZ {
 	let mut local_override_config = if override_config.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(override_config.inner.take_ptr() as *mut _) } }) };
@@ -275,6 +280,7 @@ pub extern "C" fn ChannelManager_create_channel(this_arg: &ChannelManager, mut t
 
 /// " Gets the list of open channels, in random order. See ChannelDetail field documentation for"
 /// " more information."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelManager_list_channels(this_arg: &ChannelManager) -> crate::c_types::derived::CVec_ChannelDetailsZ {
 	let mut ret = unsafe { &*this_arg.inner }.list_channels();
@@ -287,6 +293,7 @@ pub extern "C" fn ChannelManager_list_channels(this_arg: &ChannelManager) -> cra
 /// ""
 /// " These are guaranteed to have their is_live value set to true, see the documentation for"
 /// " ChannelDetails::is_live for more info on exactly what the criteria are."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelManager_list_usable_channels(this_arg: &ChannelManager) -> crate::c_types::derived::CVec_ChannelDetailsZ {
 	let mut ret = unsafe { &*this_arg.inner }.list_usable_channels();
@@ -299,6 +306,7 @@ pub extern "C" fn ChannelManager_list_usable_channels(this_arg: &ChannelManager)
 /// " pending HTLCs, the channel will be closed on chain."
 /// ""
 /// " May generate a SendShutdown message event on success, which should be relayed."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelManager_close_channel(this_arg: &ChannelManager, channel_id: *const [u8; 32]) -> crate::c_types::derived::CResult_NoneAPIErrorZ {
 	let mut ret = unsafe { &*this_arg.inner }.close_channel(unsafe { &*channel_id});
@@ -359,9 +367,10 @@ pub extern "C" fn ChannelManager_force_close_all_channels(this_arg: &ChannelMana
 /// " If a payment_secret *is* provided, we assume that the invoice had the payment_secret feature"
 /// " bit set (either as required or as available). If multiple paths are present in the Route,"
 /// " we assume the invoice had the basic_mpp feature set."
+#[must_use]
 #[no_mangle]
-pub extern "C" fn ChannelManager_send_payment(this_arg: &ChannelManager, route: &crate::routing::router::Route, mut payment_hash: [u8; 32], payment_secret: *const [u8; 32]) -> crate::c_types::derived::CResult_NonePaymentSendFailureZ {
-	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some(* { &::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }) }) };
+pub extern "C" fn ChannelManager_send_payment(this_arg: &ChannelManager, route: &crate::routing::router::Route, mut payment_hash: [u8; 32], payment_secret: *const crate::c_types::ThirtyTwoBytes) -> crate::c_types::derived::CResult_NonePaymentSendFailureZ {
+	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some(* { &::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }.data) }) };
 	let mut ret = unsafe { &*this_arg.inner }.send_payment(unsafe { &*route.inner }, ::lightning::ln::channelmanager::PaymentHash(payment_hash), &local_payment_secret);
 	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { 0u8 /*o*/ }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::channelmanager::PaymentSendFailure { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
 	local_ret
@@ -424,9 +433,10 @@ pub extern "C" fn ChannelManager_timer_chan_freshness_every_min(this_arg: &Chann
 /// " along the path (including in our own channel on which we received it)."
 /// " Returns false if no payment was found to fail backwards, true if the process of failing the"
 /// " HTLC backwards has been started."
+#[must_use]
 #[no_mangle]
-pub extern "C" fn ChannelManager_fail_htlc_backwards(this_arg: &ChannelManager, payment_hash: *const [u8; 32], payment_secret: *const [u8; 32]) -> bool {
-	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some(* { &::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }) }) };
+pub extern "C" fn ChannelManager_fail_htlc_backwards(this_arg: &ChannelManager, payment_hash: *const [u8; 32], payment_secret: *const crate::c_types::ThirtyTwoBytes) -> bool {
+	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some(* { &::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }.data) }) };
 	let mut ret = unsafe { &*this_arg.inner }.fail_htlc_backwards(&::lightning::ln::channelmanager::PaymentHash(unsafe { *payment_hash }), &local_payment_secret);
 	ret
 }
@@ -446,14 +456,16 @@ pub extern "C" fn ChannelManager_fail_htlc_backwards(this_arg: &ChannelManager, 
 /// " set. Thus, for such payments we will claim any payments which do not under-pay."
 /// ""
 /// " May panic if called except in response to a PaymentReceived event."
+#[must_use]
 #[no_mangle]
-pub extern "C" fn ChannelManager_claim_funds(this_arg: &ChannelManager, mut payment_preimage: [u8; 32], payment_secret: *const [u8; 32], mut expected_amount: u64) -> bool {
-	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some(* { &::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }) }) };
+pub extern "C" fn ChannelManager_claim_funds(this_arg: &ChannelManager, mut payment_preimage: [u8; 32], payment_secret: *const crate::c_types::ThirtyTwoBytes, mut expected_amount: u64) -> bool {
+	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some(* { &::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }.data) }) };
 	let mut ret = unsafe { &*this_arg.inner }.claim_funds(::lightning::ln::channelmanager::PaymentPreimage(payment_preimage), &local_payment_secret, expected_amount);
 	ret
 }
 
 /// " Gets the node_id held by this ChannelManager"
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelManager_get_our_node_id(this_arg: &ChannelManager) -> crate::c_types::PublicKey {
 	let mut ret = unsafe { &*this_arg.inner }.get_our_node_id();
@@ -493,9 +505,10 @@ pub extern "C" fn ChannelManager_as_EventsProvider(this_arg: *const ChannelManag
 	}
 }
 use lightning::util::events::EventsProvider as EventsProviderTraitImport;
+#[must_use]
 extern "C" fn ChannelManager_EventsProvider_get_and_clear_pending_events(this_arg: *const c_void) -> crate::c_types::derived::CVec_EventZ {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnChannelManager) }.get_and_clear_pending_events();
-	let mut local_ret = Vec::new(); for item in ret.drain(..) { local_ret.push( { crate::util::events::Event { inner: Box::into_raw(Box::new(item)), _underlying_ref: false } }); };
+	let mut local_ret = Vec::new(); for item in ret.drain(..) { local_ret.push( { crate::util::events::Event::ln_into(item) }); };
 	local_ret.into()
 }
 
@@ -600,6 +613,7 @@ extern "C" fn ChannelManager_ChannelMessageHandler_handle_error(this_arg: *const
 	unsafe { &mut *(this_arg as *mut lnChannelManager) }.handle_error(&their_node_id.into_rust(), unsafe { &*msg.inner })
 }
 use lightning::util::events::MessageSendEventsProvider as lnMessageSendEventsProviderTrait;
+#[must_use]
 extern "C" fn ChannelManager_ChannelMessageHandler_get_and_clear_pending_msg_events(this_arg: *const c_void) -> crate::c_types::derived::CVec_MessageSendEventZ {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnChannelManager) }.get_and_clear_pending_msg_events();
 	let mut local_ret = Vec::new(); for item in ret.drain(..) { local_ret.push( { crate::util::events::MessageSendEvent { inner: Box::into_raw(Box::new(item)), _underlying_ref: false } }); };

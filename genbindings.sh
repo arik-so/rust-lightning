@@ -25,24 +25,26 @@ cbindgen -v --config cbindgen.toml -o include/lightning.h
 # generics we specified in C mode! So we drop all those types manually here.
 sed -i 's/typedef LDKln.*Import.*LDKln.*;//g' include/lightning.h
 
-gcc -g -static -pthread demo.c ../target/debug/liblightning.a -ldl
-echo "Bin size w/o optimization:"
-ls -lha a.out
+gcc -Wall -g -pthread demo.c ../target/debug/liblightning.a -ldl
 ./a.out
 
-g++ -g -pthread demo.cpp -L../target/debug/ -llightning -ldl
+g++ -Wall -g -pthread demo.cpp -L../target/debug/ -llightning -ldl
 LD_LIBRARY_PATH=../target/debug/ valgrind --memcheck:leak-check=full ./a.out
 
+clang++ -Wall -pthread demo.cpp ../target/debug/liblightning.a -ldl
+./a.out
+echo " C++ Bin size w/o optimization:"
+ls -lha a.out
+time ./a.out > /dev/null
+
 cargo rustc -v --release -- -C lto
-clang -flto -O2 -static -pthread demo.c ../target/release/liblightning.a -ldl
-echo "Bin size with only RL optimized:"
+clang++ -Wall -flto -O2 -pthread demo.cpp ../target/release/liblightning.a -ldl
+echo "C++ Bin size with only RL optimized:"
 ls -lha a.out
+time ./a.out > /dev/null
 
-cargo rustc -v --release -- -C linker-plugin-lto -C lto
-clang -flto -O2 -static -pthread demo.c ../target/release/liblightning.a -ldl
-echo "Bin size with cross-language LTO:"
-ls -lha a.out
-
-clang++ -flto -O2 -static -pthread demo.cpp ../target/release/liblightning.a -ldl
+cargo rustc -v --release -- -C linker-plugin-lto -C lto -C link-arg=-fuse-ld=lld
+clang++ -Wall -flto -O2 -pthread demo.cpp ../target/release/liblightning.a -ldl
 echo "C++ Bin size with cross-language LTO:"
 ls -lha a.out
+time ./a.out > /dev/null

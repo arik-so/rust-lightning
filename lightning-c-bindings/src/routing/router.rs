@@ -12,6 +12,7 @@ use lightning::routing::router::RouteHop as lnRouteHopImport;
 type lnRouteHop = lnRouteHopImport;
 
 /// " A hop in a route"
+#[must_use]
 #[repr(C)]
 pub struct RouteHop {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -89,6 +90,7 @@ type lnRoute = lnRouteImport;
 
 /// " A route directs a payment from the sender (us) to the recipient. If the recipient supports MPP,"
 /// " it can take multiple paths. Each path is composed of one or more hops through the network."
+#[must_use]
 #[repr(C)]
 pub struct Route {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -125,6 +127,7 @@ pub extern "C" fn Route_set_paths(this_ptr: &mut Route, mut val: crate::c_types:
 	let mut local_val = Vec::new(); for mut item in val.into_rust().drain(..) { local_val.push( { let mut local_val_0 = Vec::new(); for mut item in item.into_rust().drain(..) { local_val_0.push( { *unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) } }); }; local_val_0 }); };
 	unsafe { &mut *(this_ptr.inner as *mut lnRoute) }.paths = local_val;
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn Route_new(mut paths_arg: crate::c_types::derived::CVec_CVec_RouteHopZZ) -> Route {
 	let mut local_paths_arg = Vec::new(); for mut item in paths_arg.into_rust().drain(..) { local_paths_arg.push( { let mut local_paths_arg_0 = Vec::new(); for mut item in item.into_rust().drain(..) { local_paths_arg_0.push( { *unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) } }); }; local_paths_arg_0 }); };
@@ -149,6 +152,7 @@ use lightning::routing::router::RouteHint as lnRouteHintImport;
 type lnRouteHint = lnRouteHintImport;
 
 /// " A channel descriptor which provides a last-hop route to get_route"
+#[must_use]
 #[repr(C)]
 pub struct RouteHint {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -221,6 +225,7 @@ pub extern "C" fn RouteHint_get_htlc_minimum_msat(this_ptr: &RouteHint) -> u64 {
 pub extern "C" fn RouteHint_set_htlc_minimum_msat(this_ptr: &mut RouteHint, mut val: u64) {
 	unsafe { &mut *(this_ptr.inner as *mut lnRouteHint) }.htlc_minimum_msat = val;
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn RouteHint_new(mut src_node_id_arg: crate::c_types::PublicKey, mut short_channel_id_arg: u64, mut fees_arg: crate::routing::network_graph::RoutingFees, mut cltv_expiry_delta_arg: u16, mut htlc_minimum_msat_arg: u64) -> RouteHint {
 	RouteHint { inner: Box::into_raw(Box::new(lnRouteHint {

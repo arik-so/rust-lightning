@@ -13,6 +13,7 @@ type lnUserConfig = lnUserConfigImport;
 /// ""
 /// " Default::default() provides sane defaults for most configurations"
 /// " (but currently with 0 relay fees!)"
+#[must_use]
 #[repr(C)]
 pub struct UserConfig {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -38,6 +39,7 @@ impl Clone for UserConfig {
 		}
 	}
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn UserConfig_default() -> UserConfig {
 	UserConfig { inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }
@@ -49,6 +51,7 @@ type lnChannelHandshakeConfig = lnChannelHandshakeConfigImport;
 /// " Configuration we set when applicable."
 /// ""
 /// " Default::default() provides sane defaults."
+#[must_use]
 #[repr(C)]
 pub struct ChannelHandshakeConfig {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -149,6 +152,7 @@ pub extern "C" fn ChannelHandshakeConfig_get_our_htlc_minimum_msat(this_ptr: &Ch
 pub extern "C" fn ChannelHandshakeConfig_set_our_htlc_minimum_msat(this_ptr: &mut ChannelHandshakeConfig, mut val: u64) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeConfig) }.our_htlc_minimum_msat = val;
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelHandshakeConfig_new(mut minimum_depth_arg: u32, mut our_to_self_delay_arg: u16, mut our_htlc_minimum_msat_arg: u64) -> ChannelHandshakeConfig {
 	ChannelHandshakeConfig { inner: Box::into_raw(Box::new(lnChannelHandshakeConfig {
@@ -157,6 +161,7 @@ pub extern "C" fn ChannelHandshakeConfig_new(mut minimum_depth_arg: u32, mut our
 		our_htlc_minimum_msat: our_htlc_minimum_msat_arg,
 	})), _underlying_ref: false }
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelHandshakeConfig_default() -> ChannelHandshakeConfig {
 	ChannelHandshakeConfig { inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }
@@ -176,6 +181,7 @@ type lnChannelHandshakeLimits = lnChannelHandshakeLimitsImport;
 /// " Most additional limits are disabled except those with which specify a default in individual"
 /// " field documentation. Note that this may result in barely-usable channels, but since they"
 /// " are applied mostly only to incoming channels that's not much of a problem."
+#[must_use]
 #[repr(C)]
 pub struct ChannelHandshakeLimits {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -397,6 +403,7 @@ pub extern "C" fn ChannelHandshakeLimits_get_their_to_self_delay(this_ptr: &Chan
 pub extern "C" fn ChannelHandshakeLimits_set_their_to_self_delay(this_ptr: &mut ChannelHandshakeLimits, mut val: u16) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelHandshakeLimits) }.their_to_self_delay = val;
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelHandshakeLimits_new(mut min_funding_satoshis_arg: u64, mut max_htlc_minimum_msat_arg: u64, mut min_max_htlc_value_in_flight_msat_arg: u64, mut max_channel_reserve_satoshis_arg: u64, mut min_max_accepted_htlcs_arg: u16, mut min_dust_limit_satoshis_arg: u64, mut max_dust_limit_satoshis_arg: u64, mut max_minimum_depth_arg: u32, mut force_announced_channel_preference_arg: bool, mut their_to_self_delay_arg: u16) -> ChannelHandshakeLimits {
 	ChannelHandshakeLimits { inner: Box::into_raw(Box::new(lnChannelHandshakeLimits {
@@ -412,6 +419,7 @@ pub extern "C" fn ChannelHandshakeLimits_new(mut min_funding_satoshis_arg: u64, 
 		their_to_self_delay: their_to_self_delay_arg,
 	})), _underlying_ref: false }
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelHandshakeLimits_default() -> ChannelHandshakeLimits {
 	ChannelHandshakeLimits { inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }
@@ -422,6 +430,7 @@ type lnChannelConfig = lnChannelConfigImport;
 
 /// " Options which apply on a per-channel basis and may change at runtime or based on negotiation"
 /// " with our counterparty."
+#[must_use]
 #[repr(C)]
 pub struct ChannelConfig {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -528,6 +537,7 @@ pub extern "C" fn ChannelConfig_get_commit_upfront_shutdown_pubkey(this_ptr: &Ch
 pub extern "C" fn ChannelConfig_set_commit_upfront_shutdown_pubkey(this_ptr: &mut ChannelConfig, mut val: bool) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelConfig) }.commit_upfront_shutdown_pubkey = val;
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelConfig_new(mut fee_proportional_millionths_arg: u32, mut announced_channel_arg: bool, mut commit_upfront_shutdown_pubkey_arg: bool) -> ChannelConfig {
 	ChannelConfig { inner: Box::into_raw(Box::new(lnChannelConfig {
@@ -536,6 +546,7 @@ pub extern "C" fn ChannelConfig_new(mut fee_proportional_millionths_arg: u32, mu
 		commit_upfront_shutdown_pubkey: commit_upfront_shutdown_pubkey_arg,
 	})), _underlying_ref: false }
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelConfig_default() -> ChannelConfig {
 	ChannelConfig { inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }

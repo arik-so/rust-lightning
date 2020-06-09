@@ -9,6 +9,7 @@ use lightning::routing::network_graph::NetworkGraph as lnNetworkGraphImport;
 type lnNetworkGraph = lnNetworkGraphImport;
 
 /// " Represents the network as nodes and channels between them"
+#[must_use]
 #[repr(C)]
 pub struct NetworkGraph {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -35,6 +36,7 @@ type lnNetGraphMsgHandler = lnNetGraphMsgHandlerImport<crate::chain::chaininterf
 /// " This network graph is then used for routing payments."
 /// " Provides interface to help with initial routing sync by"
 /// " serving historical announcements."
+#[must_use]
 #[repr(C)]
 pub struct NetGraphMsgHandler {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -57,6 +59,7 @@ pub extern "C" fn NetGraphMsgHandler_free(this_ptr: NetGraphMsgHandler) { }
 /// " Chain monitor is used to make sure announced channels exist on-chain,"
 /// " channel data is correct, and that the announcement is signed with"
 /// " channel owners' keys."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn NetGraphMsgHandler_new(mut chain_monitor: crate::chain::chaininterface::ChainWatchInterface, mut logger: crate::util::logger::Logger) -> NetGraphMsgHandler {
 	let mut ret = lightning::routing::network_graph::NetGraphMsgHandler::new(chain_monitor, logger);
@@ -65,6 +68,7 @@ pub extern "C" fn NetGraphMsgHandler_new(mut chain_monitor: crate::chain::chaini
 
 /// " Creates a new tracker of the actual state of the network of channels and nodes,"
 /// " assuming an existing Network Graph."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn NetGraphMsgHandler_from_net_graph(mut chain_monitor: crate::chain::chaininterface::ChainWatchInterface, mut logger: crate::util::logger::Logger, mut network_graph: crate::routing::network_graph::NetworkGraph) -> NetGraphMsgHandler {
 	let mut ret = lightning::routing::network_graph::NetGraphMsgHandler::from_net_graph(chain_monitor, logger, *unsafe { Box::from_raw(network_graph.inner.take_ptr() as *mut _) });
@@ -85,35 +89,41 @@ pub extern "C" fn NetGraphMsgHandler_as_RoutingMessageHandler(this_arg: *const N
 	}
 }
 use lightning::ln::msgs::RoutingMessageHandler as RoutingMessageHandlerTraitImport;
+#[must_use]
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_node_announcement(this_arg: *const c_void, msg: &crate::ln::msgs::NodeAnnouncement) -> crate::c_types::derived::CResult_boolLightningErrorZ {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.handle_node_announcement(unsafe { &*msg.inner });
 	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
 	local_ret
 }
+#[must_use]
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_channel_announcement(this_arg: *const c_void, msg: &crate::ln::msgs::ChannelAnnouncement) -> crate::c_types::derived::CResult_boolLightningErrorZ {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.handle_channel_announcement(unsafe { &*msg.inner });
 	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
 	local_ret
 }
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_htlc_fail_channel_update(this_arg: *const c_void, update: &crate::ln::msgs::HTLCFailChannelUpdate) {
-	unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.handle_htlc_fail_channel_update(unsafe { &*update.inner })
+	unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.handle_htlc_fail_channel_update(&update.to_ln())
 }
+#[must_use]
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_handle_channel_update(this_arg: *const c_void, msg: &crate::ln::msgs::ChannelUpdate) -> crate::c_types::derived::CResult_boolLightningErrorZ {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.handle_channel_update(unsafe { &*msg.inner });
 	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
 	local_ret
 }
+#[must_use]
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_get_next_channel_announcements(this_arg: *const c_void, mut starting_point: u64, mut batch_amount: u8) -> crate::c_types::derived::CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.get_next_channel_announcements(starting_point, batch_amount);
 	let mut local_ret = Vec::new(); for item in ret.drain(..) { local_ret.push( { let (mut orig_ret_0_0, mut orig_ret_0_1, mut orig_ret_0_2) = item; let mut local_orig_ret_0_1 = crate::ln::msgs::ChannelUpdate { inner: if orig_ret_0_1.is_none() { std::ptr::null_mut() } else { Box::into_raw(Box::new( { (orig_ret_0_1.unwrap()) })) }, _underlying_ref: false }; let mut local_orig_ret_0_2 = crate::ln::msgs::ChannelUpdate { inner: if orig_ret_0_2.is_none() { std::ptr::null_mut() } else { Box::into_raw(Box::new( { (orig_ret_0_2.unwrap()) })) }, _underlying_ref: false }; let local_ret_0 = (crate::ln::msgs::ChannelAnnouncement { inner: Box::into_raw(Box::new(orig_ret_0_0)), _underlying_ref: false }, local_orig_ret_0_1, local_orig_ret_0_2).into(); local_ret_0 }); };
 	local_ret.into()
 }
+#[must_use]
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_get_next_node_announcements(this_arg: *const c_void, mut starting_point: *const crate::c_types::PublicKey, mut batch_amount: u8) -> crate::c_types::derived::CVec_NodeAnnouncementZ {
 	let mut local_starting_point_base = if starting_point.is_null() { None } else { Some(* { &starting_point.into_rust() }) }; let mut local_starting_point = local_starting_point_base.as_ref();
 	let mut ret = unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.get_next_node_announcements(local_starting_point, batch_amount);
 	let mut local_ret = Vec::new(); for item in ret.drain(..) { local_ret.push( { crate::ln::msgs::NodeAnnouncement { inner: Box::into_raw(Box::new(item)), _underlying_ref: false } }); };
 	local_ret.into()
 }
+#[must_use]
 extern "C" fn NetGraphMsgHandler_RoutingMessageHandler_should_request_full_sync(this_arg: *const c_void, _node_id: crate::c_types::PublicKey) -> bool {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnNetGraphMsgHandler) }.should_request_full_sync(&_node_id.into_rust());
 	ret
@@ -125,6 +135,7 @@ type lnDirectionalChannelInfo = lnDirectionalChannelInfoImport;
 
 /// " Details about one direction of a channel. Received"
 /// " within a channel update."
+#[must_use]
 #[repr(C)]
 pub struct DirectionalChannelInfo {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -206,6 +217,7 @@ type lnChannelInfo = lnChannelInfoImport;
 
 /// " Details about a channel (both directions)."
 /// " Received within a channel announcement."
+#[must_use]
 #[repr(C)]
 pub struct ChannelInfo {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -288,6 +300,7 @@ use lightning::routing::network_graph::RoutingFees as lnRoutingFeesImport;
 type lnRoutingFees = lnRoutingFeesImport;
 
 /// " Fees for routing via a given channel or a node"
+#[must_use]
 #[repr(C)]
 pub struct RoutingFees {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -337,6 +350,7 @@ pub extern "C" fn RoutingFees_get_proportional_millionths(this_ptr: &RoutingFees
 pub extern "C" fn RoutingFees_set_proportional_millionths(this_ptr: &mut RoutingFees, mut val: u32) {
 	unsafe { &mut *(this_ptr.inner as *mut lnRoutingFees) }.proportional_millionths = val;
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn RoutingFees_new(mut base_msat_arg: u32, mut proportional_millionths_arg: u32) -> RoutingFees {
 	RoutingFees { inner: Box::into_raw(Box::new(lnRoutingFees {
@@ -361,6 +375,7 @@ use lightning::routing::network_graph::NodeAnnouncementInfo as lnNodeAnnouncemen
 type lnNodeAnnouncementInfo = lnNodeAnnouncementInfoImport;
 
 /// " Information received in the latest node_announcement from this node."
+#[must_use]
 #[repr(C)]
 pub struct NodeAnnouncementInfo {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -440,6 +455,7 @@ use lightning::routing::network_graph::NodeInfo as lnNodeInfoImport;
 type lnNodeInfo = lnNodeInfoImport;
 
 /// " Details about a node in the network, known from the network announcement."
+#[must_use]
 #[repr(C)]
 pub struct NodeInfo {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -497,6 +513,7 @@ pub extern "C" fn NodeInfo_set_announcement_info(this_ptr: &mut NodeInfo, mut va
 	let mut local_val = if val.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) } }) };
 	unsafe { &mut *(this_ptr.inner as *mut lnNodeInfo) }.announcement_info = local_val;
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn NodeInfo_new(mut channels_arg: crate::c_types::derived::CVec_u64Z, mut lowest_inbound_channel_fees_arg: crate::routing::network_graph::RoutingFees, mut announcement_info_arg: crate::routing::network_graph::NodeAnnouncementInfo) -> NodeInfo {
 	let mut local_channels_arg = Vec::new(); for mut item in channels_arg.into_rust().drain(..) { local_channels_arg.push( { item }); };
@@ -533,6 +550,7 @@ pub extern "C" fn NetworkGraph_read(ser: crate::c_types::u8slice) -> NetworkGrap
 	}
 }
 /// " Creates a new, empty, network graph."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn NetworkGraph_new() -> crate::routing::network_graph::NetworkGraph {
 	let mut ret = lightning::routing::network_graph::NetworkGraph::new();

@@ -24,6 +24,7 @@ use lightning::ln::msgs::DecodeError as lnDecodeErrorImport;
 type lnDecodeError = lnDecodeErrorImport;
 
 /// " An error in decoding a message or struct."
+#[must_use]
 #[repr(C)]
 pub struct DecodeError {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -46,6 +47,7 @@ use lightning::ln::msgs::Init as lnInitImport;
 type lnInit = lnInitImport;
 
 /// " An init message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct Init {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -68,6 +70,7 @@ use lightning::ln::msgs::ErrorMessage as lnErrorMessageImport;
 type lnErrorMessage = lnErrorMessageImport;
 
 /// " An error message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct ErrorMessage {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -98,6 +101,7 @@ use lightning::ln::msgs::Ping as lnPingImport;
 type lnPing = lnPingImport;
 
 /// " A ping message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct Ping {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -120,6 +124,7 @@ use lightning::ln::msgs::Pong as lnPongImport;
 type lnPong = lnPongImport;
 
 /// " A pong message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct Pong {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -142,6 +147,7 @@ use lightning::ln::msgs::OpenChannel as lnOpenChannelImport;
 type lnOpenChannel = lnOpenChannelImport;
 
 /// " An open_channel message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct OpenChannel {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -172,6 +178,7 @@ use lightning::ln::msgs::AcceptChannel as lnAcceptChannelImport;
 type lnAcceptChannel = lnAcceptChannelImport;
 
 /// " An accept_channel message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct AcceptChannel {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -202,6 +209,7 @@ use lightning::ln::msgs::FundingCreated as lnFundingCreatedImport;
 type lnFundingCreated = lnFundingCreatedImport;
 
 /// " A funding_created message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct FundingCreated {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -232,6 +240,7 @@ use lightning::ln::msgs::FundingSigned as lnFundingSignedImport;
 type lnFundingSigned = lnFundingSignedImport;
 
 /// " A funding_signed message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct FundingSigned {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -262,6 +271,7 @@ use lightning::ln::msgs::FundingLocked as lnFundingLockedImport;
 type lnFundingLocked = lnFundingLockedImport;
 
 /// " A funding_locked message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct FundingLocked {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -305,6 +315,7 @@ pub extern "C" fn FundingLocked_get_next_per_commitment_point(this_ptr: &Funding
 pub extern "C" fn FundingLocked_set_next_per_commitment_point(this_ptr: &mut FundingLocked, mut val: crate::c_types::PublicKey) {
 	unsafe { &mut *(this_ptr.inner as *mut lnFundingLocked) }.next_per_commitment_point = val.into_rust();
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn FundingLocked_new(mut channel_id_arg: crate::c_types::ThirtyTwoBytes, mut next_per_commitment_point_arg: crate::c_types::PublicKey) -> FundingLocked {
 	FundingLocked { inner: Box::into_raw(Box::new(lnFundingLocked {
@@ -317,6 +328,7 @@ use lightning::ln::msgs::Shutdown as lnShutdownImport;
 type lnShutdown = lnShutdownImport;
 
 /// " A shutdown message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct Shutdown {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -347,6 +359,7 @@ use lightning::ln::msgs::ClosingSigned as lnClosingSignedImport;
 type lnClosingSigned = lnClosingSignedImport;
 
 /// " A closing_signed message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct ClosingSigned {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -377,6 +390,7 @@ use lightning::ln::msgs::UpdateAddHTLC as lnUpdateAddHTLCImport;
 type lnUpdateAddHTLC = lnUpdateAddHTLCImport;
 
 /// " An update_add_htlc message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct UpdateAddHTLC {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -407,6 +421,7 @@ use lightning::ln::msgs::UpdateFulfillHTLC as lnUpdateFulfillHTLCImport;
 type lnUpdateFulfillHTLC = lnUpdateFulfillHTLCImport;
 
 /// " An update_fulfill_htlc message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct UpdateFulfillHTLC {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -437,6 +452,7 @@ use lightning::ln::msgs::UpdateFailHTLC as lnUpdateFailHTLCImport;
 type lnUpdateFailHTLC = lnUpdateFailHTLCImport;
 
 /// " An update_fail_htlc message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct UpdateFailHTLC {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -467,6 +483,7 @@ use lightning::ln::msgs::UpdateFailMalformedHTLC as lnUpdateFailMalformedHTLCImp
 type lnUpdateFailMalformedHTLC = lnUpdateFailMalformedHTLCImport;
 
 /// " An update_fail_malformed_htlc message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct UpdateFailMalformedHTLC {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -497,6 +514,7 @@ use lightning::ln::msgs::CommitmentSigned as lnCommitmentSignedImport;
 type lnCommitmentSigned = lnCommitmentSignedImport;
 
 /// " A commitment_signed message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct CommitmentSigned {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -527,6 +545,7 @@ use lightning::ln::msgs::RevokeAndACK as lnRevokeAndACKImport;
 type lnRevokeAndACK = lnRevokeAndACKImport;
 
 /// " A revoke_and_ack message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct RevokeAndACK {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -557,6 +576,7 @@ use lightning::ln::msgs::UpdateFee as lnUpdateFeeImport;
 type lnUpdateFee = lnUpdateFeeImport;
 
 /// " An update_fee message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct UpdateFee {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -587,6 +607,7 @@ use lightning::ln::msgs::ChannelReestablish as lnChannelReestablishImport;
 type lnChannelReestablish = lnChannelReestablishImport;
 
 /// " A channel_reestablish message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct ChannelReestablish {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -617,6 +638,7 @@ use lightning::ln::msgs::AnnouncementSignatures as lnAnnouncementSignaturesImpor
 type lnAnnouncementSignatures = lnAnnouncementSignaturesImport;
 
 /// " An announcement_signatures message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct AnnouncementSignatures {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -647,6 +669,7 @@ use lightning::ln::msgs::NetAddress as lnNetAddressImport;
 type lnNetAddress = lnNetAddressImport;
 
 /// " An address which can be used to connect to a remote peer"
+#[must_use]
 #[repr(C)]
 pub struct NetAddress {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -664,6 +687,14 @@ impl Drop for NetAddress {
 }
 #[no_mangle]
 pub extern "C" fn NetAddress_free(this_ptr: NetAddress) { }
+impl Clone for NetAddress {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
 #[no_mangle]
 pub extern "C" fn NetAddress_write(obj: *const NetAddress) -> crate::c_types::derived::CVec_u8Z {
 	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
@@ -673,6 +704,7 @@ use lightning::ln::msgs::UnsignedNodeAnnouncement as lnUnsignedNodeAnnouncementI
 type lnUnsignedNodeAnnouncement = lnUnsignedNodeAnnouncementImport;
 
 /// " The unsigned part of a node_announcement"
+#[must_use]
 #[repr(C)]
 pub struct UnsignedNodeAnnouncement {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -716,6 +748,7 @@ use lightning::ln::msgs::NodeAnnouncement as lnNodeAnnouncementImport;
 type lnNodeAnnouncement = lnNodeAnnouncementImport;
 
 /// " A node_announcement message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct NodeAnnouncement {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -746,6 +779,7 @@ use lightning::ln::msgs::UnsignedChannelAnnouncement as lnUnsignedChannelAnnounc
 type lnUnsignedChannelAnnouncement = lnUnsignedChannelAnnouncementImport;
 
 /// " The unsigned part of a channel_announcement"
+#[must_use]
 #[repr(C)]
 pub struct UnsignedChannelAnnouncement {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -798,6 +832,7 @@ use lightning::ln::msgs::ChannelAnnouncement as lnChannelAnnouncementImport;
 type lnChannelAnnouncement = lnChannelAnnouncementImport;
 
 /// " A channel_announcement message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct ChannelAnnouncement {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -828,6 +863,7 @@ use lightning::ln::msgs::ChannelUpdate as lnChannelUpdateImport;
 type lnChannelUpdate = lnChannelUpdateImport;
 
 /// " A channel_update message to be sent or received from a peer"
+#[must_use]
 #[repr(C)]
 pub struct ChannelUpdate {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -858,6 +894,7 @@ use lightning::ln::msgs::LightningError as lnLightningErrorImport;
 type lnLightningError = lnLightningErrorImport;
 
 /// " An Err type for failure to process messages."
+#[must_use]
 #[repr(C)]
 pub struct LightningError {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -881,6 +918,7 @@ type lnCommitmentUpdate = lnCommitmentUpdateImport;
 
 /// " Struct used to return values from revoke_and_ack messages, containing a bunch of commitment"
 /// " transaction updates if they were pending."
+#[must_use]
 #[repr(C)]
 pub struct CommitmentUpdate {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -954,6 +992,7 @@ pub extern "C" fn CommitmentUpdate_get_commitment_signed(this_ptr: &CommitmentUp
 pub extern "C" fn CommitmentUpdate_set_commitment_signed(this_ptr: &mut CommitmentUpdate, mut val: crate::ln::msgs::CommitmentSigned) {
 	unsafe { &mut *(this_ptr.inner as *mut lnCommitmentUpdate) }.commitment_signed = *unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) };
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn CommitmentUpdate_new(mut update_add_htlcs_arg: crate::c_types::derived::CVec_UpdateAddHTLCZ, mut update_fulfill_htlcs_arg: crate::c_types::derived::CVec_UpdateFulfillHTLCZ, mut update_fail_htlcs_arg: crate::c_types::derived::CVec_UpdateFailHTLCZ, mut update_fail_malformed_htlcs_arg: crate::c_types::derived::CVec_UpdateFailMalformedHTLCZ, mut update_fee_arg: crate::ln::msgs::UpdateFee, mut commitment_signed_arg: crate::ln::msgs::CommitmentSigned) -> CommitmentUpdate {
 	let mut local_update_add_htlcs_arg = Vec::new(); for mut item in update_add_htlcs_arg.into_rust().drain(..) { local_update_add_htlcs_arg.push( { *unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) } }); };
@@ -970,25 +1009,124 @@ pub extern "C" fn CommitmentUpdate_new(mut update_add_htlcs_arg: crate::c_types:
 		commitment_signed: *unsafe { Box::from_raw(commitment_signed_arg.inner.take_ptr() as *mut _) },
 	})), _underlying_ref: false }
 }
-
-use lightning::ln::msgs::HTLCFailChannelUpdate as lnHTLCFailChannelUpdateImport;
-type lnHTLCFailChannelUpdate = lnHTLCFailChannelUpdateImport;
-
 /// " The information we received from a peer along the route of a payment we originated. This is"
 /// " returned by ChannelMessageHandler::handle_update_fail_htlc to be passed into"
 /// " RoutingMessageHandler::handle_htlc_fail_channel_update to update our network map."
 #[repr(C)]
-pub struct HTLCFailChannelUpdate {
-	/// Nearly everyhwere, inner must be non-null, however in places where
-	///the Rust equivalent takes an Option, it may be set to null to indicate None.
-	pub inner: *const lnHTLCFailChannelUpdate,
-	pub _underlying_ref: bool,
+pub enum HTLCFailChannelUpdate {
+	/// " We received an error which included a full ChannelUpdate message."
+	ChannelUpdateMessage {
+		msg: crate::ln::msgs::ChannelUpdate,
+	},
+	/// " We received an error which indicated only that a channel has been closed"
+	ChannelClosed {
+		short_channel_id: u64,
+		is_permanent: bool,
+	},
+	/// " We received an error which indicated only that a node has failed"
+	NodeFailure {
+		node_id: crate::c_types::PublicKey,
+		is_permanent: bool,
+	},
 }
-
-impl Drop for HTLCFailChannelUpdate {
-	fn drop(&mut self) {
-		if !self._underlying_ref && !self.inner.is_null() {
-			let _ = unsafe { Box::from_raw(self.inner as *mut lnHTLCFailChannelUpdate) };
+use lightning::ln::msgs::HTLCFailChannelUpdate as lnHTLCFailChannelUpdate;
+impl HTLCFailChannelUpdate {
+	#[allow(unused)]
+	pub(crate) fn to_ln(&self) -> lnHTLCFailChannelUpdate {
+		match self {
+			HTLCFailChannelUpdate::ChannelUpdateMessage {ref msg, } => {
+				let mut msg_nonref = (*msg).clone();
+				lnHTLCFailChannelUpdate::ChannelUpdateMessage {
+					msg: *unsafe { Box::from_raw(msg_nonref.inner.take_ptr() as *mut _) },
+				}
+			},
+			HTLCFailChannelUpdate::ChannelClosed {ref short_channel_id, ref is_permanent, } => {
+				let mut short_channel_id_nonref = (*short_channel_id).clone();
+				let mut is_permanent_nonref = (*is_permanent).clone();
+				lnHTLCFailChannelUpdate::ChannelClosed {
+					short_channel_id: short_channel_id_nonref,
+					is_permanent: is_permanent_nonref,
+				}
+			},
+			HTLCFailChannelUpdate::NodeFailure {ref node_id, ref is_permanent, } => {
+				let mut node_id_nonref = (*node_id).clone();
+				let mut is_permanent_nonref = (*is_permanent).clone();
+				lnHTLCFailChannelUpdate::NodeFailure {
+					node_id: node_id_nonref.into_rust(),
+					is_permanent: is_permanent_nonref,
+				}
+			},
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn into_ln(self) -> lnHTLCFailChannelUpdate {
+		match self {
+			HTLCFailChannelUpdate::ChannelUpdateMessage {mut msg, } => {
+				lnHTLCFailChannelUpdate::ChannelUpdateMessage {
+					msg: *unsafe { Box::from_raw(msg.inner.take_ptr() as *mut _) },
+				}
+			},
+			HTLCFailChannelUpdate::ChannelClosed {mut short_channel_id, mut is_permanent, } => {
+				lnHTLCFailChannelUpdate::ChannelClosed {
+					short_channel_id: short_channel_id,
+					is_permanent: is_permanent,
+				}
+			},
+			HTLCFailChannelUpdate::NodeFailure {mut node_id, mut is_permanent, } => {
+				lnHTLCFailChannelUpdate::NodeFailure {
+					node_id: node_id.into_rust(),
+					is_permanent: is_permanent,
+				}
+			},
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn from_ln(lnt: &lnHTLCFailChannelUpdate) -> Self {
+		match lnt {
+			lnHTLCFailChannelUpdate::ChannelUpdateMessage {ref msg, } => {
+				let mut msg_nonref = (*msg).clone();
+				HTLCFailChannelUpdate::ChannelUpdateMessage {
+					msg: crate::ln::msgs::ChannelUpdate { inner: Box::into_raw(Box::new(msg_nonref)), _underlying_ref: false },
+				}
+			},
+			lnHTLCFailChannelUpdate::ChannelClosed {ref short_channel_id, ref is_permanent, } => {
+				let mut short_channel_id_nonref = (*short_channel_id).clone();
+				let mut is_permanent_nonref = (*is_permanent).clone();
+				HTLCFailChannelUpdate::ChannelClosed {
+					short_channel_id: short_channel_id_nonref,
+					is_permanent: is_permanent_nonref,
+				}
+			},
+			lnHTLCFailChannelUpdate::NodeFailure {ref node_id, ref is_permanent, } => {
+				let mut node_id_nonref = (*node_id).clone();
+				let mut is_permanent_nonref = (*is_permanent).clone();
+				HTLCFailChannelUpdate::NodeFailure {
+					node_id: crate::c_types::PublicKey::from_rust(&node_id_nonref),
+					is_permanent: is_permanent_nonref,
+				}
+			},
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn ln_into(lnt: lnHTLCFailChannelUpdate) -> Self {
+		match lnt {
+			lnHTLCFailChannelUpdate::ChannelUpdateMessage {mut msg, } => {
+				HTLCFailChannelUpdate::ChannelUpdateMessage {
+					msg: crate::ln::msgs::ChannelUpdate { inner: Box::into_raw(Box::new(msg)), _underlying_ref: false },
+				}
+			},
+			lnHTLCFailChannelUpdate::ChannelClosed {mut short_channel_id, mut is_permanent, } => {
+				HTLCFailChannelUpdate::ChannelClosed {
+					short_channel_id: short_channel_id,
+					is_permanent: is_permanent,
+				}
+			},
+			lnHTLCFailChannelUpdate::NodeFailure {mut node_id, mut is_permanent, } => {
+				HTLCFailChannelUpdate::NodeFailure {
+					node_id: crate::c_types::PublicKey::from_rust(&node_id),
+					is_permanent: is_permanent,
+				}
+			},
 		}
 	}
 }
@@ -1127,25 +1265,31 @@ pub struct RoutingMessageHandler {
 	pub this_arg: *mut c_void,
 	/// " Handle an incoming node_announcement message, returning true if it should be forwarded on,"
 	/// " false or returning an Err otherwise."
+	#[must_use]
 	pub handle_node_announcement: extern "C" fn (this_arg: *const c_void, msg: &crate::ln::msgs::NodeAnnouncement) -> crate::c_types::derived::CResult_boolLightningErrorZ,
 	/// " Handle a channel_announcement message, returning true if it should be forwarded on, false"
 	/// " or returning an Err otherwise."
+	#[must_use]
 	pub handle_channel_announcement: extern "C" fn (this_arg: *const c_void, msg: &crate::ln::msgs::ChannelAnnouncement) -> crate::c_types::derived::CResult_boolLightningErrorZ,
 	/// " Handle an incoming channel_update message, returning true if it should be forwarded on,"
 	/// " false or returning an Err otherwise."
+	#[must_use]
 	pub handle_channel_update: extern "C" fn (this_arg: *const c_void, msg: &crate::ln::msgs::ChannelUpdate) -> crate::c_types::derived::CResult_boolLightningErrorZ,
 	/// " Handle some updates to the route graph that we learned due to an outbound failed payment."
-	pub handle_htlc_fail_channel_update: extern "C" fn (this_arg: *const c_void, update: & crate::ln::msgs::HTLCFailChannelUpdate),
+	pub handle_htlc_fail_channel_update: extern "C" fn (this_arg: *const c_void, update: &crate::ln::msgs::HTLCFailChannelUpdate),
 	/// " Gets a subset of the channel announcements and updates required to dump our routing table"
 	/// " to a remote node, starting at the short_channel_id indicated by starting_point and"
 	/// " including the batch_amount entries immediately higher in numerical value than starting_point."
+	#[must_use]
 	pub get_next_channel_announcements: extern "C" fn (this_arg: *const c_void, starting_point: u64, batch_amount: u8) -> crate::c_types::derived::CVec_C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZZ,
 	/// " Gets a subset of the node announcements required to dump our routing table to a remote node,"
 	/// " starting at the node *after* the provided publickey and including batch_amount entries"
 	/// " immediately higher (as defined by <PublicKey as Ord>::cmp) than starting_point."
 	/// " If None is provided for starting_point, we start at the first node."
+	#[must_use]
 	pub get_next_node_announcements: extern "C" fn (this_arg: *const c_void, starting_point: *const crate::c_types::PublicKey, batch_amount: u8) -> crate::c_types::derived::CVec_NodeAnnouncementZ,
 	/// " Returns whether a full sync should be requested from a peer."
+	#[must_use]
 	pub should_request_full_sync: extern "C" fn (this_arg: *const c_void, node_id: crate::c_types::PublicKey) -> bool,
 }
 unsafe impl Send for RoutingMessageHandler {}
@@ -1169,7 +1313,7 @@ impl lnRoutingMessageHandler for RoutingMessageHandler {
 		local_ret
 	}
 	fn handle_htlc_fail_channel_update(&self, update: &lightning::ln::msgs::HTLCFailChannelUpdate) {
-		(self.handle_htlc_fail_channel_update)(self.this_arg, &crate::ln::msgs::HTLCFailChannelUpdate { inner: update, _underlying_ref: true })
+		(self.handle_htlc_fail_channel_update)(self.this_arg, &crate::ln::msgs::HTLCFailChannelUpdate::from_ln(update))
 	}
 	fn get_next_channel_announcements(&self, starting_point: u64, batch_amount: u8) -> Vec<(lightning::ln::msgs::ChannelAnnouncement, Option<lightning::ln::msgs::ChannelUpdate>, Option<lightning::ln::msgs::ChannelUpdate>)> {
 		let mut ret = (self.get_next_channel_announcements)(self.this_arg, starting_point, batch_amount);

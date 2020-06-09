@@ -248,7 +248,7 @@ args = "horizontal"
 # would involve emitting the name of a macro which you define in a
 # platform-specific way. e.g. "MUST_USE_FUNC"
 # default: nothing is emitted for must_use functions
-must_use = "MUST_USE_FUNC"
+must_use = "MUST_USE_RES"
 
 # An optional string that, if present, will be used to generate Swift function
 # and method signatures for generated functions, for example "CF_SWIFT_NAME".
@@ -386,11 +386,11 @@ rename_variants = "None"
 # Rust does not know about this value, and will assume it cannot happen.
 #
 # default: false
-add_sentinel = false
+add_sentinel = true
 
 # Whether enum variant names should be prefixed with the name of the enum.
 # default: false
-prefix_with_name = false
+prefix_with_name = true
 
 # Whether to emit enums using "enum class" when targeting C++.
 # default: true

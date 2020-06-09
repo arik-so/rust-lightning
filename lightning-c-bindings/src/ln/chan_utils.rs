@@ -12,6 +12,7 @@ type lnTxCreationKeys = lnTxCreationKeysImport;
 
 /// " The set of public keys which are used in the creation of one commitment transaction."
 /// " These are derived from the channel base keys and per-commitment data."
+#[must_use]
 #[repr(C)]
 pub struct TxCreationKeys {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -65,6 +66,7 @@ use lightning::ln::chan_utils::ChannelPublicKeys as lnChannelPublicKeysImport;
 type lnChannelPublicKeys = lnChannelPublicKeysImport;
 
 /// " One counterparty's public keys which do not change over the life of a channel."
+#[must_use]
 #[repr(C)]
 pub struct ChannelPublicKeys {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -163,6 +165,7 @@ pub extern "C" fn ChannelPublicKeys_get_htlc_basepoint(this_ptr: &ChannelPublicK
 pub extern "C" fn ChannelPublicKeys_set_htlc_basepoint(this_ptr: &mut ChannelPublicKeys, mut val: crate::c_types::PublicKey) {
 	unsafe { &mut *(this_ptr.inner as *mut lnChannelPublicKeys) }.htlc_basepoint = val.into_rust();
 }
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelPublicKeys_new(mut funding_pubkey_arg: crate::c_types::PublicKey, mut revocation_basepoint_arg: crate::c_types::PublicKey, mut payment_point_arg: crate::c_types::PublicKey, mut delayed_payment_basepoint_arg: crate::c_types::PublicKey, mut htlc_basepoint_arg: crate::c_types::PublicKey) -> ChannelPublicKeys {
 	ChannelPublicKeys { inner: Box::into_raw(Box::new(lnChannelPublicKeys {
@@ -190,6 +193,7 @@ use lightning::ln::chan_utils::HTLCOutputInCommitment as lnHTLCOutputInCommitmen
 type lnHTLCOutputInCommitment = lnHTLCOutputInCommitmentImport;
 
 /// " Information about an HTLC as it appears in a commitment transaction"
+#[must_use]
 #[repr(C)]
 pub struct HTLCOutputInCommitment {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -286,6 +290,7 @@ type lnLocalCommitmentTransaction = lnLocalCommitmentTransactionImport;
 /// " We use this to track local commitment transactions and put off signing them until we are ready"
 /// " to broadcast. Eventually this will require a signer which is possibly external, but for now we"
 /// " just pass in the SecretKeys required."
+#[must_use]
 #[repr(C)]
 pub struct LocalCommitmentTransaction {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -360,6 +365,7 @@ pub extern "C" fn LocalCommitmentTransaction_set_feerate_per_kw(this_ptr: &mut L
 }
 /// " Get the txid of the local commitment transaction contained in this"
 /// " LocalCommitmentTransaction"
+#[must_use]
 #[no_mangle]
 pub extern "C" fn LocalCommitmentTransaction_txid(this_arg: &LocalCommitmentTransaction) -> crate::c_types::ThirtyTwoBytes {
 	let mut ret = unsafe { &*this_arg.inner }.txid();
@@ -374,6 +380,7 @@ pub extern "C" fn LocalCommitmentTransaction_txid(this_arg: &LocalCommitmentTran
 /// " between your own funding key and your counterparty's. Currently, this is provided in"
 /// " ChannelKeys::sign_local_commitment() calls directly."
 /// " Channel value is amount locked in funding_outpoint."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn LocalCommitmentTransaction_get_local_sig(this_arg: &LocalCommitmentTransaction, funding_key: *const [u8; 32], funding_redeemscript: crate::c_types::u8slice, mut channel_value_satoshis: u64) -> crate::c_types::Signature {
 	let mut ret = unsafe { &*this_arg.inner }.get_local_sig(&::bitcoin::secp256k1::key::SecretKey::from_slice(&unsafe { *funding_key}[..]).unwrap(), &::bitcoin::blockdata::script::Script::from(Vec::from(funding_redeemscript.to_slice())), channel_value_satoshis, &bitcoin::secp256k1::Secp256k1::new());

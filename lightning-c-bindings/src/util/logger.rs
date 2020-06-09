@@ -39,7 +39,29 @@ impl Level {
 		}
 	}
 	#[allow(unused)]
-	pub(crate) fn from_ln(lnt: lnLevel) -> Self {
+	pub(crate) fn into_ln(self) -> lnLevel {
+		match self {
+			Level::Off => lnLevel::Off,
+			Level::Error => lnLevel::Error,
+			Level::Warn => lnLevel::Warn,
+			Level::Info => lnLevel::Info,
+			Level::Debug => lnLevel::Debug,
+			Level::Trace => lnLevel::Trace,
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn from_ln(lnt: &lnLevel) -> Self {
+		match lnt {
+			lnLevel::Off => Level::Off,
+			lnLevel::Error => Level::Error,
+			lnLevel::Warn => Level::Warn,
+			lnLevel::Info => Level::Info,
+			lnLevel::Debug => Level::Debug,
+			lnLevel::Trace => Level::Trace,
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn ln_into(lnt: lnLevel) -> Self {
 		match lnt {
 			lnLevel::Off => Level::Off,
 			lnLevel::Error => Level::Error,
@@ -51,10 +73,11 @@ impl Level {
 	}
 }
 /// " Returns the most verbose logging level."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn Level_max() -> crate::util::logger::Level {
 	let mut ret = lightning::util::logger::Level::max();
-	crate::util::logger::Level::from_ln(ret)
+	crate::util::logger::Level::ln_into(ret)
 }
 
 /// " A trait encapsulating the operations required of a logger"

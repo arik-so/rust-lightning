@@ -105,21 +105,19 @@ jobs:
 
   check_bindings:
     runs-on: ubuntu-latest
+    # Ubuntu's version of rustc uses its own LLVM instead of being a real native package.
+    # This leaves us with an incompatible LLVM version when linking. Instead, use a real OS.
+    container: debian:testing
     env:
       TOOLCHAIN: stable
     steps:
+      - name: Install native Rust toolchain, Valgrind, and build utilitis
+        run: |
+          apt-get update
+          apt-get -y dist-upgrade
+          apt-get -y install cargo valgrind lld git g++ clang
       - name: Checkout source code
         uses: actions/checkout@v2
-      - name: Install Rust ${{ env.TOOLCHAIN }} toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ env.TOOLCHAIN }}
-          override: true
-          profile: minimal
-      - name: Install Valgrind
-        run: |
-          sudo apt-get update
-          sudo apt-get -y install valgrind
       - name: Install cbindgen
         run: cargo install --force cbindgen
       - name: Rebuild bindings, and check the sample app builds + links
@@ -127,7 +125,6 @@ jobs:
       - name: Check that the latest bindings are in git
         run: |
           if [ "$(git diff)" != "" ]; then
-            git diff
             # cbindgen's bindings output order can be FS-dependant, so check that the lines are all the same:
             mv lightning-c-bindings/include/lightning.h lightning-c-bindings/include/lightning.h.new
             git checkout lightning-c-bindings/include/lightning.h
@@ -139,5 +136,5 @@ jobs:
             cat lightning-c-bindings/include/lightningpp.hpp.new | sort > lightning-c-bindings/include/lightningpp.hpp.new.sorted
             [ "$(diff lightning-c-bindings/include/lightning.h.sorted lightning-c-bindings/include/lightning.h.new.sorted)" != "" ] && exit 2
             [ "$(diff lightning-c-bindings/include/lightningpp.hpp.sorted lightning-c-bindings/include/lightningpp.hpp.new.sorted)" != "" ] && exit 3
-            [ "$(git diff)" != "" ] && exit 1
+            git diff --exit-code
           fi

@@ -7,6 +7,7 @@
 //! " figure out how best to make networking happen/timers fire/things get written to disk/keys get"
 //! " generated/etc. This makes it a good candidate for tight integration into an existing wallet"
 //! " instead of having a rather-separate lightning appendage to a wallet."
+#![allow(unknown_lints)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
@@ -14,6 +15,7 @@
 #![allow(unused_mut)]
 #![allow(unused_parens)]
 #![allow(unused_unsafe)]
+#![allow(unused_braces)]
 mod c_types;
 mod bitcoin;
 pub mod util;

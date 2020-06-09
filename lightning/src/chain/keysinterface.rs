@@ -46,6 +46,7 @@ pub enum SpendableOutputDescriptor {
 		/// The outpoint which is spendable
 		outpoint: OutPoint,
 		/// The output which is referenced by the given outpoint.
+		/// (C-not exported)
 		output: TxOut,
 	},
 	/// An output to a P2WSH script which can be spent with a single signature after a CSV delay.

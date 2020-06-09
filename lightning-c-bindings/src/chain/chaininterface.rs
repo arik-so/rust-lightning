@@ -29,7 +29,23 @@ impl ChainError {
 		}
 	}
 	#[allow(unused)]
-	pub(crate) fn from_ln(lnt: lnChainError) -> Self {
+	pub(crate) fn into_ln(self) -> lnChainError {
+		match self {
+			ChainError::NotSupported => lnChainError::NotSupported,
+			ChainError::NotWatched => lnChainError::NotWatched,
+			ChainError::UnknownTx => lnChainError::UnknownTx,
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn from_ln(lnt: &lnChainError) -> Self {
+		match lnt {
+			lnChainError::NotSupported => ChainError::NotSupported,
+			lnChainError::NotWatched => ChainError::NotWatched,
+			lnChainError::UnknownTx => ChainError::UnknownTx,
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn ln_into(lnt: lnChainError) -> Self {
 		match lnt {
 			lnChainError::NotSupported => ChainError::NotSupported,
 			lnChainError::NotWatched => ChainError::NotWatched,
@@ -57,11 +73,16 @@ pub struct ChainWatchInterface {
 	/// " short_channel_id (aka unspent_tx_output_identier). For BTC/tBTC channels the top three"
 	/// " bytes are the block height, the next 3 the transaction index within the block, and the"
 	/// " final two the output within the transaction."
+	#[must_use]
 	pub get_chain_utxo: extern "C" fn (this_arg: *const c_void, genesis_hash: [u8; 32], unspent_tx_output_identifier: u64) -> crate::c_types::derived::CResult_C2Tuple_Scriptu64ZChainErrorZ,
-	//XXX: Need to export filter_block
+	/// " Gets the list of transaction indices within a given block that the ChainWatchInterface is"
+	/// " watching for."
+	#[must_use]
+	pub filter_block: extern "C" fn (this_arg: *const c_void, block: crate::c_types::u8slice) -> crate::c_types::derived::CVec_u32Z,
 	/// " Returns a usize that changes when the ChainWatchInterface's watched data is modified."
 	/// " Users of `filter_block` should pre-save a copy of `reentered`'s return value and use it to"
 	/// " determine whether they need to re-filter a given block."
+	#[must_use]
 	pub reentered: extern "C" fn (this_arg: *const c_void) -> usize,
 }
 unsafe impl Sync for ChainWatchInterface {}
@@ -81,11 +102,14 @@ impl lnChainWatchInterface for ChainWatchInterface {
 	}
 	fn get_chain_utxo(&self, genesis_hash: bitcoin::hash_types::BlockHash, unspent_tx_output_identifier: u64) -> Result<(bitcoin::blockdata::script::Script, u64), lightning::chain::chaininterface::ChainError> {
 		let mut ret = (self.get_chain_utxo)(self.this_arg, genesis_hash.into_inner(), unspent_tx_output_identifier);
-		let mut local_ret = match ret.result_good { true => Ok( { let (mut orig_ret_0_0, mut orig_ret_0_1) = (*unsafe { Box::from_raw(ret.contents.result.take_ptr()) }).to_rust(); let local_ret_0 = (::bitcoin::blockdata::script::Script::from(orig_ret_0_0.into_rust()), orig_ret_0_1); local_ret_0 }), false => Err( { (*unsafe { Box::from_raw(ret.contents.err.take_ptr()) }).to_ln() })};
+		let mut local_ret = match ret.result_good { true => Ok( { let (mut orig_ret_0_0, mut orig_ret_0_1) = (*unsafe { Box::from_raw(ret.contents.result.take_ptr()) }).to_rust(); let local_ret_0 = (::bitcoin::blockdata::script::Script::from(orig_ret_0_0.into_rust()), orig_ret_0_1); local_ret_0 }), false => Err( { (*unsafe { Box::from_raw(ret.contents.err.take_ptr()) }).into_ln() })};
 		local_ret
 	}
-	fn filter_block<'a>(&self, block: &'a bitcoin::blockdata::block::Block) -> (Vec<&'a bitcoin::blockdata::transaction::Transaction>, Vec<u32>) {
-		unimplemented!();
+	fn filter_block(&self, block: &bitcoin::blockdata::block::Block) -> Vec<u32> {
+		let local_block = ::bitcoin::consensus::encode::serialize(block);
+		let mut ret = (self.filter_block)(self.this_arg, crate::c_types::u8slice::from_slice(&local_block));
+		let mut local_ret = Vec::new(); for mut item in ret.into_rust().drain(..) { local_ret.push( { item }); };
+		local_ret
 	}
 	fn reentered(&self) -> usize {
 		let mut ret = (self.reentered)(self.this_arg);
@@ -181,7 +205,23 @@ impl ConfirmationTarget {
 		}
 	}
 	#[allow(unused)]
-	pub(crate) fn from_ln(lnt: lnConfirmationTarget) -> Self {
+	pub(crate) fn into_ln(self) -> lnConfirmationTarget {
+		match self {
+			ConfirmationTarget::Background => lnConfirmationTarget::Background,
+			ConfirmationTarget::Normal => lnConfirmationTarget::Normal,
+			ConfirmationTarget::HighPriority => lnConfirmationTarget::HighPriority,
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn from_ln(lnt: &lnConfirmationTarget) -> Self {
+		match lnt {
+			lnConfirmationTarget::Background => ConfirmationTarget::Background,
+			lnConfirmationTarget::Normal => ConfirmationTarget::Normal,
+			lnConfirmationTarget::HighPriority => ConfirmationTarget::HighPriority,
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn ln_into(lnt: lnConfirmationTarget) -> Self {
 		match lnt {
 			lnConfirmationTarget::Background => ConfirmationTarget::Background,
 			lnConfirmationTarget::Normal => ConfirmationTarget::Normal,
@@ -206,6 +246,7 @@ pub struct FeeEstimator {
 	/// " This translates to:"
 	/// "  * satoshis-per-byte * 250"
 	/// "  * ceil(satoshis-per-kbyte / 4)"
+	#[must_use]
 	pub get_est_sat_per_1000_weight: extern "C" fn (this_arg: *const c_void, confirmation_target: crate::chain::chaininterface::ConfirmationTarget) -> u64,
 }
 unsafe impl Sync for FeeEstimator {}
@@ -214,7 +255,7 @@ unsafe impl Send for FeeEstimator {}
 use lightning::chain::chaininterface::FeeEstimator as lnFeeEstimator;
 impl lnFeeEstimator for FeeEstimator {
 	fn get_est_sat_per_1000_weight(&self, confirmation_target: lightning::chain::chaininterface::ConfirmationTarget) -> u64 {
-		let mut ret = (self.get_est_sat_per_1000_weight)(self.this_arg, crate::chain::chaininterface::ConfirmationTarget::from_ln(confirmation_target));
+		let mut ret = (self.get_est_sat_per_1000_weight)(self.this_arg, crate::chain::chaininterface::ConfirmationTarget::ln_into(confirmation_target));
 		ret
 	}
 }
@@ -232,6 +273,7 @@ use lightning::chain::chaininterface::ChainWatchedUtil as lnChainWatchedUtilImpo
 type lnChainWatchedUtil = lnChainWatchedUtilImport;
 
 /// " Utility for tracking registered txn/outpoints and checking for matches"
+#[must_use]
 #[repr(C)]
 pub struct ChainWatchedUtil {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -250,6 +292,7 @@ impl Drop for ChainWatchedUtil {
 #[no_mangle]
 pub extern "C" fn ChainWatchedUtil_free(this_ptr: ChainWatchedUtil) { }
 /// " Constructs an empty (watches nothing) ChainWatchedUtil"
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChainWatchedUtil_new() -> ChainWatchedUtil {
 	let mut ret = lightning::chain::chaininterface::ChainWatchedUtil::new();
@@ -258,6 +301,7 @@ pub extern "C" fn ChainWatchedUtil_new() -> ChainWatchedUtil {
 
 /// " Registers a tx for monitoring, returning true if it was a new tx and false if we'd already"
 /// " been watching for it."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChainWatchedUtil_register_tx(this_arg: &mut ChainWatchedUtil, txid: *const [u8; 32], script_pub_key: crate::c_types::u8slice) -> bool {
 	let mut ret = unsafe { &mut (*(this_arg.inner as *mut lnChainWatchedUtil)) }.register_tx(&::bitcoin::hash_types::Txid::from_slice(&unsafe { &*txid }[..]).unwrap(), &::bitcoin::blockdata::script::Script::from(Vec::from(script_pub_key.to_slice())));
@@ -266,6 +310,7 @@ pub extern "C" fn ChainWatchedUtil_register_tx(this_arg: &mut ChainWatchedUtil, 
 
 /// " Registers an outpoint for monitoring, returning true if it was a new outpoint and false if"
 /// " we'd already been watching for it"
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChainWatchedUtil_register_outpoint(this_arg: &mut ChainWatchedUtil, mut outpoint: crate::c_types::derived::C2Tuple_Txidu32Z, _script_pub_key: crate::c_types::u8slice) -> bool {
 	let (mut orig_outpoint_0, mut orig_outpoint_1) = outpoint.to_rust(); let local_outpoint = (::bitcoin::hash_types::Txid::from_slice(&orig_outpoint_0.data[..]).unwrap(), orig_outpoint_1);
@@ -275,6 +320,7 @@ pub extern "C" fn ChainWatchedUtil_register_outpoint(this_arg: &mut ChainWatched
 
 /// " Sets us to match all transactions, returning true if this is a new setting and false if"
 /// " we'd already been set to match everything."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChainWatchedUtil_watch_all(this_arg: &mut ChainWatchedUtil) -> bool {
 	let mut ret = unsafe { &mut (*(this_arg.inner as *mut lnChainWatchedUtil)) }.watch_all();
@@ -282,6 +328,7 @@ pub extern "C" fn ChainWatchedUtil_watch_all(this_arg: &mut ChainWatchedUtil) ->
 }
 
 /// " Checks if a given transaction matches the current filter."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChainWatchedUtil_does_match_tx(this_arg: &ChainWatchedUtil, tx: crate::c_types::Transaction) -> bool {
 	let mut ret = unsafe { &*this_arg.inner }.does_match_tx(&tx.into_bitcoin());
@@ -299,6 +346,7 @@ type lnBlockNotifier = lnBlockNotifierImport<'static, crate::chain::chaininterfa
 /// " or a BlockNotifierRef for conciseness. See their documentation for more details, but essentially"
 /// " you should default to using a BlockNotifierRef, and use a BlockNotifierArc instead when you"
 /// " require ChainListeners with static lifetimes, such as when you're using lightning-net-tokio."
+#[must_use]
 #[repr(C)]
 pub struct BlockNotifier {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -317,6 +365,7 @@ impl Drop for BlockNotifier {
 #[no_mangle]
 pub extern "C" fn BlockNotifier_free(this_ptr: BlockNotifier) { }
 /// " Constructs a new BlockNotifier without any listeners."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn BlockNotifier_new(mut chain_monitor: crate::chain::chaininterface::ChainWatchInterface) -> crate::chain::chaininterface::BlockNotifier {
 	let mut ret = lightning::chain::chaininterface::BlockNotifier::new(chain_monitor);
@@ -351,6 +400,7 @@ type lnChainWatchInterfaceUtil = lnChainWatchInterfaceUtilImport;
 /// " Utility to capture some common parts of ChainWatchInterface implementors."
 /// ""
 /// " Keeping a local copy of this in a ChainWatchInterface implementor is likely useful."
+#[must_use]
 #[repr(C)]
 pub struct ChainWatchInterfaceUtil {
 	/// Nearly everyhwere, inner must be non-null, however in places where
@@ -376,7 +426,7 @@ pub extern "C" fn ChainWatchInterfaceUtil_as_ChainWatchInterface(this_arg: *cons
 		install_watch_outpoint: ChainWatchInterfaceUtil_ChainWatchInterface_install_watch_outpoint,
 		watch_all_txn: ChainWatchInterfaceUtil_ChainWatchInterface_watch_all_txn,
 		get_chain_utxo: ChainWatchInterfaceUtil_ChainWatchInterface_get_chain_utxo,
-		//XXX: Need to export filter_block
+		filter_block: ChainWatchInterfaceUtil_ChainWatchInterface_filter_block,
 		reentered: ChainWatchInterfaceUtil_ChainWatchInterface_reentered,
 	}
 }
@@ -391,17 +441,26 @@ extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_install_watch_outpoint
 extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_watch_all_txn(this_arg: *const c_void) {
 	unsafe { &mut *(this_arg as *mut lnChainWatchInterfaceUtil) }.watch_all_txn()
 }
+#[must_use]
 extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_get_chain_utxo(this_arg: *const c_void, mut genesis_hash: [u8; 32], mut _unspent_tx_output_identifier: u64) -> crate::c_types::derived::CResult_C2Tuple_Scriptu64ZChainErrorZ {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnChainWatchInterfaceUtil) }.get_chain_utxo(::bitcoin::hash_types::BlockHash::from_slice(&genesis_hash[..]).unwrap(), _unspent_tx_output_identifier);
-	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { let (mut orig_ret_0_0, mut orig_ret_0_1) = o; let local_ret_0 = (orig_ret_0_0.into_bytes().into(), orig_ret_0_1).into(); local_ret_0 }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::chain::chaininterface::ChainError::from_ln(e) }) };
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { let (mut orig_ret_0_0, mut orig_ret_0_1) = o; let local_ret_0 = (orig_ret_0_0.into_bytes().into(), orig_ret_0_1).into(); local_ret_0 }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::chain::chaininterface::ChainError::ln_into(e) }) };
 	local_ret
 }
+#[must_use]
+extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_filter_block(this_arg: *const c_void, block: crate::c_types::u8slice) -> crate::c_types::derived::CVec_u32Z {
+	let mut ret = unsafe { &mut *(this_arg as *mut lnChainWatchInterfaceUtil) }.filter_block(&::bitcoin::consensus::encode::deserialize(block.to_slice()).unwrap());
+	let mut local_ret = Vec::new(); for item in ret.drain(..) { local_ret.push( { item }); };
+	local_ret.into()
+}
+#[must_use]
 extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_reentered(this_arg: *const c_void) -> usize {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnChainWatchInterfaceUtil) }.reentered();
 	ret
 }
 
 /// " Creates a new ChainWatchInterfaceUtil for the given network"
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChainWatchInterfaceUtil_new(mut network: crate::bitcoin::network::Network) -> crate::chain::chaininterface::ChainWatchInterfaceUtil {
 	let mut ret = lightning::chain::chaininterface::ChainWatchInterfaceUtil::new(network.into_bitcoin());
@@ -409,6 +468,7 @@ pub extern "C" fn ChainWatchInterfaceUtil_new(mut network: crate::bitcoin::netwo
 }
 
 /// " Checks if a given transaction matches the current filter."
+#[must_use]
 #[no_mangle]
 pub extern "C" fn ChainWatchInterfaceUtil_does_match_tx(this_arg: &ChainWatchInterfaceUtil, tx: crate::c_types::Transaction) -> bool {
 	let mut ret = unsafe { &*this_arg.inner }.does_match_tx(&tx.into_bitcoin());

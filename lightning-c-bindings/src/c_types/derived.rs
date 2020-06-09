@@ -1,4 +1,9 @@
 #[no_mangle]
+pub type CVec_SpendableOutputDescriptorZ = crate::c_types::CVecTempl<crate::chain::keysinterface::SpendableOutputDescriptor>;
+#[no_mangle]
+pub static CVec_SpendableOutputDescriptorZ_free: extern "C" fn(CVec_SpendableOutputDescriptorZ) = crate::c_types::CVecTempl_free::<crate::chain::keysinterface::SpendableOutputDescriptor>;
+
+#[no_mangle]
 pub type CVec_MessageSendEventZ = crate::c_types::CVecTempl<crate::util::events::MessageSendEvent>;
 #[no_mangle]
 pub static CVec_MessageSendEventZ_free: extern "C" fn(CVec_MessageSendEventZ) = crate::c_types::CVecTempl_free::<crate::util::events::MessageSendEvent>;
@@ -45,6 +50,11 @@ pub static CResult_C2Tuple_Scriptu64ZChainErrorZ_err: extern "C" fn (crate::chai
 	crate::c_types::CResultTempl::<crate::c_types::C2TupleTempl<crate::c_types::derived::CVec_u8Z, u64>, crate::chain::chaininterface::ChainError>::err;
 
 #[no_mangle]
+pub type CVec_u32Z = crate::c_types::CVecTempl<u32>;
+#[no_mangle]
+pub static CVec_u32Z_free: extern "C" fn(CVec_u32Z) = crate::c_types::CVecTempl_free::<u32>;
+
+#[no_mangle]
 pub type C2Tuple_u64u64Z = crate::c_types::C2TupleTempl<u64, u64>;
 #[no_mangle]
 pub static C2Tuple_u64u64Z_free: extern "C" fn(C2Tuple_u64u64Z) = crate::c_types::C2TupleTempl_free::<u64, u64>;
@@ -59,13 +69,22 @@ pub extern "C" fn C2Tuple_u64u64Z_new(a: u64, b: u64) -> C2Tuple_u64u64Z {
 #[no_mangle]
 pub type CHTLCOutputInCommitmentSlice = crate::c_types::CSliceTempl<crate::ln::chan_utils::HTLCOutputInCommitment>;
 impl From<&[&lightning::ln::chan_utils::HTLCOutputInCommitment]> for CHTLCOutputInCommitmentSlice {
-	fn from(Slice: &[&lightning::ln::chan_utils::HTLCOutputInCommitment]) -> Self {
-		unimplemented!();
+	fn from(slice: &[&lightning::ln::chan_utils::HTLCOutputInCommitment]) -> Self {
+		let mut v = Vec::with_capacity(slice.len());
+		for e in slice.iter() {
+			v.push(crate::ln::chan_utils::HTLCOutputInCommitment { inner: *e, _underlying_ref: true });
+		}
+		Self { datalen: v.len(), data: unsafe { (*Box::into_raw(v.into_boxed_slice())).as_mut_ptr() } }
 	}
 }
-impl Into<&[&lightning::ln::chan_utils::HTLCOutputInCommitment]> for CHTLCOutputInCommitmentSlice {
-	fn into(self) -> &'static [&'static lightning::ln::chan_utils::HTLCOutputInCommitment] {
-		unimplemented!();
+impl CHTLCOutputInCommitmentSlice {
+	pub(crate) fn into_vec(self) -> Vec<&'static lightning::ln::chan_utils::HTLCOutputInCommitment> {
+		let mut ret = Vec::new();
+		let mut orig: Vec<_> = unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.data, self.datalen)) }.into();
+		for e in orig.drain(..) {
+			ret.push(unsafe { &*e.inner });
+		}
+		ret
 	}
 }
 #[no_mangle]

@@ -47,7 +47,7 @@ void print_log(const void *this_arg, const char *record) {
 }
 
 uint64_t get_fee(const void *this_arg, LDK::ConfirmationTarget target) {
-	if (target == Background) {
+	if (target == LDKConfirmationTarget_Background) {
 		return 253;
 	} else {
 		return 507;
@@ -74,7 +74,7 @@ LDKCVec_HTLCUpdateZ monitors_pending_htlcs_updated(const void *this_arg) {
 void chain_install_watch_tx(const void *this_arg, const uint8_t (*txid)[32], LDKu8slice script_pub_key) {}
 void chain_watch_all_txn(const void *this_arg) {}
 LDKCResult_C2Tuple_Scriptu64ZChainErrorZ get_chain_utxo(const void *this_arg, uint8_t genesis_hash[32], uint64_t unspent_tx_output_identifier) {
-	return CResult_C2Tuple_Scriptu64ZChainErrorZ_err(LDKChainError::NotSupported);
+	return CResult_C2Tuple_Scriptu64ZChainErrorZ_err(LDKChainError_NotSupported);
 }
 
 
@@ -98,7 +98,7 @@ void sock_read_data_thread(int rdfd, LDKSocketDescriptor *peer_descriptor, LDKPe
 	while ((readlen = read(rdfd, buf, 1024)) > 0) {
 		data.datalen = readlen;
 		LDK::CResult_boolPeerHandleErrorZ res = PeerManager_read_event(&*pm, peer_descriptor, data);
-		if (!res.self.result_good) {
+		if (!res->result_good) {
 			peer_descriptor->disconnect_socket(peer_descriptor->this_arg);
 			return;
 		}
@@ -114,13 +114,9 @@ int main() {
 	LDKPublicKey null_pk;
 	memset(&null_pk, 0, sizeof(null_pk));
 
-	LDKNetwork network = Bitcoin;
+	LDKNetwork network = LDKNetwork_Bitcoin;
 
 	// Trait implementations:
-	LDK::Logger logger;
-	logger.this_arg = (void*)1;
-	logger.log = print_log;
-
 	LDK::FeeEstimator fee_est;
 	fee_est.this_arg = NULL;
 	fee_est.get_est_sat_per_1000_weight = get_fee;
@@ -156,7 +152,7 @@ int main() {
 	LDK::ChannelManager cm1 = ChannelManager_new(network, fee_est, mon, broadcast, logger1, keys_source1, config1, 0);
 
 	LDK::CVec_ChannelDetailsZ channels = ChannelManager_list_channels(&cm1);
-	assert(channels.self.datalen == 0);
+	assert(channels->datalen == 0);
 
 	LDK::NetGraphMsgHandler net_graph1 = NetGraphMsgHandler_new(chain, logger1);
 
@@ -187,12 +183,13 @@ int main() {
 	LDK::ChannelManager cm2 = ChannelManager_new(network, fee_est, mon, broadcast, logger2, keys_source2, config2, 0);
 
 	LDK::CVec_ChannelDetailsZ channels2 = ChannelManager_list_channels(&cm2);
-	assert(channels2.self.datalen == 0);
+	assert(channels2->datalen == 0);
 
 	LDK::NetGraphMsgHandler net_graph2 = NetGraphMsgHandler_new(chain, logger2);
 	LDK::RoutingMessageHandler net_msgs2 = NetGraphMsgHandler_as_RoutingMessageHandler(&net_graph2);
-	LDK::ChannelAnnouncement chan_ann = ChannelAnnouncement_read(LDKu8slice { data: valid_node_announcement, datalen: sizeof(valid_node_announcement) });
-	net_msgs2.handle_channel_announcement(net_msgs2.this_arg, &chan_ann);
+	LDK::ChannelAnnouncement chan_ann = ChannelAnnouncement_read(LDKu8slice { .data = valid_node_announcement, .datalen = sizeof(valid_node_announcement) });
+	LDK::CResult_boolLightningErrorZ ann_res = net_msgs2.handle_channel_announcement(net_msgs2.this_arg, &chan_ann);
+	assert(ann_res->result_good);
 
 	LDK::MessageHandler msg_handler2 = MessageHandler_new(ChannelManager_as_ChannelMessageHandler(&cm2), net_msgs2);
 
@@ -224,34 +221,41 @@ int main() {
 
 	// Note that we have to bind the result to a C++ class to make sure it gets free'd
 	LDK::CResult_CVec_u8ZPeerHandleErrorZ con_res = PeerManager_new_outbound_connection(&net1, ChannelManager_get_our_node_id(&cm2), sock1);
-	assert((&con_res)->result_good);
+	assert(con_res->result_good);
 	LDK::CResult_NonePeerHandleErrorZ con_res2 = PeerManager_new_inbound_connection(&net2, sock2);
-	assert((&con_res2)->result_good);
+	assert(con_res2->result_good);
 
-	auto writelen = write(pipefds_1_to_2[1], (&con_res)->contents.result->data, (&con_res)->contents.result->datalen);
-	assert(writelen == (&con_res)->contents.result->datalen);
+	auto writelen = write(pipefds_1_to_2[1], con_res->contents.result->data, con_res->contents.result->datalen);
+	assert(writelen > 0 && uint64_t(writelen) == con_res->contents.result->datalen);
 
 	while (true) {
 		// Wait for the initial handshakes to complete...
 		LDK::CVec_PublicKeyZ peers_1 = PeerManager_get_peer_node_ids(&net1);
 		LDK::CVec_PublicKeyZ peers_2 = PeerManager_get_peer_node_ids(&net2);
-		if (peers_1.self.datalen == 1 && peers_2.self.datalen ==1) { break; }
+		if (peers_1->datalen == 1 && peers_2->datalen ==1) { break; }
 		std::this_thread::yield();
 	}
 
 	// Note that we have to bind the result to a C++ class to make sure it gets free'd
 	LDK::CResult_NoneAPIErrorZ res = ChannelManager_create_channel(&cm1, ChannelManager_get_our_node_id(&cm2), 40000, 1000, 42, config1);
-	assert((&res)->result_good);
+	assert(res->result_good);
 	PeerManager_process_events(&net1);
 
 	LDK::CVec_ChannelDetailsZ new_channels = ChannelManager_list_channels(&cm1);
-	assert(new_channels.self.datalen == 1);
+	assert(new_channels->datalen == 1);
 	LDKPublicKey chan_open_pk = ChannelDetails_get_remote_network_id(&new_channels.self.data[0]);
 	assert(!memcmp(chan_open_pk.compressed_form, ChannelManager_get_our_node_id(&cm2).compressed_form, 33));
 
 	while (true) {
 		LDK::CVec_ChannelDetailsZ new_channels_2 = ChannelManager_list_channels(&cm2);
-		if (new_channels_2.self.datalen == 1) { break; }
+		if (new_channels_2->datalen == 1) { break; }
+		std::this_thread::yield();
+	}
+
+	while (true) {
+		LDKEventsProvider ev1 = ChannelManager_as_EventsProvider(&cm1);
+		LDK::CVec_EventZ events = ev1.get_and_clear_pending_events(ev1.this_arg);
+		if (events.self.datalen == 1) { break; }
 		std::this_thread::yield();
 	}
 
@@ -261,4 +265,14 @@ int main() {
 	close(pipefds_2_to_1[1]);
 	t1.join();
 	t2.join();
+
+	// Few extra random tests:
+	LDKSecretKey sk;
+	memset(&sk, 42, 32);
+	LDKC2Tuple_u64u64Z kdiv_params;
+	kdiv_params.a = (uint64_t*) malloc(8);
+	kdiv_params.b = (uint64_t*) malloc(8);
+	*kdiv_params.a = 42;
+	*kdiv_params.b = 42;
+	LDK::InMemoryChannelKeys keys = InMemoryChannelKeys_new(sk, sk, sk, sk, sk, random_bytes, 42, kdiv_params);
 }
