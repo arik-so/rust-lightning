@@ -6,45 +6,6 @@ use bitcoin::hashes::Hash;
 use crate::c_types::*;
 
 
-use lightning::util::config::UserConfig as lnUserConfigImport;
-type lnUserConfig = lnUserConfigImport;
-
-/// " Top-level config which holds ChannelHandshakeLimits and ChannelConfig."
-/// ""
-/// " Default::default() provides sane defaults for most configurations"
-/// " (but currently with 0 relay fees!)"
-#[must_use]
-#[repr(C)]
-pub struct UserConfig {
-	/// Nearly everyhwere, inner must be non-null, however in places where
-	///the Rust equivalent takes an Option, it may be set to null to indicate None.
-	pub inner: *const lnUserConfig,
-	pub _underlying_ref: bool,
-}
-
-impl Drop for UserConfig {
-	fn drop(&mut self) {
-		if !self._underlying_ref && !self.inner.is_null() {
-			let _ = unsafe { Box::from_raw(self.inner as *mut lnUserConfig) };
-		}
-	}
-}
-#[no_mangle]
-pub extern "C" fn UserConfig_free(this_ptr: UserConfig) { }
-impl Clone for UserConfig {
-	fn clone(&self) -> Self {
-		Self {
-			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
-			_underlying_ref: false,
-		}
-	}
-}
-#[must_use]
-#[no_mangle]
-pub extern "C" fn UserConfig_default() -> UserConfig {
-	UserConfig { inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }
-}
-
 use lightning::util::config::ChannelHandshakeConfig as lnChannelHandshakeConfigImport;
 type lnChannelHandshakeConfig = lnChannelHandshakeConfigImport;
 
@@ -562,4 +523,85 @@ pub extern "C" fn ChannelConfig_read(ser: crate::c_types::u8slice) -> ChannelCon
 	} else {
 		ChannelConfig { inner: std::ptr::null(), _underlying_ref: false }
 	}
+}
+
+use lightning::util::config::UserConfig as lnUserConfigImport;
+type lnUserConfig = lnUserConfigImport;
+
+/// " Top-level config which holds ChannelHandshakeLimits and ChannelConfig."
+/// ""
+/// " Default::default() provides sane defaults for most configurations"
+/// " (but currently with 0 relay fees!)"
+#[must_use]
+#[repr(C)]
+pub struct UserConfig {
+	/// Nearly everyhwere, inner must be non-null, however in places where
+	///the Rust equivalent takes an Option, it may be set to null to indicate None.
+	pub inner: *const lnUserConfig,
+	pub _underlying_ref: bool,
+}
+
+impl Drop for UserConfig {
+	fn drop(&mut self) {
+		if !self._underlying_ref && !self.inner.is_null() {
+			let _ = unsafe { Box::from_raw(self.inner as *mut lnUserConfig) };
+		}
+	}
+}
+#[no_mangle]
+pub extern "C" fn UserConfig_free(this_ptr: UserConfig) { }
+impl Clone for UserConfig {
+	fn clone(&self) -> Self {
+		Self {
+			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
+			_underlying_ref: false,
+		}
+	}
+}
+/// " Channel config that we propose to our counterparty."
+#[no_mangle]
+pub extern "C" fn UserConfig_get_own_channel_config(this_ptr: &UserConfig) -> *const crate::util::config::ChannelHandshakeConfig {
+	let inner_val = &unsafe { &*this_ptr.inner }.own_channel_config;
+	Box::into_raw(Box::new(crate::util::config::ChannelHandshakeConfig { inner: &(*inner_val), _underlying_ref: true } ))
+}
+/// " Channel config that we propose to our counterparty."
+#[no_mangle]
+pub extern "C" fn UserConfig_set_own_channel_config(this_ptr: &mut UserConfig, mut val: crate::util::config::ChannelHandshakeConfig) {
+	unsafe { &mut *(this_ptr.inner as *mut lnUserConfig) }.own_channel_config = *unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) };
+}
+/// " Limits applied to our counterparty's proposed channel config settings."
+#[no_mangle]
+pub extern "C" fn UserConfig_get_peer_channel_config_limits(this_ptr: &UserConfig) -> *const crate::util::config::ChannelHandshakeLimits {
+	let inner_val = &unsafe { &*this_ptr.inner }.peer_channel_config_limits;
+	Box::into_raw(Box::new(crate::util::config::ChannelHandshakeLimits { inner: &(*inner_val), _underlying_ref: true } ))
+}
+/// " Limits applied to our counterparty's proposed channel config settings."
+#[no_mangle]
+pub extern "C" fn UserConfig_set_peer_channel_config_limits(this_ptr: &mut UserConfig, mut val: crate::util::config::ChannelHandshakeLimits) {
+	unsafe { &mut *(this_ptr.inner as *mut lnUserConfig) }.peer_channel_config_limits = *unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) };
+}
+/// " Channel config which affects behavior during channel lifetime."
+#[no_mangle]
+pub extern "C" fn UserConfig_get_channel_options(this_ptr: &UserConfig) -> *const crate::util::config::ChannelConfig {
+	let inner_val = &unsafe { &*this_ptr.inner }.channel_options;
+	Box::into_raw(Box::new(crate::util::config::ChannelConfig { inner: &(*inner_val), _underlying_ref: true } ))
+}
+/// " Channel config which affects behavior during channel lifetime."
+#[no_mangle]
+pub extern "C" fn UserConfig_set_channel_options(this_ptr: &mut UserConfig, mut val: crate::util::config::ChannelConfig) {
+	unsafe { &mut *(this_ptr.inner as *mut lnUserConfig) }.channel_options = *unsafe { Box::from_raw(val.inner.take_ptr() as *mut _) };
+}
+#[must_use]
+#[no_mangle]
+pub extern "C" fn UserConfig_new(mut own_channel_config_arg: crate::util::config::ChannelHandshakeConfig, mut peer_channel_config_limits_arg: crate::util::config::ChannelHandshakeLimits, mut channel_options_arg: crate::util::config::ChannelConfig) -> UserConfig {
+	UserConfig { inner: Box::into_raw(Box::new(lnUserConfig {
+		own_channel_config: *unsafe { Box::from_raw(own_channel_config_arg.inner.take_ptr() as *mut _) },
+		peer_channel_config_limits: *unsafe { Box::from_raw(peer_channel_config_limits_arg.inner.take_ptr() as *mut _) },
+		channel_options: *unsafe { Box::from_raw(channel_options_arg.inner.take_ptr() as *mut _) },
+	})), _underlying_ref: false }
+}
+#[must_use]
+#[no_mangle]
+pub extern "C" fn UserConfig_default() -> UserConfig {
+	UserConfig { inner: Box::into_raw(Box::new(Default::default())), _underlying_ref: false }
 }

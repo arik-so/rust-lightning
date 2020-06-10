@@ -314,6 +314,30 @@ typedef LDKCResultTempl_u8__ChannelMonitorUpdateErr LDKCResult_NoneChannelMonito
 
 
 /**
+ * " A reference to a transaction output."
+ * ""
+ * " Differs from bitcoin::blockdata::transaction::OutPoint as the index is a u16 instead of u32"
+ * " due to LN's restrictions on index values. Should reduce (possibly) unsafe conversions this way."
+ */
+typedef struct MUST_USE_STRUCT LDKOutPoint {
+   /**
+    * Nearly everyhwere, inner must be non-null, however in places where
+    *the Rust equivalent takes an Option, it may be set to null to indicate None.
+    */
+   const LDKlnOutPoint *inner;
+   bool _underlying_ref;
+} LDKOutPoint;
+
+typedef struct LDKC2TupleTempl_OutPoint__CVec_u8Z {
+   LDKOutPoint *a;
+   LDKCVec_u8Z *b;
+} LDKC2TupleTempl_OutPoint__CVec_u8Z;
+
+typedef LDKC2TupleTempl_OutPoint__CVec_u8Z LDKC2Tuple_OutPointScriptZ;
+
+
+
+/**
  * " A channel_announcement message to be sent or received from a peer"
  */
 typedef struct MUST_USE_STRUCT LDKChannelAnnouncement {
@@ -376,23 +400,6 @@ typedef struct LDKCResultTempl_u8__PeerHandleError {
 } LDKCResultTempl_u8__PeerHandleError;
 
 typedef LDKCResultTempl_u8__PeerHandleError LDKCResult_NonePeerHandleErrorZ;
-
-
-
-/**
- * " A reference to a transaction output."
- * ""
- * " Differs from bitcoin::blockdata::transaction::OutPoint as the index is a u16 instead of u32"
- * " due to LN's restrictions on index values. Should reduce (possibly) unsafe conversions this way."
- */
-typedef struct MUST_USE_STRUCT LDKOutPoint {
-   /**
-    * Nearly everyhwere, inner must be non-null, however in places where
-    *the Rust equivalent takes an Option, it may be set to null to indicate None.
-    */
-   const LDKlnOutPoint *inner;
-   bool _underlying_ref;
-} LDKOutPoint;
 
 
 
@@ -553,23 +560,6 @@ typedef struct MUST_USE_STRUCT LDKMessageSendEvent {
 
 
 /**
- * " Top-level config which holds ChannelHandshakeLimits and ChannelConfig."
- * ""
- * " Default::default() provides sane defaults for most configurations"
- * " (but currently with 0 relay fees!)"
- */
-typedef struct MUST_USE_STRUCT LDKUserConfig {
-   /**
-    * Nearly everyhwere, inner must be non-null, however in places where
-    *the Rust equivalent takes an Option, it may be set to null to indicate None.
-    */
-   const LDKlnUserConfig *inner;
-   bool _underlying_ref;
-} LDKUserConfig;
-
-
-
-/**
  * " Configuration we set when applicable."
  * ""
  * " Default::default() provides sane defaults."
@@ -630,6 +620,23 @@ typedef struct LDKu8slice {
 
 
 /**
+ * " Top-level config which holds ChannelHandshakeLimits and ChannelConfig."
+ * ""
+ * " Default::default() provides sane defaults for most configurations"
+ * " (but currently with 0 relay fees!)"
+ */
+typedef struct MUST_USE_STRUCT LDKUserConfig {
+   /**
+    * Nearly everyhwere, inner must be non-null, however in places where
+    *the Rust equivalent takes an Option, it may be set to null to indicate None.
+    */
+   const LDKlnUserConfig *inner;
+   bool _underlying_ref;
+} LDKUserConfig;
+
+
+
+/**
  * " Utility for tracking registered txn/outpoints and checking for matches"
  */
 typedef struct MUST_USE_STRUCT LDKChainWatchedUtil {
@@ -651,11 +658,41 @@ typedef struct LDKTransaction {
    uintptr_t datalen;
 } LDKTransaction;
 
+typedef struct LDKCSliceTempl_CVec_u8Z {
+   LDKCVec_u8Z *data;
+   uintptr_t datalen;
+} LDKCSliceTempl_CVec_u8Z;
+
+typedef LDKCSliceTempl_CVec_u8Z LDKCTransactionSlice;
+
+typedef struct LDKu32slice {
+   const uint32_t *data;
+   uintptr_t datalen;
+} LDKu32slice;
+
 /**
  * " A trait indicating a desire to listen for events from the chain"
  */
 typedef struct LDKChainListener {
    void *this_arg;
+   /**
+    * " Notifies a listener that a block was connected."
+    * ""
+    * " The txn_matched array should be set to references to transactions which matched the"
+    * " relevant installed watch outpoints/txn, or the full set of transactions in the block."
+    * ""
+    * " Note that if txn_matched includes only matched transactions, and a new"
+    * " transaction/outpoint is watched during a block_connected call, the block *must* be"
+    * " re-scanned with the new transaction/outpoints and block_connected should be called"
+    * " again with the same header and (at least) the new transactions."
+    * ""
+    * " Note that if non-new transaction/outpoints are be registered during a call, a second call"
+    * " *must not* happen."
+    * ""
+    * " This also means those counting confirmations using block_connected callbacks should watch"
+    * " for duplicate headers and not count them towards confirmations!"
+    */
+   void (*block_connected)(const void *this_arg, const uint8_t (*header)[80], uint32_t height, LDKCTransactionSlice txn_matched, LDKu32slice indexes_of_txn_matched);
    /**
     * " Notifies a listener that a block was disconnected."
     * " Unlike block_connected, this *must* never be called twice for the same disconnect event."
@@ -2274,6 +2311,8 @@ typedef LDKCVecTempl_u64 LDKCVec_u64Z;
 
 typedef LDKCVecTempl_RouteHop LDKCVec_RouteHopZ;
 
+extern const void (*C2Tuple_OutPointScriptZ_free)(LDKC2Tuple_OutPointScriptZ);
+
 extern const void (*C2Tuple_Scriptu64Z_free)(LDKC2Tuple_Scriptu64Z);
 
 extern const void (*C2Tuple_SecretKey_u832Z_free)(LDKC2Tuple_SecretKey_u832Z);
@@ -2392,6 +2431,8 @@ LDKCResult_NonePaymentSendFailureZ CResult_NonePaymentSendFailureZ_good(void);
 
 LDKCResult_NoneChannelMonitorUpdateErrZ CResult_NoneChannelMonitorUpdateErrZ_good(void);
 
+LDKC2Tuple_OutPointScriptZ C2Tuple_OutPointScriptZ_new(LDKOutPoint a, LDKCVec_u8Z b);
+
 LDKC3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ C3Tuple_ChannelAnnouncementChannelUpdateChannelUpdateZ_new(LDKChannelAnnouncement a, LDKChannelUpdate b, LDKChannelUpdate c);
 
 LDKCResult_NonePeerHandleErrorZ CResult_NonePeerHandleErrorZ_good(void);
@@ -2406,10 +2447,6 @@ void APIError_free(LDKAPIError this_ptr);
  * " Returns the most verbose logging level."
  */
 MUST_USE_RES LDKLevel Level_max(void);
-
-void UserConfig_free(LDKUserConfig this_ptr);
-
-MUST_USE_RES LDKUserConfig UserConfig_default(void);
 
 void ChannelHandshakeConfig_free(LDKChannelHandshakeConfig this_ptr);
 
@@ -2769,6 +2806,42 @@ LDKCVec_u8Z ChannelConfig_write(const LDKChannelConfig *obj);
 
 LDKChannelConfig ChannelConfig_read(LDKu8slice ser);
 
+void UserConfig_free(LDKUserConfig this_ptr);
+
+/**
+ * " Channel config that we propose to our counterparty."
+ */
+const LDKChannelHandshakeConfig *UserConfig_get_own_channel_config(const LDKUserConfig *this_ptr);
+
+/**
+ * " Channel config that we propose to our counterparty."
+ */
+void UserConfig_set_own_channel_config(LDKUserConfig *this_ptr, LDKChannelHandshakeConfig val);
+
+/**
+ * " Limits applied to our counterparty's proposed channel config settings."
+ */
+const LDKChannelHandshakeLimits *UserConfig_get_peer_channel_config_limits(const LDKUserConfig *this_ptr);
+
+/**
+ * " Limits applied to our counterparty's proposed channel config settings."
+ */
+void UserConfig_set_peer_channel_config_limits(LDKUserConfig *this_ptr, LDKChannelHandshakeLimits val);
+
+/**
+ * " Channel config which affects behavior during channel lifetime."
+ */
+const LDKChannelConfig *UserConfig_get_channel_options(const LDKUserConfig *this_ptr);
+
+/**
+ * " Channel config which affects behavior during channel lifetime."
+ */
+void UserConfig_set_channel_options(LDKUserConfig *this_ptr, LDKChannelConfig val);
+
+MUST_USE_RES LDKUserConfig UserConfig_new(LDKChannelHandshakeConfig own_channel_config_arg, LDKChannelHandshakeLimits peer_channel_config_limits_arg, LDKChannelConfig channel_options_arg);
+
+MUST_USE_RES LDKUserConfig UserConfig_default(void);
+
 void ChainWatchedUtil_free(LDKChainWatchedUtil this_ptr);
 
 /**
@@ -2818,6 +2891,16 @@ void BlockNotifier_register_listener(const LDKBlockNotifier *this_arg, LDKChainL
  * " watch data during the callbacks for you (see ChainListener::block_connected for more info)."
  */
 void BlockNotifier_block_connected(const LDKBlockNotifier *this_arg, LDKu8slice block, uint32_t height);
+
+/**
+ * " Notify listeners that a block was connected, given pre-filtered list of transactions in the"
+ * " block which matched the filter (probably using does_match_tx)."
+ * ""
+ * " Returns true if notified listeners registered additional watch data (implying that the"
+ * " block must be re-scanned and this function called again prior to further block_connected"
+ * " calls, see ChainListener::block_connected for more info)."
+ */
+MUST_USE_RES bool BlockNotifier_block_connected_checked(const LDKBlockNotifier *this_arg, const uint8_t (*header)[80], uint32_t height, LDKCTransactionSlice txn_matched, LDKu32slice indexes_of_txn_matched);
 
 /**
  * " Notify listeners that a block was disconnected."
@@ -3372,7 +3455,7 @@ MUST_USE_RES uint64_t ChannelMonitor_get_latest_update_id(const LDKChannelMonito
 /**
  * " Gets the funding transaction outpoint of the channel this ChannelMonitor is monitoring for."
  */
-MUST_USE_RES LDKOutPoint ChannelMonitor_get_funding_txo(const LDKChannelMonitor *this_arg);
+MUST_USE_RES LDKC2Tuple_OutPointScriptZ ChannelMonitor_get_funding_txo(const LDKChannelMonitor *this_arg);
 
 /**
  * " Get the list of HTLCs who's status has been updated on chain. This should be called by"
@@ -3920,12 +4003,12 @@ void LocalCommitmentTransaction_free(LDKLocalCommitmentTransaction this_ptr);
 /**
  * " The commitment transaction itself, in unsigned form."
  */
-LDKTransaction LocalCommitmentTransaction_get_unsigned_tx(const LDKLocalCommitmentTransaction *this_ptr);
+LDKCVec_u8Z LocalCommitmentTransaction_get_unsigned_tx(const LDKLocalCommitmentTransaction *this_ptr);
 
 /**
  * " The commitment transaction itself, in unsigned form."
  */
-void LocalCommitmentTransaction_set_unsigned_tx(LDKLocalCommitmentTransaction *this_ptr, LDKTransaction val);
+void LocalCommitmentTransaction_set_unsigned_tx(LDKLocalCommitmentTransaction *this_ptr, LDKCVec_u8Z val);
 
 /**
  * " Our counterparty's signature for the transaction, above."

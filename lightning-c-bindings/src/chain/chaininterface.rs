@@ -155,7 +155,22 @@ impl std::ops::Deref for BroadcasterInterface {
 #[repr(C)]
 pub struct ChainListener {
 	pub this_arg: *mut c_void,
-	//XXX: Need to export block_connected
+	/// " Notifies a listener that a block was connected."
+	/// ""
+	/// " The txn_matched array should be set to references to transactions which matched the"
+	/// " relevant installed watch outpoints/txn, or the full set of transactions in the block."
+	/// ""
+	/// " Note that if txn_matched includes only matched transactions, and a new"
+	/// " transaction/outpoint is watched during a block_connected call, the block *must* be"
+	/// " re-scanned with the new transaction/outpoints and block_connected should be called"
+	/// " again with the same header and (at least) the new transactions."
+	/// ""
+	/// " Note that if non-new transaction/outpoints are be registered during a call, a second call"
+	/// " *must not* happen."
+	/// ""
+	/// " This also means those counting confirmations using block_connected callbacks should watch"
+	/// " for duplicate headers and not count them towards confirmations!"
+	pub block_connected: extern "C" fn (this_arg: *const c_void, header: *const [u8; 80], height: u32, txn_matched: crate::c_types::derived::CTransactionSlice, indexes_of_txn_matched: crate::c_types::u32slice),
 	/// " Notifies a listener that a block was disconnected."
 	/// " Unlike block_connected, this *must* never be called twice for the same disconnect event."
 	/// " Height must be the one of the block which was disconnected (not new height of the best chain)"
@@ -167,7 +182,9 @@ unsafe impl Send for ChainListener {}
 use lightning::chain::chaininterface::ChainListener as lnChainListener;
 impl lnChainListener for ChainListener {
 	fn block_connected(&self, header: &bitcoin::blockdata::block::BlockHeader, height: u32, txn_matched: &[&bitcoin::blockdata::transaction::Transaction], indexes_of_txn_matched: &[u32]) {
-		unimplemented!();
+		let local_header = { let mut s = [0u8; 80]; s[..].copy_from_slice(&::bitcoin::consensus::encode::serialize(header)); s };
+		let local_indexes_of_txn_matched = crate::c_types::u32slice::from_slice(indexes_of_txn_matched);
+		(self.block_connected)(self.this_arg, &local_header, height, txn_matched.into(), local_indexes_of_txn_matched)
 	}
 	fn block_disconnected(&self, header: &bitcoin::blockdata::block::BlockHeader, disconnected_height: u32) {
 		let local_header = { let mut s = [0u8; 80]; s[..].copy_from_slice(&::bitcoin::consensus::encode::serialize(header)); s };
@@ -385,6 +402,20 @@ pub extern "C" fn BlockNotifier_register_listener(this_arg: &BlockNotifier, mut 
 #[no_mangle]
 pub extern "C" fn BlockNotifier_block_connected(this_arg: &BlockNotifier, block: crate::c_types::u8slice, mut height: u32) {
 	unsafe { &*this_arg.inner }.block_connected(&::bitcoin::consensus::encode::deserialize(block.to_slice()).unwrap(), height)
+}
+
+/// " Notify listeners that a block was connected, given pre-filtered list of transactions in the"
+/// " block which matched the filter (probably using does_match_tx)."
+/// ""
+/// " Returns true if notified listeners registered additional watch data (implying that the"
+/// " block must be re-scanned and this function called again prior to further block_connected"
+/// " calls, see ChainListener::block_connected for more info)."
+#[must_use]
+#[no_mangle]
+pub extern "C" fn BlockNotifier_block_connected_checked(this_arg: &BlockNotifier, header: *const [u8; 80], mut height: u32, txn_matched: crate::c_types::derived::CTransactionSlice, indexes_of_txn_matched: crate::c_types::u32slice) -> bool {
+	let local_txn_matched_vec = txn_matched.into_vec(); let mut local_txn_matched = local_txn_matched_vec.iter().collect::<Vec<_>>();
+	let mut ret = unsafe { &*this_arg.inner }.block_connected_checked(&::bitcoin::consensus::encode::deserialize(unsafe { &*header }).unwrap(), height, &local_txn_matched[..], indexes_of_txn_matched.to_slice());
+	ret
 }
 
 /// " Notify listeners that a block was disconnected."

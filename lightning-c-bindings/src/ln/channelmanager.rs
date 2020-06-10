@@ -516,11 +516,15 @@ extern "C" fn ChannelManager_EventsProvider_get_and_clear_pending_events(this_ar
 pub extern "C" fn ChannelManager_as_ChainListener(this_arg: *const ChannelManager) -> crate::chain::chaininterface::ChainListener {
 	crate::chain::chaininterface::ChainListener {
 		this_arg: unsafe { (*this_arg).inner as *mut c_void },
-		//XXX: Need to export block_connected
+		block_connected: ChannelManager_ChainListener_block_connected,
 		block_disconnected: ChannelManager_ChainListener_block_disconnected,
 	}
 }
 use lightning::chain::chaininterface::ChainListener as ChainListenerTraitImport;
+extern "C" fn ChannelManager_ChainListener_block_connected(this_arg: *const c_void, header: *const [u8; 80], mut height: u32, txn_matched: crate::c_types::derived::CTransactionSlice, indexes_of_txn_matched: crate::c_types::u32slice) {
+	let local_txn_matched_vec = txn_matched.into_vec(); let mut local_txn_matched = local_txn_matched_vec.iter().collect::<Vec<_>>();
+	unsafe { &mut *(this_arg as *mut lnChannelManager) }.block_connected(&::bitcoin::consensus::encode::deserialize(unsafe { &*header }).unwrap(), height, &local_txn_matched[..], indexes_of_txn_matched.to_slice())
+}
 extern "C" fn ChannelManager_ChainListener_block_disconnected(this_arg: *const c_void, header: *const [u8; 80], unused_0: u32) {
 	unsafe { &mut *(this_arg as *mut lnChannelManager) }.block_disconnected(&::bitcoin::consensus::encode::deserialize(unsafe { &*header }).unwrap(), unused_0)
 }

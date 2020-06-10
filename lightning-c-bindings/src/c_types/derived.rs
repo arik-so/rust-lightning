@@ -55,6 +55,30 @@ pub type CVec_u32Z = crate::c_types::CVecTempl<u32>;
 pub static CVec_u32Z_free: extern "C" fn(CVec_u32Z) = crate::c_types::CVecTempl_free::<u32>;
 
 #[no_mangle]
+pub type CTransactionSlice = crate::c_types::CSliceTempl<crate::c_types::derived::CVec_u8Z>;
+impl From<&[&bitcoin::blockdata::transaction::Transaction]> for CTransactionSlice {
+	fn from(slice: &[&bitcoin::blockdata::transaction::Transaction]) -> Self {
+		let mut v = Vec::with_capacity(slice.len());
+		for e in slice.iter() {
+			let local_e = ::bitcoin::consensus::encode::serialize(*e);
+			v.push(local_e.into());
+		}
+		Self { datalen: v.len(), data: unsafe { (*Box::into_raw(v.into_boxed_slice())).as_mut_ptr() } }
+	}
+}
+impl CTransactionSlice {
+	pub(crate) fn into_vec(mut self) -> Vec<bitcoin::blockdata::transaction::Transaction> {
+		let mut ret = Vec::new();
+		let mut orig: Vec<_> = unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.data, self.datalen)) }.into();
+		for e in orig.drain(..) {
+			ret.push(::bitcoin::consensus::encode::deserialize(&e.into_rust()[..]).unwrap());
+		}
+		// Make sure we don't try to de-allocate the things we just drain(..)ed
+		self.data = std::ptr::null_mut(); self.datalen = 0;
+		ret
+	}
+}
+#[no_mangle]
 pub type C2Tuple_u64u64Z = crate::c_types::C2TupleTempl<u64, u64>;
 #[no_mangle]
 pub static C2Tuple_u64u64Z_free: extern "C" fn(C2Tuple_u64u64Z) = crate::c_types::C2TupleTempl_free::<u64, u64>;
@@ -78,12 +102,14 @@ impl From<&[&lightning::ln::chan_utils::HTLCOutputInCommitment]> for CHTLCOutput
 	}
 }
 impl CHTLCOutputInCommitmentSlice {
-	pub(crate) fn into_vec(self) -> Vec<&'static lightning::ln::chan_utils::HTLCOutputInCommitment> {
+	pub(crate) fn into_vec(mut self) -> Vec<&'static lightning::ln::chan_utils::HTLCOutputInCommitment> {
 		let mut ret = Vec::new();
 		let mut orig: Vec<_> = unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.data, self.datalen)) }.into();
 		for e in orig.drain(..) {
 			ret.push(unsafe { &*e.inner });
 		}
+		// Make sure we don't try to de-allocate the things we just drain(..)ed
+		self.data = std::ptr::null_mut(); self.datalen = 0;
 		ret
 	}
 }
@@ -195,6 +221,18 @@ pub static CResult_NoneChannelMonitorUpdateErrZ_err: extern "C" fn (crate::ln::c
 pub type CVec_HTLCUpdateZ = crate::c_types::CVecTempl<crate::ln::channelmonitor::HTLCUpdate>;
 #[no_mangle]
 pub static CVec_HTLCUpdateZ_free: extern "C" fn(CVec_HTLCUpdateZ) = crate::c_types::CVecTempl_free::<crate::ln::channelmonitor::HTLCUpdate>;
+
+#[no_mangle]
+pub type C2Tuple_OutPointScriptZ = crate::c_types::C2TupleTempl<crate::chain::transaction::OutPoint, crate::c_types::derived::CVec_u8Z>;
+#[no_mangle]
+pub static C2Tuple_OutPointScriptZ_free: extern "C" fn(C2Tuple_OutPointScriptZ) = crate::c_types::C2TupleTempl_free::<crate::chain::transaction::OutPoint, crate::c_types::derived::CVec_u8Z>;
+#[no_mangle]
+pub extern "C" fn C2Tuple_OutPointScriptZ_new(a: crate::chain::transaction::OutPoint, b: crate::c_types::derived::CVec_u8Z) -> C2Tuple_OutPointScriptZ {
+	C2Tuple_OutPointScriptZ {
+		a: Box::into_raw(Box::new(a)),
+		b: Box::into_raw(Box::new(b)),
+	}
+}
 
 #[no_mangle]
 pub type CVec_UpdateAddHTLCZ = crate::c_types::CVecTempl<crate::ln::msgs::UpdateAddHTLC>;

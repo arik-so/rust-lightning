@@ -9,8 +9,11 @@ extern "C" {
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <chrono>
 #include <functional>
 #include <thread>
+
+using namespace std::chrono_literals;
 
 const uint8_t valid_node_announcement[] = {
 	0x94, 0xe4, 0xf5, 0x61, 0x41, 0x24, 0x7d, 0x90, 0x23, 0xa0, 0xc8, 0x34, 0x8c, 0xc4, 0xca, 0x51,
@@ -42,6 +45,45 @@ const uint8_t valid_node_announcement[] = {
 	0x71, 0x0b, 0x8f, 0x19, 0x0e, 0xe8, 0x80, 0x24, 0x90, 0x32, 0xa2, 0x9e, 0xd6, 0x6e
 };
 
+const uint8_t channel_open_block[] = {
+	0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0xa2, 0x47, 0xd2, 0xf8, 0xd4, 0xe0, 0x6a, 0x3f, 0xf9, 0x7a, 0x9a, 0x34,
+	0xbb, 0xa9, 0x96, 0xde, 0x63, 0x84, 0x5a, 0xce, 0xcf, 0x98, 0xb8, 0xbb, 0x75, 0x4c, 0x4f, 0x7d,
+	0xee, 0x4c, 0xa9, 0x5f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x01, 0x40, 0x9c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x22, 0x00, 0x20, 0x20, 0x12, 0x70,
+	0x44, 0x41, 0x40, 0xaf, 0xc5, 0x72, 0x97, 0xc8, 0x69, 0xba, 0x04, 0xdb, 0x28, 0x7b, 0xd7, 0x32,
+	0x07, 0x33, 0x3a, 0x4a, 0xc2, 0xc5, 0x56, 0x06, 0x05, 0x65, 0xd7, 0xa8, 0xcf, 0x01, 0x00, 0x00,
+	0x00, 0x00, 0x00
+};
+
+const uint8_t *channel_open_tx = channel_open_block + 81;
+const uint8_t channel_open_txid[] = {
+	0x5f, 0xa9, 0x4c, 0xee, 0x7d, 0x4f, 0x4c, 0x75, 0xbb, 0xb8, 0x98, 0xcf, 0xce, 0x5a, 0x84, 0x63,
+	0xde, 0x96, 0xa9, 0xbb, 0x34, 0x9a, 0x7a, 0xf9, 0x3f, 0x6a, 0xe0, 0xd4, 0xf8, 0xd2, 0x47, 0xa2
+};
+
+// Two blocks built on top of channel_open_block:
+const uint8_t block_1[] = {
+	0x01, 0x00, 0x00, 0x00, 0x65, 0x8e, 0xf1, 0x90, 0x88, 0xfa, 0x13, 0x9c, 0x6a, 0xea, 0xf7, 0xc1,
+	0x5a, 0xdd, 0x52, 0x4d, 0x3c, 0x48, 0x03, 0xb3, 0x9b, 0x25, 0x4f, 0x02, 0x79, 0x05, 0x90, 0xe0,
+	0xc4, 0x8d, 0xa0, 0x62, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00
+};
+const uint8_t block_2[] = {
+	0x01, 0x00, 0x00, 0x00, 0xf2, 0x08, 0x87, 0x51, 0xcb, 0xb1, 0x1a, 0x51, 0x76, 0x01, 0x6c, 0x5d,
+	0x76, 0x26, 0x54, 0x6f, 0xd9, 0xbd, 0xa6, 0xa5, 0xe9, 0x4b, 0x21, 0x6e, 0xda, 0xa3, 0x64, 0x23,
+	0xcd, 0xf1, 0xe2, 0xe2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00
+};
+
 void print_log(const void *this_arg, const char *record) {
 	printf("%p - %s\n", this_arg, record);
 }
@@ -58,10 +100,31 @@ void broadcast_tx(const void *this_arg, LDKTransaction tx) {
 	//TODO
 }
 
-LDKCResult_NoneChannelMonitorUpdateErrZ add_channel_monitor(const void *this_arg, LDKOutPoint funding_txo, LDKChannelMonitor monitor) {
+LDKCResult_NoneChannelMonitorUpdateErrZ add_channel_monitor(const void *this_arg, LDKOutPoint funding_txo_arg, LDKChannelMonitor monitor_arg) {
+	// First bind the args to C++ objects so they auto-free
+	LDK::ChannelMonitor mon(std::move(monitor_arg));
+	LDK::OutPoint funding_txo(std::move(funding_txo_arg));
+
+	LDKChainWatchInterfaceUtil* arg = (LDKChainWatchInterfaceUtil*) this_arg;
+	LDK::ChainWatchInterface watch = ChainWatchInterfaceUtil_as_ChainWatchInterface(arg);
+	LDK::C2Tuple_OutPointScriptZ funding_info = ChannelMonitor_get_funding_txo(&mon);
+	LDKThirtyTwoBytes funding_txid;
+	memcpy(funding_txid.data, OutPoint_get_txid(funding_info->a), 32);
+	LDK::C2Tuple_Txidu32Z outpoint(C2Tuple_Txidu32Z_new(funding_txid, OutPoint_get_index(funding_info->a)));
+	watch.install_watch_outpoint(watch.this_arg, outpoint, LDKu8slice {
+		.data = funding_info->b->data,
+		.datalen = funding_info->b->datalen,
+	});
+	watch.install_watch_tx(watch.this_arg, &funding_txid.data, LDKu8slice {
+		.data = funding_info->b->data,
+		.datalen = funding_info->b->datalen,
+	});
 	return CResult_NoneChannelMonitorUpdateErrZ_good();
 }
-LDKCResult_NoneChannelMonitorUpdateErrZ update_channel_monitor(const void *this_arg, LDKOutPoint funding_txo, LDKChannelMonitorUpdate monitor) {
+LDKCResult_NoneChannelMonitorUpdateErrZ update_channel_monitor(const void *this_arg, LDKOutPoint funding_txo_arg, LDKChannelMonitorUpdate monitor_arg) {
+	// First bind the args to C++ objects so they auto-free
+	LDK::ChannelMonitorUpdate update(std::move(monitor_arg));
+	LDK::OutPoint funding_txo(std::move(funding_txo_arg));
 	return CResult_NoneChannelMonitorUpdateErrZ_good();
 }
 LDKCVec_HTLCUpdateZ monitors_pending_htlcs_updated(const void *this_arg) {
@@ -70,13 +133,6 @@ LDKCVec_HTLCUpdateZ monitors_pending_htlcs_updated(const void *this_arg) {
 	empty_htlc_vec.datalen = 0;
 	return empty_htlc_vec;
 }
-
-void chain_install_watch_tx(const void *this_arg, const uint8_t (*txid)[32], LDKu8slice script_pub_key) {}
-void chain_watch_all_txn(const void *this_arg) {}
-LDKCResult_C2Tuple_Scriptu64ZChainErrorZ get_chain_utxo(const void *this_arg, uint8_t genesis_hash[32], uint64_t unspent_tx_output_identifier) {
-	return CResult_C2Tuple_Scriptu64ZChainErrorZ_err(LDKChainError_NotSupported);
-}
-
 
 uintptr_t sock_send_data(void *this_arg, LDKu8slice data, bool resume_read) {
 	return write((int)((long)this_arg), data.data, data.datalen);
@@ -114,28 +170,16 @@ int main() {
 	LDKPublicKey null_pk;
 	memset(&null_pk, 0, sizeof(null_pk));
 
-	LDKNetwork network = LDKNetwork_Bitcoin;
+	LDKNetwork network = LDKNetwork_Testnet;
 
 	// Trait implementations:
 	LDK::FeeEstimator fee_est;
 	fee_est.this_arg = NULL;
 	fee_est.get_est_sat_per_1000_weight = get_fee;
 
-	LDK::ManyChannelMonitor mon;
-	mon.this_arg = NULL;
-	mon.add_monitor = add_channel_monitor;
-	mon.update_monitor = update_channel_monitor;
-	mon.get_and_clear_pending_htlcs_updated = monitors_pending_htlcs_updated;
-
 	LDK::BroadcasterInterface broadcast;
 	broadcast.this_arg = NULL;
 	broadcast.broadcast_transaction = broadcast_tx;
-
-	LDK::ChainWatchInterface chain;
-	chain.this_arg = NULL;
-	chain.install_watch_tx = chain_install_watch_tx;
-	chain.watch_all_txn = chain_watch_all_txn;
-	chain.get_chain_utxo = get_chain_utxo;
 
 	// Instantiate classes for node 1:
 
@@ -143,18 +187,29 @@ int main() {
 	logger1.this_arg = (void*)1;
 	logger1.log = print_log;
 
+	LDK::ChainWatchInterfaceUtil chain1 = ChainWatchInterfaceUtil_new(network);
+	LDK::BlockNotifier blocks1 = BlockNotifier_new(ChainWatchInterfaceUtil_as_ChainWatchInterface(&chain1));
+
+	LDK::ManyChannelMonitor mon1 {
+		.this_arg = &chain1,
+		.add_monitor = add_channel_monitor,
+		.update_monitor = update_channel_monitor,
+		.get_and_clear_pending_htlcs_updated = monitors_pending_htlcs_updated,
+	};
+
 	LDK::KeysManager keys1 = KeysManager_new(&node_seed, network, 0, 0);
 	LDK::KeysInterface keys_source1 = KeysManager_as_KeysInterface(&keys1);
 	LDKSecretKey node_secret1 = keys_source1.get_node_secret(keys_source1.this_arg);
 
 	LDK::UserConfig config1 = UserConfig_default();
 
-	LDK::ChannelManager cm1 = ChannelManager_new(network, fee_est, mon, broadcast, logger1, keys_source1, config1, 0);
+	LDK::ChannelManager cm1 = ChannelManager_new(network, fee_est, mon1, broadcast, logger1, keys_source1, config1, 0);
+	BlockNotifier_register_listener(&blocks1, ChannelManager_as_ChainListener(&cm1));
 
 	LDK::CVec_ChannelDetailsZ channels = ChannelManager_list_channels(&cm1);
 	assert(channels->datalen == 0);
 
-	LDK::NetGraphMsgHandler net_graph1 = NetGraphMsgHandler_new(chain, logger1);
+	LDK::NetGraphMsgHandler net_graph1 = NetGraphMsgHandler_new(ChainWatchInterfaceUtil_as_ChainWatchInterface(&chain1), logger1);
 
 	LDK::MessageHandler msg_handler1 = MessageHandler_new(ChannelManager_as_ChannelMessageHandler(&cm1), NetGraphMsgHandler_as_RoutingMessageHandler(&net_graph1));
 
@@ -173,19 +228,33 @@ int main() {
 	logger2.this_arg = (void*)2;
 	logger2.log = print_log;
 
+	LDK::ChainWatchInterfaceUtil chain2 = ChainWatchInterfaceUtil_new(network);
+	LDK::BlockNotifier blocks2 = BlockNotifier_new(ChainWatchInterfaceUtil_as_ChainWatchInterface(&chain2));
+
+	LDK::ManyChannelMonitor mon2 {
+		.this_arg = &chain2,
+		.add_monitor = add_channel_monitor,
+		.update_monitor = update_channel_monitor,
+		.get_and_clear_pending_htlcs_updated = monitors_pending_htlcs_updated,
+	};
+
 	memset(&node_seed, 1, 32);
 	LDK::KeysManager keys2 = KeysManager_new(&node_seed, network, 0, 0);
 	LDK::KeysInterface keys_source2 = KeysManager_as_KeysInterface(&keys2);
 	LDKSecretKey node_secret2 = keys_source2.get_node_secret(keys_source2.this_arg);
 
+	LDK::ChannelHandshakeConfig handshake_config2 = ChannelHandshakeConfig_default();
+	ChannelHandshakeConfig_set_minimum_depth(&handshake_config2, 2);
 	LDK::UserConfig config2 = UserConfig_default();
+	UserConfig_set_own_channel_config(&config2, handshake_config2);
 
-	LDK::ChannelManager cm2 = ChannelManager_new(network, fee_est, mon, broadcast, logger2, keys_source2, config2, 0);
+	LDK::ChannelManager cm2 = ChannelManager_new(network, fee_est, mon2, broadcast, logger2, keys_source2, config2, 0);
+	BlockNotifier_register_listener(&blocks2, ChannelManager_as_ChainListener(&cm2));
 
 	LDK::CVec_ChannelDetailsZ channels2 = ChannelManager_list_channels(&cm2);
 	assert(channels2->datalen == 0);
 
-	LDK::NetGraphMsgHandler net_graph2 = NetGraphMsgHandler_new(chain, logger2);
+	LDK::NetGraphMsgHandler net_graph2 = NetGraphMsgHandler_new(ChainWatchInterfaceUtil_as_ChainWatchInterface(&chain2), logger2);
 	LDK::RoutingMessageHandler net_msgs2 = NetGraphMsgHandler_as_RoutingMessageHandler(&net_graph2);
 	LDK::ChannelAnnouncement chan_ann = ChannelAnnouncement_read(LDKu8slice { .data = valid_node_announcement, .datalen = sizeof(valid_node_announcement) });
 	LDK::CResult_boolLightningErrorZ ann_res = net_msgs2.handle_channel_announcement(net_msgs2.this_arg, &chan_ann);
@@ -255,9 +324,40 @@ int main() {
 	while (true) {
 		LDKEventsProvider ev1 = ChannelManager_as_EventsProvider(&cm1);
 		LDK::CVec_EventZ events = ev1.get_and_clear_pending_events(ev1.this_arg);
-		if (events.self.datalen == 1) { break; }
+		if (events->datalen == 1) {
+			assert(events->data[0].tag == LDKEvent_FundingGenerationReady);
+			assert(events->data[0].funding_generation_ready.user_channel_id == 42);
+			assert(events->data[0].funding_generation_ready.channel_value_satoshis == 40000);
+			assert(events->data[0].funding_generation_ready.output_script.datalen == 34);
+			assert(!memcmp(events->data[0].funding_generation_ready.output_script.data, channel_open_tx + 58, 34));
+			LDKThirtyTwoBytes txid;
+			for (int i = 0; i < 32; i++) { txid.data[i] = channel_open_txid[31-i]; }
+			LDK::OutPoint outp = OutPoint_new(txid, 0);
+			ChannelManager_funding_transaction_generated(&cm1, &events->data[0].funding_generation_ready.temporary_channel_id.data, outp);
+			break;
+		}
 		std::this_thread::yield();
 	}
+
+	// We can't observe when the funding signed messages have been exchanged without
+	// writing a message interceptor, so just sleep 10ms here and hope its enough.
+	PeerManager_process_events(&net1);
+	std::this_thread::sleep_for(50ms);
+
+	BlockNotifier_block_connected(&blocks1, LDKu8slice { .data = channel_open_block, .datalen = sizeof(channel_open_block) }, 1);
+	BlockNotifier_block_connected(&blocks2, LDKu8slice { .data = channel_open_block, .datalen = sizeof(channel_open_block) }, 1);
+
+	BlockNotifier_block_connected(&blocks1, LDKu8slice { .data = block_1, .datalen = sizeof(block_1) }, 2);
+	BlockNotifier_block_connected(&blocks2, LDKu8slice { .data = block_1, .datalen = sizeof(block_1) }, 2);
+
+	BlockNotifier_block_connected(&blocks1, LDKu8slice { .data = block_2, .datalen = sizeof(block_2) }, 3);
+	BlockNotifier_block_connected(&blocks2, LDKu8slice { .data = block_2, .datalen = sizeof(block_2) }, 3);
+
+	// We can't observe when the funding locked messages have been exchanged without
+	// writing a message interceptor, so just sleep 10ms here and hope its enough.
+	PeerManager_process_events(&net1);
+	PeerManager_process_events(&net2);
+	std::this_thread::sleep_for(50ms);
 
 	close(pipefds_1_to_2[0]);
 	close(pipefds_2_to_1[0]);

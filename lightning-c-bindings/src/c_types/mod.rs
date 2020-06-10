@@ -67,7 +67,7 @@ impl Signature {
 /// provided to you are invalid.
 pub struct Transaction {
 	pub data: *const u8,
-	pub datalen: usize
+	pub datalen: usize,
 }
 impl Transaction {
 	pub(crate) fn into_bitcoin(&self) -> BitcoinTransaction {
@@ -94,6 +94,23 @@ impl u8slice {
 		}
 	}
 	pub(crate) fn to_slice(&self) -> &[u8] {
+		unsafe { std::slice::from_raw_parts(self.data, self.datalen) }
+	}
+}
+
+#[repr(C)]
+pub struct u32slice {
+	pub data: *const u32,
+	pub datalen: usize
+}
+impl u32slice {
+	pub(crate) fn from_slice(s: &[u32]) -> Self {
+		Self {
+			data: s.as_ptr(),
+			datalen: s.len(),
+		}
+	}
+	pub(crate) fn to_slice(&self) -> &[u32] {
 		unsafe { std::slice::from_raw_parts(self.data, self.datalen) }
 	}
 }

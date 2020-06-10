@@ -318,15 +318,15 @@ impl Clone for LocalCommitmentTransaction {
 }
 /// " The commitment transaction itself, in unsigned form."
 #[no_mangle]
-pub extern "C" fn LocalCommitmentTransaction_get_unsigned_tx(this_ptr: &LocalCommitmentTransaction) -> crate::c_types::Transaction {
+pub extern "C" fn LocalCommitmentTransaction_get_unsigned_tx(this_ptr: &LocalCommitmentTransaction) -> crate::c_types::derived::CVec_u8Z {
 	let inner_val = &unsafe { &*this_ptr.inner }.unsigned_tx;
 	let local_inner_val = ::bitcoin::consensus::encode::serialize(inner_val);
-	crate::c_types::Transaction::from_slice(&local_inner_val)
+	local_inner_val.into()
 }
 /// " The commitment transaction itself, in unsigned form."
 #[no_mangle]
-pub extern "C" fn LocalCommitmentTransaction_set_unsigned_tx(this_ptr: &mut LocalCommitmentTransaction, mut val: crate::c_types::Transaction) {
-	unsafe { &mut *(this_ptr.inner as *mut lnLocalCommitmentTransaction) }.unsigned_tx = val.into_bitcoin();
+pub extern "C" fn LocalCommitmentTransaction_set_unsigned_tx(this_ptr: &mut LocalCommitmentTransaction, mut val: crate::c_types::derived::CVec_u8Z) {
+	unsafe { &mut *(this_ptr.inner as *mut lnLocalCommitmentTransaction) }.unsigned_tx = ::bitcoin::consensus::encode::deserialize(&val.into_rust()[..]).unwrap();
 }
 /// " Our counterparty's signature for the transaction, above."
 #[no_mangle]

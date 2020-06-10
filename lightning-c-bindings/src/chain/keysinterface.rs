@@ -469,7 +469,8 @@ extern "C" fn InMemoryChannelKeys_ChannelKeys_key_derivation_params(this_arg: *c
 }
 #[must_use]
 extern "C" fn InMemoryChannelKeys_ChannelKeys_sign_remote_commitment(this_arg: *const c_void, mut feerate_per_kw: u64, commitment_tx: crate::c_types::Transaction, keys: &crate::ln::chan_utils::TxCreationKeys, htlcs: crate::c_types::derived::CHTLCOutputInCommitmentSlice, mut to_self_delay: u16) -> crate::c_types::derived::CResult_C2Tuple_SignatureCVec_SignatureZZNoneZ {
-	let mut ret = unsafe { &mut *(this_arg as *mut lnInMemoryChannelKeys) }.sign_remote_commitment(feerate_per_kw, &commitment_tx.into_bitcoin(), unsafe { &*keys.inner }, &htlcs.into_vec(), to_self_delay, &bitcoin::secp256k1::Secp256k1::new());
+	let local_htlcs = htlcs.into_vec();
+	let mut ret = unsafe { &mut *(this_arg as *mut lnInMemoryChannelKeys) }.sign_remote_commitment(feerate_per_kw, &commitment_tx.into_bitcoin(), unsafe { &*keys.inner }, &local_htlcs[..], to_self_delay, &bitcoin::secp256k1::Secp256k1::new());
 	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { let (mut orig_ret_0_0, mut orig_ret_0_1) = o; let mut local_orig_ret_0_1 = Vec::new(); for item in orig_ret_0_1.drain(..) { local_orig_ret_0_1.push( { crate::c_types::Signature::from_rust(&item) }); }; let local_ret_0 = (crate::c_types::Signature::from_rust(&orig_ret_0_0), local_orig_ret_0_1.into()).into(); local_ret_0 }), Err(mut e) => crate::c_types::CResultTempl::err( { 0u8 /*e*/ }) };
 	local_ret
 }

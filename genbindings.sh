@@ -29,7 +29,7 @@ gcc -Wall -g -pthread demo.c ../target/debug/liblightning.a -ldl
 ./a.out
 
 g++ -Wall -g -pthread demo.cpp -L../target/debug/ -llightning -ldl
-LD_LIBRARY_PATH=../target/debug/ valgrind --memcheck:leak-check=full ./a.out
+LD_LIBRARY_PATH=../target/debug/ valgrind --memcheck:leak-check=full --show-leak-kinds=all ./a.out
 
 clang++ -Wall -pthread demo.cpp ../target/debug/liblightning.a -ldl
 ./a.out

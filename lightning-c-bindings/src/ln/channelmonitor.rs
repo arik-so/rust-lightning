@@ -368,9 +368,11 @@ pub extern "C" fn ChannelMonitor_get_latest_update_id(this_arg: &ChannelMonitor)
 /// " Gets the funding transaction outpoint of the channel this ChannelMonitor is monitoring for."
 #[must_use]
 #[no_mangle]
-pub extern "C" fn ChannelMonitor_get_funding_txo(this_arg: &ChannelMonitor) -> crate::chain::transaction::OutPoint {
+pub extern "C" fn ChannelMonitor_get_funding_txo(this_arg: &ChannelMonitor) -> crate::c_types::derived::C2Tuple_OutPointScriptZ {
 	let mut ret = unsafe { &*this_arg.inner }.get_funding_txo();
-	crate::chain::transaction::OutPoint { inner: Box::into_raw(Box::new(ret)), _underlying_ref: false }
+	let mut ret = unsafe { (*ret).clone() };
+	let (mut orig_ret_0, mut orig_ret_1) = ret; let local_ret = (crate::chain::transaction::OutPoint { inner: Box::into_raw(Box::new(orig_ret_0)), _underlying_ref: false }, orig_ret_1.into_bytes().into()).into();
+	local_ret
 }
 
 /// " Get the list of HTLCs who's status has been updated on chain. This should be called by"
