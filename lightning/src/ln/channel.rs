@@ -3335,7 +3335,7 @@ impl<ChanSigner: ChannelKeys> Channel<ChanSigner> {
 			max_htlc_value_in_flight_msat: Channel::<ChanSigner>::get_our_max_htlc_value_in_flight_msat(self.channel_value_satoshis),
 			channel_reserve_satoshis: Channel::<ChanSigner>::get_remote_channel_reserve_satoshis(self.channel_value_satoshis),
 			htlc_minimum_msat: self.our_htlc_minimum_msat,
-			feerate_per_kw: fee_estimator.get_est_sat_per_1000_weight(ConfirmationTarget::Background) as u32,
+			feerate_per_kw: self.feerate_per_kw as u32,
 			to_self_delay: self.our_to_self_delay,
 			max_accepted_htlcs: OUR_MAX_HTLCS,
 			funding_pubkey: local_keys.funding_pubkey,
