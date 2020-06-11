@@ -23,6 +23,13 @@ use std::collections::BTreeMap;
 use std::collections::btree_map::Entry as BtreeEntry;
 use std::ops::Deref;
 
+/// Represents the network as nodes and channels between them
+#[derive(PartialEq)]
+pub struct NetworkGraph {
+	channels: BTreeMap<u64, ChannelInfo>,
+	nodes: BTreeMap<PublicKey, NodeInfo>,
+}
+
 /// Receives and validates network updates from peers,
 /// stores authentic and relevant data as a network graph.
 /// This network graph is then used for routing payments.
@@ -425,13 +432,6 @@ impl Readable for NodeInfo {
 			announcement_info,
 		})
 	}
-}
-
-/// Represents the network as nodes and channels between them
-#[derive(PartialEq)]
-pub struct NetworkGraph {
-	channels: BTreeMap<u64, ChannelInfo>,
-	nodes: BTreeMap<PublicKey, NodeInfo>,
 }
 
 impl Writeable for NetworkGraph {
