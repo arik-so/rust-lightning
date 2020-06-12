@@ -124,9 +124,16 @@ pub struct ThirtyTwoBytes {
 }
 
 #[repr(C)]
-pub struct ThreeBytes {
-	pub data: [u8; 3],
-}
+pub struct ThreeBytes { pub data: [u8; 3], }
+#[derive(Clone)]
+#[repr(C)]
+pub struct FourBytes { pub data: [u8; 4], }
+#[derive(Clone)]
+#[repr(C)]
+pub struct TenBytes { pub data: [u8; 10], }
+#[derive(Clone)]
+#[repr(C)]
+pub struct SixteenBytes { pub data: [u8; 16], }
 
 pub(crate) struct VecWriter(pub Vec<u8>);
 impl lightning::util::ser::Writer for VecWriter {
@@ -145,6 +152,25 @@ pub(crate) fn serialize_obj<I: lightning::util::ser::Writeable>(i: &I) -> derive
 }
 pub(crate) fn deserialize_obj<I: lightning::util::ser::Readable>(s: u8slice) -> Result<I, lightning::ln::msgs::DecodeError> {
 	I::read(&mut s.to_slice())
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+/// A Rust str object, ie a reference to a UTF8-valid string.
+/// This is *not* null-terminated so cannot be used directly as a C string!
+pub struct Str {
+	pub chars: *const u8,
+	pub len: usize
+}
+impl Into<Str> for &'static str {
+	fn into(self) -> Str {
+		Str { chars: self.as_ptr(), len: self.len() }
+	}
+}
+impl Into<&'static str> for Str {
+	fn into(self) -> &'static str {
+		std::str::from_utf8(unsafe { std::slice::from_raw_parts(self.chars, self.len) }).unwrap()
+	}
 }
 
 // Note that the C++ headers memset(0) all the Templ types to avoid deallocation!

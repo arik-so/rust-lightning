@@ -88,6 +88,7 @@ pub enum SpendableOutputDescriptor {
 		/// the witness_script.
 		to_self_delay: u16,
 		/// The output which is referenced by the given outpoint
+		/// (C-not exported)
 		output: TxOut,
 		/// The channel keys state used to proceed to derivation of signing key. Must
 		/// be pass to KeysInterface::derive_channel_keys.

@@ -10,6 +10,8 @@ use bitcoin::hashes::Hash;
 use crate::c_types::*;
 
 /// " An enum representing the available verbosity levels of the logger."
+#[must_use]
+#[derive(Clone)]
 #[repr(C)]
 pub enum Level {
 	/// "Designates logger being silent"

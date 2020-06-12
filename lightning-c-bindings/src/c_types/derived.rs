@@ -60,7 +60,7 @@ impl From<&[&bitcoin::blockdata::transaction::Transaction]> for CTransactionSlic
 	fn from(slice: &[&bitcoin::blockdata::transaction::Transaction]) -> Self {
 		let mut v = Vec::with_capacity(slice.len());
 		for e in slice.iter() {
-			let local_e = ::bitcoin::consensus::encode::serialize(*e);
+			let local_e = ::bitcoin::consensus::encode::serialize(&**e);
 			v.push(local_e.into());
 		}
 		Self { datalen: v.len(), data: unsafe { (*Box::into_raw(v.into_boxed_slice())).as_mut_ptr() } }
@@ -223,6 +223,19 @@ pub type CVec_HTLCUpdateZ = crate::c_types::CVecTempl<crate::ln::channelmonitor:
 pub static CVec_HTLCUpdateZ_free: extern "C" fn(CVec_HTLCUpdateZ) = crate::c_types::CVecTempl_free::<crate::ln::channelmonitor::HTLCUpdate>;
 
 #[no_mangle]
+pub type CResult_NoneMonitorUpdateErrorZ = crate::c_types::CResultTempl<u8, crate::ln::channelmonitor::MonitorUpdateError>;
+#[no_mangle]
+pub static CResult_NoneMonitorUpdateErrorZ_free: extern "C" fn(CResult_NoneMonitorUpdateErrorZ) = crate::c_types::CResultTempl_free::<u8, crate::ln::channelmonitor::MonitorUpdateError>;
+#[no_mangle]
+pub extern "C" fn CResult_NoneMonitorUpdateErrorZ_good() -> CResult_NoneMonitorUpdateErrorZ {
+	crate::c_types::CResultTempl::good(0)
+}
+
+#[no_mangle]
+pub static CResult_NoneMonitorUpdateErrorZ_err: extern "C" fn (crate::ln::channelmonitor::MonitorUpdateError) -> CResult_NoneMonitorUpdateErrorZ =
+	crate::c_types::CResultTempl::<u8, crate::ln::channelmonitor::MonitorUpdateError>::err;
+
+#[no_mangle]
 pub type C2Tuple_OutPointScriptZ = crate::c_types::C2TupleTempl<crate::chain::transaction::OutPoint, crate::c_types::derived::CVec_u8Z>;
 #[no_mangle]
 pub static C2Tuple_OutPointScriptZ_free: extern "C" fn(C2Tuple_OutPointScriptZ) = crate::c_types::C2TupleTempl_free::<crate::chain::transaction::OutPoint, crate::c_types::derived::CVec_u8Z>;
@@ -233,6 +246,11 @@ pub extern "C" fn C2Tuple_OutPointScriptZ_new(a: crate::chain::transaction::OutP
 		b: Box::into_raw(Box::new(b)),
 	}
 }
+
+#[no_mangle]
+pub type CVec_TransactionZ = crate::c_types::CVecTempl<crate::c_types::derived::CVec_u8Z>;
+#[no_mangle]
+pub static CVec_TransactionZ_free: extern "C" fn(CVec_TransactionZ) = crate::c_types::CVecTempl_free::<crate::c_types::derived::CVec_u8Z>;
 
 #[no_mangle]
 pub type CVec_UpdateAddHTLCZ = crate::c_types::CVecTempl<crate::ln::msgs::UpdateAddHTLC>;

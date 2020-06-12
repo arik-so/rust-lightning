@@ -8,10 +8,6 @@
 #else
 #define MUST_USE_RES
 #endif
-struct lnMessageSendEventOpaque;
-typedef struct lnMessageSendEventOpaque LDKlnMessageSendEvent;
-struct lnAPIErrorOpaque;
-typedef struct lnAPIErrorOpaque LDKlnAPIError;
 struct lnChannelHandshakeConfigOpaque;
 typedef struct lnChannelHandshakeConfigOpaque LDKlnChannelHandshakeConfig;
 struct lnChannelHandshakeLimitsOpaque;
@@ -94,8 +90,6 @@ struct lnChannelReestablishOpaque;
 typedef struct lnChannelReestablishOpaque LDKlnChannelReestablish;
 struct lnAnnouncementSignaturesOpaque;
 typedef struct lnAnnouncementSignaturesOpaque LDKlnAnnouncementSignatures;
-struct lnNetAddressOpaque;
-typedef struct lnNetAddressOpaque LDKlnNetAddress;
 struct lnUnsignedNodeAnnouncementOpaque;
 typedef struct lnUnsignedNodeAnnouncementOpaque LDKlnUnsignedNodeAnnouncement;
 struct lnNodeAnnouncementOpaque;

@@ -435,7 +435,7 @@ pub extern "C" fn NodeAnnouncementInfo_set_alias(this_ptr: &mut NodeAnnouncement
 /// " Internet-level addresses via which one can connect to the node"
 #[no_mangle]
 pub extern "C" fn NodeAnnouncementInfo_set_addresses(this_ptr: &mut NodeAnnouncementInfo, mut val: crate::c_types::derived::CVec_NetAddressZ) {
-	let mut local_val = Vec::new(); for mut item in val.into_rust().drain(..) { local_val.push( { *unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) } }); };
+	let mut local_val = Vec::new(); for mut item in val.into_rust().drain(..) { local_val.push( { item.into_ln() }); };
 	unsafe { &mut *(this_ptr.inner as *mut lnNodeAnnouncementInfo) }.addresses = local_val;
 }
 #[no_mangle]

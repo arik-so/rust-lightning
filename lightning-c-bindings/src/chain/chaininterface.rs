@@ -9,6 +9,8 @@ use bitcoin::hashes::Hash;
 use crate::c_types::*;
 
 /// " Used to give chain error details upstream"
+#[must_use]
+#[derive(Clone)]
 #[repr(C)]
 pub enum ChainError {
 	/// " Client doesn't support UTXO lookup (but the chain hash matches our genesis block hash)"
@@ -202,6 +204,8 @@ impl std::ops::Deref for ChainListener {
 }
 /// " An enum that represents the speed at which we want a transaction to confirm used for feerate"
 /// " estimation."
+#[must_use]
+#[derive(Clone)]
 #[repr(C)]
 pub enum ConfirmationTarget {
 	/// " We are happy with this transaction confirming slowly when feerate drops some."

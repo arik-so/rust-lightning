@@ -323,7 +323,7 @@ pub extern "C" fn PeerManager_process_events(this_arg: &PeerManager) {
 /// ""
 /// " Panics if the descriptor was not previously registered in a successful new_*_connection event."
 #[no_mangle]
-pub extern "C" fn PeerManager_socket_disconnected(this_arg: &PeerManager, descriptor: & crate::ln::peer_handler::SocketDescriptor) {
+pub extern "C" fn PeerManager_socket_disconnected(this_arg: &PeerManager, descriptor: &crate::ln::peer_handler::SocketDescriptor) {
 	unsafe { &*this_arg.inner }.socket_disconnected(descriptor)
 }
 

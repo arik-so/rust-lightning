@@ -110,11 +110,18 @@ pub fn assert_simple_bound(bound: &syn::TraitBound) {
 }
 
 pub struct GenericTypes<'a> {
-	typed_generics: HashMap<&'a syn::Ident, (String, Option<&'a syn::Ident>)>,
+	typed_generics: Vec<HashMap<&'a syn::Ident, (String, Option<&'a syn::Path>)>>,
 }
 impl<'a> GenericTypes<'a> {
 	pub fn new() -> Self {
-		Self { typed_generics: HashMap::new(), }
+		Self { typed_generics: vec![HashMap::new()], }
+	}
+
+	pub fn push_ctx(&mut self) {
+		self.typed_generics.push(HashMap::new());
+	}
+	pub fn pop_ctx(&mut self) {
+		self.typed_generics.pop();
 	}
 
 	pub fn learn_generics<'b, 'c>(&mut self, generics: &'a syn::Generics, types: &'b TypeResolver<'a, 'c>) -> bool {
@@ -127,16 +134,17 @@ impl<'a> GenericTypes<'a> {
 							if let Some(ident) = single_ident_generic_path_to_ident(&trait_bound.path) {
 								match &format!("{}", ident) as &str { "Send" => continue, "Sync" => continue, _ => {} }
 							}
-							if non_lifetimes_processed { return false; }
-							non_lifetimes_processed = true;
 
 							assert_simple_bound(&trait_bound);
 							if let Some(mut path) = types.maybe_resolve_path(&trait_bound.path) {
+								if types.skip_path(&path) { continue; }
+								if non_lifetimes_processed { return false; }
+								non_lifetimes_processed = true;
 								let new_ident = if path != "std::ops::Deref" {
 									path = "crate::".to_string() + &path;
-									Some(assert_single_path_seg(&trait_bound.path))
+									Some(&trait_bound.path)
 								} else { None };
-								self.typed_generics.insert(&type_param.ident, (path, new_ident));
+								self.typed_generics.last_mut().unwrap().insert(&type_param.ident, (path, new_ident));
 							} else { return false; }
 						}
 					}
@@ -151,7 +159,7 @@ impl<'a> GenericTypes<'a> {
 						if p.qself.is_some() { return false; }
 						if p.path.leading_colon.is_some() { return false; }
 						let mut p_iter = p.path.segments.iter();
-						if let Some(gen) = self.typed_generics.get_mut(&p_iter.next().unwrap().ident) {
+						if let Some(gen) = self.typed_generics.last_mut().unwrap().get_mut(&p_iter.next().unwrap().ident) {
 							if gen.0 != "std::ops::Deref" { return false; }
 							if &format!("{}", p_iter.next().unwrap().ident) != "Target" { return false; }
 
@@ -162,7 +170,7 @@ impl<'a> GenericTypes<'a> {
 									non_lifetimes_processed = true;
 									assert_simple_bound(&trait_bound);
 									*gen = ("crate::".to_string() + &types.resolve_path(&trait_bound.path),
-										Some(single_ident_generic_path_to_ident(&trait_bound.path).unwrap()));
+										Some(&trait_bound.path));
 								}
 							}
 						} else { return false; }
@@ -170,19 +178,29 @@ impl<'a> GenericTypes<'a> {
 				}
 			}
 		}
-		for (_, (_, ident)) in self.typed_generics.iter() {
+		for (_, (_, ident)) in self.typed_generics.last().unwrap().iter() {
 			if ident.is_none() { return false; }
 		}
 		true
 	}
 
 	pub fn maybe_resolve_ident<'b>(&'b self, ident: &syn::Ident) -> Option<&'b String> {
-		self.typed_generics.get(ident).map(|(a, _)| a)
+		for gen in self.typed_generics.iter().rev() {
+			if let Some(res) = gen.get(ident).map(|(a, _)| a) {
+				return Some(res);
+			}
+		}
+		None
 	}
-	pub fn maybe_resolve_path<'b>(&'b self, path: &syn::Path) -> Option<(&'b String, &'a syn::Ident)> {
+	pub fn maybe_resolve_path<'b>(&'b self, path: &syn::Path) -> Option<(&'b String, &'a syn::Path)> {
 		if let Some(ident) = path.get_ident() {
-			self.typed_generics.get(ident).map(|(a, b)| (a, b.unwrap()))
-		} else { None }
+			for gen in self.typed_generics.iter().rev() {
+				if let Some(res) = gen.get(ident).map(|(a, b)| (a, b.unwrap())) {
+					return Some(res);
+				}
+			}
+		}
+		None
 	}
 }
 
@@ -191,7 +209,7 @@ impl<'a> GenericTypes<'a> {
 pub enum DeclType<'a> {
 	MirroredEnum,
 	Trait(&'a syn::ItemTrait),
-	StructImported(String),
+	StructImported,
 	StructIgnored,
 	EnumIgnored,
 }
@@ -226,6 +244,8 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 		imports.insert(syn::Ident::new("u16", Span::call_site()), "u16".to_string());
 		imports.insert(syn::Ident::new("u8", Span::call_site()), "u8".to_string());
 		imports.insert(syn::Ident::new("usize", Span::call_site()), "usize".to_string());
+		imports.insert(syn::Ident::new("str", Span::call_site()), "str".to_string());
+		imports.insert(syn::Ident::new("String", Span::call_site()), "String".to_string());
 
 		// These are here to allow us to print native Rust types in trait fn impls even if we don't
 		// have C mappings:
@@ -241,7 +261,9 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 
 	/// Returns true we if can just skip passing this to C entirely
 	fn skip_path(&self, full_path: &str) -> bool {
-		full_path == "bitcoin::secp256k1::Secp256k1"
+		full_path == "bitcoin::secp256k1::Secp256k1" ||
+		full_path == "bitcoin::secp256k1::Signing" ||
+		full_path == "bitcoin::secp256k1::Verification"
 	}
 	/// Returns true we if can just skip passing this to C entirely
 	fn no_arg_path_to_rust(&self, full_path: &str) -> &str {
@@ -272,7 +294,13 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 			"Option" => Some(""),
 
 			"[u8; 32]" if !is_ref => Some("crate::c_types::ThirtyTwoBytes"),
+			"[u8; 16]" if !is_ref => Some("crate::c_types::SixteenBytes"),
+			"[u8; 10]" if !is_ref => Some("crate::c_types::TenBytes"),
+			"[u8; 4]" if !is_ref => Some("crate::c_types::FourBytes"),
 			"[u8; 3]" if !is_ref => Some("crate::c_types::ThreeBytes"), // Used for RGB values
+
+			"str" if is_ref => Some("crate::c_types::Str"),
+			"String" if !is_ref => Some("crate::c_types::derived::CVec_u8Z"),
 
 			"std::time::Duration" => Some("u64"),
 
@@ -309,21 +337,6 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 			// List of structs we map that aren't detected:
 			"ln::features::InitFeatures" if is_ref => Some("*const crate::ln::features::InitFeatures"),
 			"ln::features::InitFeatures" => Some("crate::ln::features::InitFeatures"),
-
-			// List of traits we map:
-			"util::logger::Logger" => Some("crate::util::logger::Logger"),
-			"chain::chaininterface::BroadcasterInterface" => Some("crate::chain::chaininterface::BroadcasterInterface"),
-			"chain::chaininterface::FeeEstimator" => Some("crate::chain::chaininterface::FeeEstimator"),
-			"chain::keysinterface::KeysInterface" => Some("crate::chain::keysinterface::KeysInterface"),
-			"ln::channelmonitor::ManyChannelMonitor" => Some("crate::ln::channelmonitor::ManyChannelMonitor"),
-			"chain::chaininterface::ChainListener" if !is_ref => Some("crate::chain::chaininterface::ChainListener"),
-			"chain::chaininterface::ChainWatchInterface" if !is_ref => Some("crate::chain::chaininterface::ChainWatchInterface"),
-			"ln::msgs::ChannelMessageHandler" if is_ref => Some("*const crate::ln::msgs::ChannelMessageHandler"),
-			"ln::msgs::ChannelMessageHandler" if !is_ref => Some("crate::ln::msgs::ChannelMessageHandler"),
-			"ln::msgs::RoutingMessageHandler" if is_ref => Some("*const crate::ln::msgs::RoutingMessageHandler"),
-			"ln::msgs::RoutingMessageHandler" if !is_ref => Some("crate::ln::msgs::RoutingMessageHandler"),
-			"util::events::EventsProvider" if is_ref => Some("*const crate::util::events::EventsProvider"),
-			"util::events::EventsProvider" if !is_ref => Some("crate::util::events::EventsProvider"),
 			_ => {
 				eprintln!("    Type {} (ref: {}) unresolvable in C", full_path, is_ref);
 				None
@@ -419,9 +432,16 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 
 			"[u8; 32]" if is_ref => Some("unsafe { &*"),
 			"[u8; 32]" if !is_ref => Some(""),
+			"[u8; 16]" if !is_ref => Some(""),
+			"[u8; 10]" if !is_ref => Some(""),
+			"[u8; 4]" if !is_ref => Some(""),
 			"[u8; 3]" if !is_ref => Some(""),
+
 			"[u8]" if is_ref => Some(""),
 			"[u32]" if is_ref => Some(""),
+
+			"str" if is_ref => Some(""),
+			"String" if !is_ref => Some("String::from_utf8("),
 
 			"std::time::Duration" => Some("std::time::Duration::from_secs("),
 
@@ -480,9 +500,16 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 
 			"[u8; 32]" if is_ref => Some("}"),
 			"[u8; 32]" if !is_ref => Some(".data"),
+			"[u8; 16]" if !is_ref => Some(".data"),
+			"[u8; 10]" if !is_ref => Some(".data"),
+			"[u8; 4]" if !is_ref => Some(".data"),
 			"[u8; 3]" if !is_ref => Some(".data"),
+
 			"[u8]" if is_ref => Some(".to_slice()"),
 			"[u32]" if is_ref => Some(".to_slice()"),
+
+			"str" if is_ref => Some(".into()"),
+			"String" if !is_ref => Some(".into_rust()).unwrap()"),
 
 			"std::time::Duration" => Some(")"),
 
@@ -539,7 +566,7 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 			"[u32]" if is_ref => Some(("crate::c_types::u32slice::from_slice(", ")")),
 
 			"bitcoin::blockdata::transaction::Transaction" if is_ref => Some(("::bitcoin::consensus::encode::serialize(", ")")),
-			"bitcoin::blockdata::transaction::Transaction" if !is_ref => Some(("::bitcoin::consensus::encode::serialize(*", ")")),
+			"bitcoin::blockdata::transaction::Transaction" if !is_ref => Some(("::bitcoin::consensus::encode::serialize(&", ")")),
 			"bitcoin::blockdata::block::BlockHeader" if is_ref => Some(("{ let mut s = [0u8; 80]; s[..].copy_from_slice(&::bitcoin::consensus::encode::serialize(", ")); s }")),
 			"bitcoin::blockdata::block::Block" if is_ref => Some(("::bitcoin::consensus::encode::serialize(", ")")),
 			"bitcoin::hash_types::Txid" => None,
@@ -561,9 +588,16 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 
 			"[u8; 32]" if !is_ref => Some("crate::c_types::ThirtyTwoBytes { data: "),
 			"[u8; 32]" if is_ref => Some("&"),
+			"[u8; 16]" if !is_ref => Some("crate::c_types::SixteenBytes { data: "),
+			"[u8; 10]" if !is_ref => Some("crate::c_types::TenBytes { data: "),
+			"[u8; 4]" if !is_ref => Some("crate::c_types::FourBytes { data: "),
 			"[u8; 3]" if is_ref => Some("&"),
+
 			"[u8]" if is_ref => Some("local_"),
 			"[u32]" if is_ref => Some("local_"),
+
+			"str" if is_ref => Some(""),
+			"String" if !is_ref => Some(""),
 
 			"std::time::Duration" => Some(""),
 
@@ -615,9 +649,16 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 
 			"[u8; 32]" if !is_ref => Some(" }"),
 			"[u8; 32]" if is_ref => Some(""),
+			"[u8; 16]" if !is_ref => Some(" }"),
+			"[u8; 10]" if !is_ref => Some(" }"),
+			"[u8; 4]" if !is_ref => Some(" }"),
 			"[u8; 3]" if is_ref => Some(""),
+
 			"[u8]" if is_ref => Some(""),
 			"[u32]" if is_ref => Some(""),
+
+			"str" if is_ref => Some(".into()"),
+			"String" if !is_ref => Some(".into_bytes().into()"),
 
 			"std::time::Duration" => Some(".as_secs()"),
 
@@ -712,7 +753,7 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 	}
 	pub fn struct_imported(&mut self, ident: &'c syn::Ident, named: String) {
 		eprintln!("Imported {} as {}", ident, named);
-		self.declared.insert(ident.clone(), DeclType::StructImported(named));
+		self.declared.insert(ident.clone(), DeclType::StructImported);
 	}
 	pub fn struct_ignored(&mut self, ident: &syn::Ident) {
 		eprintln!("Not importing {}", ident);
@@ -988,13 +1029,15 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 		}
 	}
 
-	fn print_conversion_inline_intern<W: std::io::Write, LP: Fn(&str, bool, bool) -> Option<String>, DL: Fn(&mut W, &DeclType, &syn::Ident, bool)>
+	fn print_conversion_inline_intern<W: std::io::Write, LP: Fn(&str, bool, bool) -> Option<String>, DL: Fn(&mut W, &DeclType, &str, bool)>
 			(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool,
 			 tupleconv: &str, sliceconv: &str, prefix: bool,
 			 path_lookup: LP, decl_lookup: DL) {
 		match t {
 			syn::Type::Reference(r) => {
-				if r.lifetime.is_some() { unimplemented!(); }
+				if let Some(lft) = &r.lifetime {
+					if format!("{}", lft.ident) != "static" { unimplemented!(); }
+				}
 				self.print_conversion_inline_intern(w, &*r.elem, generics, true, ptr_for_ref, tupleconv, sliceconv, prefix, path_lookup, decl_lookup);
 			},
 			syn::Type::Path(p) => {
@@ -1003,13 +1046,13 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 				}
 
 				if let Some(gen_types) = generics {
-					if let Some((path, ident)) = gen_types.maybe_resolve_path(&p.path) {
+					if let Some((path, synpath)) = gen_types.maybe_resolve_path(&p.path) {
 						assert!(!self.is_known_container(&path, is_ref) && !self.is_transparent_container(&path, is_ref));
 						if let Some(c_type) = path_lookup(&path, is_ref, ptr_for_ref) {
 							write!(w, "{}", c_type).unwrap();
 							return;
-						} else if let Some(decl_type) = self.declared.get(ident) {
-							decl_lookup(w, decl_type, ident, is_ref);
+						} else if let Some(decl_type) = self.declared.get(single_ident_generic_path_to_ident(synpath).unwrap()) {
+							decl_lookup(w, decl_type, &self.maybe_resolve_path(synpath).unwrap(), is_ref);
 							return;
 						} else { unimplemented!(); }
 					}
@@ -1018,16 +1061,16 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 				let resolved_path = self.resolve_path(&p.path);
 				if let Some(c_type) = path_lookup(&resolved_path, is_ref, ptr_for_ref) {
 					write!(w, "{}", c_type).unwrap();
-				} else if let Some(ident) = self.crate_types.opaques.get(&resolved_path) {
-					decl_lookup(w, &DeclType::StructImported(format!("crate::{}", resolved_path)), &ident, is_ref);
-				} else if let Some(en) = self.crate_types.mirrored_enums.get(&resolved_path) {
-					decl_lookup(w, &DeclType::MirroredEnum, &en.ident, is_ref);
+				} else if self.crate_types.opaques.get(&resolved_path).is_some() {
+					decl_lookup(w, &DeclType::StructImported, &resolved_path, is_ref);
+				} else if self.crate_types.mirrored_enums.get(&resolved_path).is_some() {
+					decl_lookup(w, &DeclType::MirroredEnum, &resolved_path, is_ref);
 				} else if let Some(ident) = single_ident_generic_path_to_ident(&p.path) {
 					if let Some(_) = self.imports.get(ident) {
 						// prefix_lookup has to have succeeded:
 						panic!("Failed to print inline conversion for {}", ident);
 					} else if let Some(decl_type) = self.declared.get(ident) {
-						decl_lookup(w, decl_type, ident, is_ref);
+						decl_lookup(w, decl_type, &self.maybe_resolve_ident(ident).unwrap(), is_ref);
 					} else { unimplemented!(); }
 				}
 			},
@@ -1067,18 +1110,17 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 	fn print_to_c_conversion_inline_prefix_inner<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool, from_ptr: bool) {
 		self.print_conversion_inline_intern(w, t, generics, is_ref, ptr_for_ref, "0u8 /*", "", true,
 				|a, b, c| self.to_c_conversion_inline_prefix_from_path(a, b, c),
-				|w, decl_type, ident, is_ref| {
-					let decl_path = self.maybe_resolve_ident(ident).unwrap();
+				|w, decl_type, decl_path, is_ref| {
 					match decl_type {
-						DeclType::MirroredEnum if is_ref => write!(w, "&crate::{}::from_ln(", decl_path).unwrap(),
+						DeclType::MirroredEnum if is_ref => write!(w, "&crate::{}::from_ln(&", decl_path).unwrap(),
 						DeclType::MirroredEnum => write!(w, "crate::{}::ln_into(", decl_path).unwrap(),
-						DeclType::EnumIgnored|DeclType::StructImported(_) if is_ref && ptr_for_ref =>
+						DeclType::EnumIgnored|DeclType::StructImported if is_ref && ptr_for_ref =>
 							write!(w, "Box::into_raw(Box::new(crate::{} {{ inner: &", decl_path).unwrap(),
-						DeclType::EnumIgnored|DeclType::StructImported(_) if is_ref =>
+						DeclType::EnumIgnored|DeclType::StructImported if is_ref =>
 							write!(w, "&crate::{} {{ inner: ", decl_path).unwrap(),
-						DeclType::EnumIgnored|DeclType::StructImported(_) if !is_ref && from_ptr =>
+						DeclType::EnumIgnored|DeclType::StructImported if !is_ref && from_ptr =>
 							write!(w, "crate::{} {{ inner: ", decl_path).unwrap(),
-						DeclType::EnumIgnored|DeclType::StructImported(_) if !is_ref =>
+						DeclType::EnumIgnored|DeclType::StructImported if !is_ref =>
 							write!(w, "crate::{} {{ inner: Box::into_raw(Box::new(", decl_path).unwrap(),
 						_ => unimplemented!(),
 					}
@@ -1090,12 +1132,12 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 	fn print_to_c_conversion_inline_suffix_inner<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool, from_ptr: bool) {
 		self.print_conversion_inline_intern(w, t, generics, is_ref, ptr_for_ref, "*/", ".into()", false,
 				|a, b, c| self.to_c_conversion_inline_suffix_from_path(a, b, c),
-				|w, decl_type, _ident, is_ref| match decl_type {
+				|w, decl_type, _full_path, is_ref| match decl_type {
 					DeclType::MirroredEnum => write!(w, ")").unwrap(),
-					DeclType::EnumIgnored|DeclType::StructImported(_) if is_ref && ptr_for_ref => write!(w, ", _underlying_ref: true }} ))").unwrap(),
-					DeclType::EnumIgnored|DeclType::StructImported(_) if is_ref => write!(w, ", _underlying_ref: true }}").unwrap(),
-					DeclType::EnumIgnored|DeclType::StructImported(_) if !is_ref && from_ptr => write!(w, ", _underlying_ref: false }}").unwrap(),
-					DeclType::EnumIgnored|DeclType::StructImported(_) if !is_ref => write!(w, ")), _underlying_ref: false }}").unwrap(),
+					DeclType::EnumIgnored|DeclType::StructImported if is_ref && ptr_for_ref => write!(w, ", _underlying_ref: true }} ))").unwrap(),
+					DeclType::EnumIgnored|DeclType::StructImported if is_ref => write!(w, ", _underlying_ref: true }}").unwrap(),
+					DeclType::EnumIgnored|DeclType::StructImported if !is_ref && from_ptr => write!(w, ", _underlying_ref: false }}").unwrap(),
+					DeclType::EnumIgnored|DeclType::StructImported if !is_ref => write!(w, ")), _underlying_ref: false }}").unwrap(),
 					_ => unimplemented!(),
 				});
 	}
@@ -1106,10 +1148,10 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 	fn print_from_c_conversion_prefix_inner<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool) {
 		self.print_conversion_inline_intern(w, t, generics, is_ref, false, "() /*", "&local_", true,
 				|a, b, _c| self.from_c_conversion_prefix_from_path(a, b),
-				|w, decl_type, _ident, is_ref| match decl_type {
-					DeclType::StructImported(_) if is_ref && ptr_for_ref => write!(w, "unsafe {{ &*(*").unwrap(),
-					DeclType::StructImported(_) if is_ref => write!(w, "unsafe {{ &*").unwrap(),
-					DeclType::StructImported(_) if !is_ref => write!(w, "*unsafe {{ Box::from_raw(").unwrap(),
+				|w, decl_type, _full_path, is_ref| match decl_type {
+					DeclType::StructImported if is_ref && ptr_for_ref => write!(w, "unsafe {{ &*(*").unwrap(),
+					DeclType::StructImported if is_ref => write!(w, "unsafe {{ &*").unwrap(),
+					DeclType::StructImported if !is_ref => write!(w, "*unsafe {{ Box::from_raw(").unwrap(),
 					DeclType::MirroredEnum if is_ref => write!(w, "&").unwrap(),
 					DeclType::MirroredEnum => {},
 					DeclType::Trait(_) => {},
@@ -1122,10 +1164,10 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 	fn print_from_c_conversion_suffix_inner<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool) {
 		self.print_conversion_inline_intern(w, t, generics, is_ref, false, "*/", "[..]", false,
 				|a, b, _c| self.from_c_conversion_suffix_from_path(a, b),
-				|w, decl_type, _ident, is_ref| match decl_type {
-					DeclType::StructImported(_) if is_ref && ptr_for_ref => write!(w, ").inner }}").unwrap(),
-					DeclType::StructImported(_) if is_ref => write!(w, ".inner }}").unwrap(),
-					DeclType::StructImported(_) if !is_ref => write!(w, ".inner.take_ptr() as *mut _) }}").unwrap(),
+				|w, decl_type, _full_path, is_ref| match decl_type {
+					DeclType::StructImported if is_ref && ptr_for_ref => write!(w, ").inner }}").unwrap(),
+					DeclType::StructImported if is_ref => write!(w, ".inner }}").unwrap(),
+					DeclType::StructImported if !is_ref => write!(w, ".inner.take_ptr() as *mut _) }}").unwrap(),
 					DeclType::MirroredEnum if is_ref => write!(w, ".to_ln()").unwrap(),
 					DeclType::MirroredEnum => write!(w, ".into_ln()").unwrap(),
 					DeclType::Trait(_) => {},
@@ -1144,16 +1186,16 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 						Some(format!("&{}", conv))
 					} else { None }
 				},
-				|w, decl_type, _ident, is_ref| match decl_type {
-					DeclType::StructImported(_) if !is_ref => write!(w, "unsafe {{ &*").unwrap(),
+				|w, decl_type, _full_path, is_ref| match decl_type {
+					DeclType::StructImported if !is_ref => write!(w, "unsafe {{ &*").unwrap(),
 					_ => unimplemented!(),
 				});
 	}
 	pub fn print_from_c_conversion_to_ref_suffix<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>) {
 		self.print_conversion_inline_intern(w, t, generics, false, false, "*/", ".into_vec()[..]", false,
 				|a, b, _c| self.from_c_conversion_suffix_from_path(a, b),
-				|w, decl_type, _ident, is_ref| match decl_type {
-					DeclType::StructImported(_) if !is_ref => write!(w, ".inner }}").unwrap(),
+				|w, decl_type, _full_path, is_ref| match decl_type {
+					DeclType::StructImported if !is_ref => write!(w, ".inner }}").unwrap(),
 					_ => unimplemented!(),
 				});
 	}
@@ -1167,7 +1209,9 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 			 path_lookup: &LP, container_lookup: &LC, var_prefix: &VP, var_suffix: &VS) -> bool {
 		match t {
 			syn::Type::Reference(r) => {
-				if r.lifetime.is_some() { unimplemented!(); }
+				if let Some(lft) = &r.lifetime {
+					if format!("{}", lft.ident) != "static" { unimplemented!(); }
+				}
 				self.print_conversion_new_var_intern(w, ident, var, &*r.elem, generics, true, to_c, path_lookup, container_lookup, var_prefix, var_suffix)
 			},
 			syn::Type::Path(p) => {
@@ -1322,13 +1366,16 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 		}
 	}
 
-	pub fn print_to_c_conversion_new_var<W: std::io::Write>(&self, w: &mut W, ident: &syn::Ident, t: &syn::Type, generics: Option<&GenericTypes>) -> bool {
-		self.print_conversion_new_var_intern(w, ident, &format!("{}", ident), t, generics, false, true,
+	pub fn print_to_c_conversion_new_var_inner<W: std::io::Write>(&self, w: &mut W, ident: &syn::Ident, var_access: &str, t: &syn::Type, generics: Option<&GenericTypes>) -> bool {
+		self.print_conversion_new_var_intern(w, ident, var_access, t, generics, false, true,
 			&|a, b| self.to_c_conversion_new_var_from_path(a, b),
 			&|a, b, c, d| self.to_c_conversion_container_new_var(a, b, c, d),
 			// We force ptr_for_ref here since we can't generate a ref on one line and use it later
 			&|a, b, c, d, e| self.print_to_c_conversion_inline_prefix_inner(a, b, c, d, false, e),
 			&|a, b, c, d, e| self.print_to_c_conversion_inline_suffix_inner(a, b, c, d, false, e))
+	}
+	pub fn print_to_c_conversion_new_var<W: std::io::Write>(&self, w: &mut W, ident: &syn::Ident, t: &syn::Type, generics: Option<&GenericTypes>) -> bool {
+		self.print_to_c_conversion_new_var_inner(w, ident, &format!("{}", ident), t, generics)
 	}
 	pub fn print_from_c_conversion_new_var<W: std::io::Write>(&self, w: &mut W, ident: &syn::Ident, t: &syn::Type, generics: Option<&GenericTypes>) -> bool {
 		self.print_conversion_new_var_intern(w, ident, &format!("{}", ident), t, generics, false, false,
@@ -1399,12 +1446,13 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 				writeln!(w, "\t\t\tv.push(crate::{} {{ inner: *e, _underlying_ref: true }});", resolved_path).unwrap();
 			} else {
 				write!(w, "\t\t\t").unwrap();
-				if self.print_to_c_conversion_new_var(w, &syn::Ident::new("e", Span::call_site()), inner_type, None) {
+				let new_var = self.print_to_c_conversion_new_var_inner(w, &syn::Ident::new("e", Span::call_site()), "**e", inner_type, None);
+				if new_var {
 					write!(w, "\n\t\t\t").unwrap();
 				}
 				write!(w, "v.push(").unwrap();
 				self.print_to_c_conversion_inline_prefix(w, inner_type, None, false);
-				write!(w, "e").unwrap();
+				write!(w, "{}e", if new_var { "" } else { "**" }).unwrap();
 				self.print_to_c_conversion_inline_suffix(w, inner_type, None, false);
 				writeln!(w, ");").unwrap();
 			}
@@ -1646,64 +1694,27 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 	// *** C Type Equivalent Printing ***
 	// **********************************
 
-	fn print_c_ident_intern<W: std::io::Write>(&self, w: &mut W, ident: &syn::Ident, is_ref: bool, is_mut: bool, ptr_for_ref: bool) -> bool {
-		let full_path = match self.maybe_resolve_path(&syn::Path::from(ident.clone())) {
-			Some(path) => path, None => format!("{}::{}", self.module_path, ident) };
+	fn print_c_path_intern<W: std::io::Write>(&self, w: &mut W, path: &syn::Path, is_ref: bool, is_mut: bool, ptr_for_ref: bool) -> bool {
+//eprintln!("pcpi ({} {} {}): {:?}", is_ref, is_mut, ptr_for_ref, path);
+		let full_path = match self.maybe_resolve_path(&path) {
+			Some(path) => path, None => return false };
 		if let Some(c_type) = self.c_type_from_path(&full_path, is_ref, ptr_for_ref) {
 			write!(w, "{}", c_type).unwrap();
 			true
-		} else if let Some(decl_type) = self.declared.get(ident) {
-			if *decl_type == DeclType::MirroredEnum && is_ref {
-				return false;
-			}
-			if let DeclType::StructImported(name) = decl_type {
-				if is_mut { unimplemented!(); }
-				if is_ref && ptr_for_ref {
-					write!(w, "*const crate::{}::{}", self.module_path, name).unwrap();
-				} else if is_ref {
-					write!(w, "&crate::{}::{}", self.module_path, name).unwrap();
-				} else {
-					write!(w, "crate::{}::{}", self.module_path, name).unwrap();
-				}
-			} else {
-				if is_ref && ptr_for_ref {
-					write!(w, "*{}", if !is_mut {"const"} else {""}).unwrap();
-				} else if is_ref {
-					write!(w, "&").unwrap();
-				}
-				if is_ref && is_mut {
-					write!(w, "mut crate::{}::{}", self.module_path, ident).unwrap();
-				} else if is_ref {
-					write!(w, " crate::{}::{}", self.module_path, ident).unwrap();
-				} else {
-					write!(w, "crate::{}::{}", self.module_path, ident).unwrap();
-				}
-			}
-			true
-		} else { false }
-	}
-
-	fn print_c_path_intern<W: std::io::Write>(&self, w: &mut W, path: &syn::Path, is_ref: bool, is_mut: bool, ptr_for_ref: bool) -> bool {
-//eprintln!("pcpi ({} {} {}): {:?}", is_ref, is_mut, ptr_for_ref, path);
-		if let Some(ident) = single_ident_generic_path_to_ident(&path) {
-			if self.print_c_ident_intern(w, ident, is_ref, is_mut, ptr_for_ref) { return true; }
-		}
-		let full_path = match self.maybe_resolve_path(&path) {
-			Some(path) => path, None => return false };
-		if self.crate_types.traits.get(&full_path).is_some() {
+		} else if self.crate_types.traits.get(&full_path).is_some() {
 			if is_ref && ptr_for_ref {
-				write!(w, "*const crate::{}", full_path).unwrap();
+				write!(w, "*{} crate::{}", if is_mut { "mut" } else { "const" }, full_path).unwrap();
 			} else if is_ref {
-				write!(w, "&crate::{}", full_path).unwrap();
+				write!(w, "&{}crate::{}", if is_mut { "mut " } else { "" }, full_path).unwrap();
 			} else {
 				write!(w, "crate::{}", full_path).unwrap();
 			}
 			true
 		} else if self.crate_types.opaques.get(&full_path).is_some() || self.crate_types.mirrored_enums.get(&full_path).is_some() {
 			if is_ref && ptr_for_ref {
-				write!(w, "*const crate::{}", full_path).unwrap();
+				write!(w, "*{} crate::{}", if is_mut { "mut" } else { "const" }, full_path).unwrap();
 			} else if is_ref {
-				write!(w, "&crate::{}", full_path).unwrap();
+				write!(w, "&{}crate::{}", if is_mut { "mut " } else { "" }, full_path).unwrap();
 			} else {
 				write!(w, "crate::{}", full_path).unwrap();
 			}
@@ -1723,7 +1734,7 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 					if let Some(resolved) = gen_types.maybe_resolve_path(&p.path) {
 						if self.is_known_container(&resolved.0, is_ref) { return false; }
 						if self.is_transparent_container(&resolved.0, is_ref) { return false; }
-						return self.print_c_ident_intern(w, &resolved.1, is_ref, is_mut, ptr_for_ref);
+						return self.print_c_path_intern(w, &resolved.1, is_ref, is_mut, ptr_for_ref);
 					}
 				}
 				if let Some(full_path) = self.maybe_resolve_path(&p.path) {
@@ -1735,7 +1746,9 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 				self.print_c_path_intern(w, &p.path, is_ref, is_mut, ptr_for_ref)
 			},
 			syn::Type::Reference(r) => {
-				if r.lifetime.is_some() { return false; }
+				if let Some(lft) = &r.lifetime {
+					if format!("{}", lft.ident) != "static" { return false; }
+				}
 				self.print_c_type_intern(generics, w, &*r.elem, true, r.mutability.is_some(), ptr_for_ref)
 			},
 			syn::Type::Array(a) => {
@@ -1804,9 +1817,7 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 	}
 	pub fn understood_c_path(&mut self, p: &syn::Path) -> bool {
 		if p.leading_colon.is_some() { return false; }
-		if let Some(ident) = single_ident_generic_path_to_ident(p) {
-			self.print_c_ident_intern(&mut std::io::sink(), ident, false, false, false)
-		} else { false }
+		self.print_c_path_intern(&mut std::io::sink(), p, false, false, false)
 	}
 	pub fn understood_c_type(&mut self, t: &syn::Type, generics: Option<&GenericTypes>) -> bool {
 		self.print_c_type_intern(generics, &mut std::io::sink(), t, false, false, false)

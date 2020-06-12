@@ -102,7 +102,7 @@ fn println_docs<W: std::io::Write>(w: &mut W, attrs: &[syn::Attribute], prefix: 
 
 fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, associated_types: &HashMap<&syn::Ident, &syn::Ident>, this_param: &str, types: &mut TypeResolver, generics: Option<&GenericTypes>, self_ptr: bool, fn_decl: bool) {
 	if sig.constness.is_some() || sig.asyncness.is_some() || sig.unsafety.is_some() ||
-			sig.abi.is_some() || sig.variadic.is_some() || sig.generics.where_clause.is_some() {
+			sig.abi.is_some() || sig.variadic.is_some() {
 		unimplemented!();
 	}
 	if sig.generics.lt_token.is_some() {
@@ -140,8 +140,7 @@ fn print_method_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, assoc
 				let is_ref = if let syn::Type::Reference(_) = *arg.ty { true } else { false };
 				match &*arg.pat {
 					syn::Pat::Ident(ident) => {
-						if !ident.attrs.is_empty() || ident.by_ref.is_some() ||
-								ident.mutability.is_some() || ident.subpat.is_some() {
+						if !ident.attrs.is_empty() || ident.subpat.is_some() {
 							unimplemented!();
 						}
 						write!(w, "{}{}{}: ", if first_arg { "" } else { ", " }, if is_ref || !fn_decl { "" } else { "mut " }, ident.ident).unwrap();
@@ -212,8 +211,7 @@ fn print_method_var_decl_body<W: std::io::Write>(w: &mut W, sig: &syn::Signature
 				}
 				match &*arg.pat {
 					syn::Pat::Ident(ident) => {
-						if !ident.attrs.is_empty() || ident.by_ref.is_some() ||
-								ident.mutability.is_some() || ident.subpat.is_some() {
+						if !ident.attrs.is_empty() || ident.subpat.is_some() {
 							unimplemented!();
 						}
 						write_new_var!(ident.ident, *arg.ty);
@@ -280,8 +278,7 @@ fn print_method_call_params<W: std::io::Write>(w: &mut W, sig: &syn::Signature, 
 				}
 				match &*arg.pat {
 					syn::Pat::Ident(ident) => {
-						if !ident.attrs.is_empty() || ident.by_ref.is_some() ||
-								ident.mutability.is_some() || ident.subpat.is_some() {
+						if !ident.attrs.is_empty() || ident.subpat.is_some() {
 							unimplemented!();
 						}
 						write_ident!(ident.ident);
@@ -919,6 +916,8 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 									writeln!(w, "#[must_use]").unwrap();
 								}
 								write!(w, "extern \"C\" fn {}_{}_{}(", ident, trait_obj.ident, $m.sig.ident).unwrap();
+								gen_types.push_ctx();
+								assert!(gen_types.learn_generics(&$m.sig.generics, types));
 								print_method_params(w, &$m.sig, &trait_associated_types, "c_void", types, Some(&gen_types), true, true);
 								write!(w, " {{\n\t").unwrap();
 								print_method_var_decl_body(w, &$m.sig, "", types, Some(&gen_types), false);
@@ -946,6 +945,7 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 									_ => {},
 								}
 								print_method_call_params(w, &$m.sig, &trait_associated_types, "", types, Some(&gen_types), &real_type, false);
+								gen_types.pop_ctx();
 								write!(w, "\n}}\n").unwrap();
 								if let syn::ReturnType::Type(_, rtype) = &$m.sig.output {
 									if let syn::Type::Reference(r) = &**rtype {
@@ -1026,9 +1026,11 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 									write!(w, "#[no_mangle]\npub extern \"C\" fn {}_{}(", ident, m.sig.ident).unwrap();
 									let ret_type = match &declared_type {
 										DeclType::MirroredEnum => format!("{}", ident),
-										DeclType::StructImported(newname) => format!("{}", newname),
+										DeclType::StructImported => format!("{}", ident),
 										_ => unimplemented!(),
 									};
+									gen_types.push_ctx();
+									assert!(gen_types.learn_generics(&m.sig.generics, types));
 									print_method_params(w, &m.sig, &HashMap::new(), &ret_type, types, Some(&gen_types), false, true);
 									write!(w, " {{\n\t").unwrap();
 									print_method_var_decl_body(w, &m.sig, "", types, Some(&gen_types), false);
@@ -1048,6 +1050,7 @@ eprintln!("WIP: IMPL {:?} FOR {}", trait_path.1, ident);
 										write!(w, "lightning::{}::{}(", resolved_path, m.sig.ident).unwrap();
 									}
 									print_method_call_params(w, &m.sig, &HashMap::new(), "", types, Some(&gen_types), &ret_type, false);
+									gen_types.pop_ctx();
 									writeln!(w, "\n}}\n").unwrap();
 								}
 							},
@@ -1100,7 +1103,7 @@ fn println_enum<'a, 'b, W: std::io::Write>(w: &mut W, e: &'a syn::ItemEnum, type
 
 	let mut needs_free = false;
 
-	writeln!(w, "#[repr(C)]\npub enum {} {{", e.ident).unwrap();
+	writeln!(w, "#[must_use]\n#[derive(Clone)]\n#[repr(C)]\npub enum {} {{", e.ident).unwrap();
 	for var in e.variants.iter() {
 		assert_eq!(export_status(&var.attrs), ExportStatus::Export); // We can't partially-export a mirrored enum
 		println_docs(w, &var.attrs, "\t");

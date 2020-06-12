@@ -664,41 +664,185 @@ impl Clone for AnnouncementSignatures {
 		}
 	}
 }
-
-use lightning::ln::msgs::NetAddress as lnNetAddressImport;
-type lnNetAddress = lnNetAddressImport;
-
 /// " An address which can be used to connect to a remote peer"
 #[must_use]
+#[derive(Clone)]
 #[repr(C)]
-pub struct NetAddress {
-	/// Nearly everyhwere, inner must be non-null, however in places where
-	///the Rust equivalent takes an Option, it may be set to null to indicate None.
-	pub inner: *const lnNetAddress,
-	pub _underlying_ref: bool,
+pub enum NetAddress {
+	/// " An IPv4 address/port on which the peer is listening."
+	IPv4 {
+		addr: crate::c_types::FourBytes,
+		port: u16,
+	},
+	/// " An IPv6 address/port on which the peer is listening."
+	IPv6 {
+		addr: crate::c_types::SixteenBytes,
+		port: u16,
+	},
+	/// " An old-style Tor onion address/port on which the peer is listening."
+	OnionV2 {
+		addr: crate::c_types::TenBytes,
+		port: u16,
+	},
+	/// " A new-style Tor onion address/port on which the peer is listening."
+	/// " To create the human-readable \"hostname\", concatenate ed25519_pubkey, checksum, and version,"
+	/// " wrap as base32 and append \".onion\"."
+	OnionV3 {
+		ed25519_pubkey: crate::c_types::ThirtyTwoBytes,
+		checksum: u16,
+		version: u8,
+		port: u16,
+	},
 }
-
-impl Drop for NetAddress {
-	fn drop(&mut self) {
-		if !self._underlying_ref && !self.inner.is_null() {
-			let _ = unsafe { Box::from_raw(self.inner as *mut lnNetAddress) };
+use lightning::ln::msgs::NetAddress as lnNetAddress;
+impl NetAddress {
+	#[allow(unused)]
+	pub(crate) fn to_ln(&self) -> lnNetAddress {
+		match self {
+			NetAddress::IPv4 {ref addr, ref port, } => {
+				let mut addr_nonref = (*addr).clone();
+				let mut port_nonref = (*port).clone();
+				lnNetAddress::IPv4 {
+					addr: addr_nonref.data,
+					port: port_nonref,
+				}
+			},
+			NetAddress::IPv6 {ref addr, ref port, } => {
+				let mut addr_nonref = (*addr).clone();
+				let mut port_nonref = (*port).clone();
+				lnNetAddress::IPv6 {
+					addr: addr_nonref.data,
+					port: port_nonref,
+				}
+			},
+			NetAddress::OnionV2 {ref addr, ref port, } => {
+				let mut addr_nonref = (*addr).clone();
+				let mut port_nonref = (*port).clone();
+				lnNetAddress::OnionV2 {
+					addr: addr_nonref.data,
+					port: port_nonref,
+				}
+			},
+			NetAddress::OnionV3 {ref ed25519_pubkey, ref checksum, ref version, ref port, } => {
+				let mut ed25519_pubkey_nonref = (*ed25519_pubkey).clone();
+				let mut checksum_nonref = (*checksum).clone();
+				let mut version_nonref = (*version).clone();
+				let mut port_nonref = (*port).clone();
+				lnNetAddress::OnionV3 {
+					ed25519_pubkey: ed25519_pubkey_nonref.data,
+					checksum: checksum_nonref,
+					version: version_nonref,
+					port: port_nonref,
+				}
+			},
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn into_ln(self) -> lnNetAddress {
+		match self {
+			NetAddress::IPv4 {mut addr, mut port, } => {
+				lnNetAddress::IPv4 {
+					addr: addr.data,
+					port: port,
+				}
+			},
+			NetAddress::IPv6 {mut addr, mut port, } => {
+				lnNetAddress::IPv6 {
+					addr: addr.data,
+					port: port,
+				}
+			},
+			NetAddress::OnionV2 {mut addr, mut port, } => {
+				lnNetAddress::OnionV2 {
+					addr: addr.data,
+					port: port,
+				}
+			},
+			NetAddress::OnionV3 {mut ed25519_pubkey, mut checksum, mut version, mut port, } => {
+				lnNetAddress::OnionV3 {
+					ed25519_pubkey: ed25519_pubkey.data,
+					checksum: checksum,
+					version: version,
+					port: port,
+				}
+			},
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn from_ln(lnt: &lnNetAddress) -> Self {
+		match lnt {
+			lnNetAddress::IPv4 {ref addr, ref port, } => {
+				let mut addr_nonref = (*addr).clone();
+				let mut port_nonref = (*port).clone();
+				NetAddress::IPv4 {
+					addr: crate::c_types::FourBytes { data: addr_nonref },
+					port: port_nonref,
+				}
+			},
+			lnNetAddress::IPv6 {ref addr, ref port, } => {
+				let mut addr_nonref = (*addr).clone();
+				let mut port_nonref = (*port).clone();
+				NetAddress::IPv6 {
+					addr: crate::c_types::SixteenBytes { data: addr_nonref },
+					port: port_nonref,
+				}
+			},
+			lnNetAddress::OnionV2 {ref addr, ref port, } => {
+				let mut addr_nonref = (*addr).clone();
+				let mut port_nonref = (*port).clone();
+				NetAddress::OnionV2 {
+					addr: crate::c_types::TenBytes { data: addr_nonref },
+					port: port_nonref,
+				}
+			},
+			lnNetAddress::OnionV3 {ref ed25519_pubkey, ref checksum, ref version, ref port, } => {
+				let mut ed25519_pubkey_nonref = (*ed25519_pubkey).clone();
+				let mut checksum_nonref = (*checksum).clone();
+				let mut version_nonref = (*version).clone();
+				let mut port_nonref = (*port).clone();
+				NetAddress::OnionV3 {
+					ed25519_pubkey: crate::c_types::ThirtyTwoBytes { data: ed25519_pubkey_nonref },
+					checksum: checksum_nonref,
+					version: version_nonref,
+					port: port_nonref,
+				}
+			},
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn ln_into(lnt: lnNetAddress) -> Self {
+		match lnt {
+			lnNetAddress::IPv4 {mut addr, mut port, } => {
+				NetAddress::IPv4 {
+					addr: crate::c_types::FourBytes { data: addr },
+					port: port,
+				}
+			},
+			lnNetAddress::IPv6 {mut addr, mut port, } => {
+				NetAddress::IPv6 {
+					addr: crate::c_types::SixteenBytes { data: addr },
+					port: port,
+				}
+			},
+			lnNetAddress::OnionV2 {mut addr, mut port, } => {
+				NetAddress::OnionV2 {
+					addr: crate::c_types::TenBytes { data: addr },
+					port: port,
+				}
+			},
+			lnNetAddress::OnionV3 {mut ed25519_pubkey, mut checksum, mut version, mut port, } => {
+				NetAddress::OnionV3 {
+					ed25519_pubkey: crate::c_types::ThirtyTwoBytes { data: ed25519_pubkey },
+					checksum: checksum,
+					version: version,
+					port: port,
+				}
+			},
 		}
 	}
 }
 #[no_mangle]
 pub extern "C" fn NetAddress_free(this_ptr: NetAddress) { }
-impl Clone for NetAddress {
-	fn clone(&self) -> Self {
-		Self {
-			inner: Box::into_raw(Box::new(unsafe { &*self.inner }.clone())),
-			_underlying_ref: false,
-		}
-	}
-}
-#[no_mangle]
-pub extern "C" fn NetAddress_write(obj: *const NetAddress) -> crate::c_types::derived::CVec_u8Z {
-	crate::c_types::serialize_obj(unsafe { &(*(*obj).inner) })
-}
 
 use lightning::ln::msgs::UnsignedNodeAnnouncement as lnUnsignedNodeAnnouncementImport;
 type lnUnsignedNodeAnnouncement = lnUnsignedNodeAnnouncementImport;
@@ -889,6 +1033,97 @@ impl Clone for ChannelUpdate {
 		}
 	}
 }
+/// " Used to put an error message in a LightningError"
+#[must_use]
+#[derive(Clone)]
+#[repr(C)]
+pub enum ErrorAction {
+	/// " The peer took some action which made us think they were useless. Disconnect them."
+	DisconnectPeer {
+		msg: crate::ln::msgs::ErrorMessage,
+	},
+	/// " The peer did something harmless that we weren't able to process, just log and ignore"
+	IgnoreError,
+	/// " The peer did something incorrect. Tell them."
+	SendErrorMessage {
+		msg: crate::ln::msgs::ErrorMessage,
+	},
+}
+use lightning::ln::msgs::ErrorAction as lnErrorAction;
+impl ErrorAction {
+	#[allow(unused)]
+	pub(crate) fn to_ln(&self) -> lnErrorAction {
+		match self {
+			ErrorAction::DisconnectPeer {ref msg, } => {
+				let mut msg_nonref = (*msg).clone();let mut local_msg_nonref = if msg_nonref.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(msg_nonref.inner.take_ptr() as *mut _) } }) };
+				lnErrorAction::DisconnectPeer {
+					msg: local_msg_nonref,
+				}
+			},
+			ErrorAction::IgnoreError => lnErrorAction::IgnoreError,
+			ErrorAction::SendErrorMessage {ref msg, } => {
+				let mut msg_nonref = (*msg).clone();
+				lnErrorAction::SendErrorMessage {
+					msg: *unsafe { Box::from_raw(msg_nonref.inner.take_ptr() as *mut _) },
+				}
+			},
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn into_ln(self) -> lnErrorAction {
+		match self {
+			ErrorAction::DisconnectPeer {mut msg, } => {
+				let mut local_msg = if msg.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(msg.inner.take_ptr() as *mut _) } }) };
+				lnErrorAction::DisconnectPeer {
+					msg: local_msg,
+				}
+			},
+			ErrorAction::IgnoreError => lnErrorAction::IgnoreError,
+			ErrorAction::SendErrorMessage {mut msg, } => {
+				lnErrorAction::SendErrorMessage {
+					msg: *unsafe { Box::from_raw(msg.inner.take_ptr() as *mut _) },
+				}
+			},
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn from_ln(lnt: &lnErrorAction) -> Self {
+		match lnt {
+			lnErrorAction::DisconnectPeer {ref msg, } => {
+				let mut msg_nonref = (*msg).clone();let mut local_msg_nonref = crate::ln::msgs::ErrorMessage { inner: if msg_nonref.is_none() { std::ptr::null_mut() } else { Box::into_raw(Box::new( { (msg_nonref.unwrap()) })) }, _underlying_ref: false };
+				ErrorAction::DisconnectPeer {
+					msg: local_msg_nonref,
+				}
+			},
+			lnErrorAction::IgnoreError => ErrorAction::IgnoreError,
+			lnErrorAction::SendErrorMessage {ref msg, } => {
+				let mut msg_nonref = (*msg).clone();
+				ErrorAction::SendErrorMessage {
+					msg: crate::ln::msgs::ErrorMessage { inner: Box::into_raw(Box::new(msg_nonref)), _underlying_ref: false },
+				}
+			},
+		}
+	}
+	#[allow(unused)]
+	pub(crate) fn ln_into(lnt: lnErrorAction) -> Self {
+		match lnt {
+			lnErrorAction::DisconnectPeer {mut msg, } => {
+				let mut local_msg = crate::ln::msgs::ErrorMessage { inner: if msg.is_none() { std::ptr::null_mut() } else { Box::into_raw(Box::new( { (msg.unwrap()) })) }, _underlying_ref: false };
+				ErrorAction::DisconnectPeer {
+					msg: local_msg,
+				}
+			},
+			lnErrorAction::IgnoreError => ErrorAction::IgnoreError,
+			lnErrorAction::SendErrorMessage {mut msg, } => {
+				ErrorAction::SendErrorMessage {
+					msg: crate::ln::msgs::ErrorMessage { inner: Box::into_raw(Box::new(msg)), _underlying_ref: false },
+				}
+			},
+		}
+	}
+}
+#[no_mangle]
+pub extern "C" fn ErrorAction_free(this_ptr: ErrorAction) { }
 
 use lightning::ln::msgs::LightningError as lnLightningErrorImport;
 type lnLightningError = lnLightningErrorImport;
@@ -912,6 +1147,36 @@ impl Drop for LightningError {
 }
 #[no_mangle]
 pub extern "C" fn LightningError_free(this_ptr: LightningError) { }
+/// " A human-readable message describing the error"
+#[no_mangle]
+pub extern "C" fn LightningError_get_err(this_ptr: &LightningError) -> crate::c_types::Str {
+	let inner_val = &unsafe { &*this_ptr.inner }.err;
+	(*inner_val).into()
+}
+/// " A human-readable message describing the error"
+#[no_mangle]
+pub extern "C" fn LightningError_set_err(this_ptr: &mut LightningError, mut val: crate::c_types::Str) {
+	unsafe { &mut *(this_ptr.inner as *mut lnLightningError) }.err = val.into();
+}
+/// " The action which should be taken against the offending peer."
+#[no_mangle]
+pub extern "C" fn LightningError_get_action(this_ptr: &LightningError) -> *const crate::ln::msgs::ErrorAction {
+	let inner_val = &unsafe { &*this_ptr.inner }.action;
+	&crate::ln::msgs::ErrorAction::from_ln(&(*inner_val))
+}
+/// " The action which should be taken against the offending peer."
+#[no_mangle]
+pub extern "C" fn LightningError_set_action(this_ptr: &mut LightningError, mut val: crate::ln::msgs::ErrorAction) {
+	unsafe { &mut *(this_ptr.inner as *mut lnLightningError) }.action = val.into_ln();
+}
+#[must_use]
+#[no_mangle]
+pub extern "C" fn LightningError_new(mut err_arg: crate::c_types::Str, mut action_arg: crate::ln::msgs::ErrorAction) -> LightningError {
+	LightningError { inner: Box::into_raw(Box::new(lnLightningError {
+		err: err_arg.into(),
+		action: action_arg.into_ln(),
+	})), _underlying_ref: false }
+}
 
 use lightning::ln::msgs::CommitmentUpdate as lnCommitmentUpdateImport;
 type lnCommitmentUpdate = lnCommitmentUpdateImport;
@@ -1012,6 +1277,8 @@ pub extern "C" fn CommitmentUpdate_new(mut update_add_htlcs_arg: crate::c_types:
 /// " The information we received from a peer along the route of a payment we originated. This is"
 /// " returned by ChannelMessageHandler::handle_update_fail_htlc to be passed into"
 /// " RoutingMessageHandler::handle_htlc_fail_channel_update to update our network map."
+#[must_use]
+#[derive(Clone)]
 #[repr(C)]
 pub enum HTLCFailChannelUpdate {
 	/// " We received an error which included a full ChannelUpdate message."
@@ -1313,7 +1580,7 @@ impl lnRoutingMessageHandler for RoutingMessageHandler {
 		local_ret
 	}
 	fn handle_htlc_fail_channel_update(&self, update: &lightning::ln::msgs::HTLCFailChannelUpdate) {
-		(self.handle_htlc_fail_channel_update)(self.this_arg, &crate::ln::msgs::HTLCFailChannelUpdate::from_ln(update))
+		(self.handle_htlc_fail_channel_update)(self.this_arg, &crate::ln::msgs::HTLCFailChannelUpdate::from_ln(&update))
 	}
 	fn get_next_channel_announcements(&self, starting_point: u64, batch_amount: u8) -> Vec<(lightning::ln::msgs::ChannelAnnouncement, Option<lightning::ln::msgs::ChannelUpdate>, Option<lightning::ln::msgs::ChannelUpdate>)> {
 		let mut ret = (self.get_next_channel_announcements)(self.this_arg, starting_point, batch_amount);

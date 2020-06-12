@@ -274,7 +274,7 @@ pub extern "C" fn ChannelManager_new(mut network: crate::bitcoin::network::Netwo
 pub extern "C" fn ChannelManager_create_channel(this_arg: &ChannelManager, mut their_network_key: crate::c_types::PublicKey, mut channel_value_satoshis: u64, mut push_msat: u64, mut user_id: u64, mut override_config: crate::util::config::UserConfig) -> crate::c_types::derived::CResult_NoneAPIErrorZ {
 	let mut local_override_config = if override_config.inner.is_null() { None } else { Some( { *unsafe { Box::from_raw(override_config.inner.take_ptr() as *mut _) } }) };
 	let mut ret = unsafe { &*this_arg.inner }.create_channel(their_network_key.into_rust(), channel_value_satoshis, push_msat, user_id, local_override_config);
-	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { 0u8 /*o*/ }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::util::errors::APIError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { 0u8 /*o*/ }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::util::errors::APIError::ln_into(e) }) };
 	local_ret
 }
 
@@ -310,7 +310,7 @@ pub extern "C" fn ChannelManager_list_usable_channels(this_arg: &ChannelManager)
 #[no_mangle]
 pub extern "C" fn ChannelManager_close_channel(this_arg: &ChannelManager, channel_id: *const [u8; 32]) -> crate::c_types::derived::CResult_NoneAPIErrorZ {
 	let mut ret = unsafe { &*this_arg.inner }.close_channel(unsafe { &*channel_id});
-	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { 0u8 /*o*/ }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::util::errors::APIError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { 0u8 /*o*/ }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::util::errors::APIError::ln_into(e) }) };
 	local_ret
 }
 
@@ -405,7 +405,7 @@ pub extern "C" fn ChannelManager_funding_transaction_generated(this_arg: &Channe
 /// " Panics if addresses is absurdly large (more than 500)."
 #[no_mangle]
 pub extern "C" fn ChannelManager_broadcast_node_announcement(this_arg: &ChannelManager, mut rgb: crate::c_types::ThreeBytes, mut alias: crate::c_types::ThirtyTwoBytes, mut addresses: crate::c_types::derived::CVec_NetAddressZ) {
-	let mut local_addresses = Vec::new(); for mut item in addresses.into_rust().drain(..) { local_addresses.push( { *unsafe { Box::from_raw(item.inner.take_ptr() as *mut _) } }); };
+	let mut local_addresses = Vec::new(); for mut item in addresses.into_rust().drain(..) { local_addresses.push( { item.into_ln() }); };
 	unsafe { &*this_arg.inner }.broadcast_node_announcement(rgb.data, alias.data, local_addresses)
 }
 
@@ -495,6 +495,21 @@ pub extern "C" fn ChannelManager_get_our_node_id(this_arg: &ChannelManager) -> c
 #[no_mangle]
 pub extern "C" fn ChannelManager_channel_monitor_updated(this_arg: &ChannelManager, funding_txo: &crate::chain::transaction::OutPoint, mut highest_applied_update_id: u64) {
 	unsafe { &*this_arg.inner }.channel_monitor_updated(unsafe { &*funding_txo.inner }, highest_applied_update_id)
+}
+
+#[no_mangle]
+pub extern "C" fn ChannelManager_as_MessageSendEventsProvider(this_arg: *const ChannelManager) -> crate::util::events::MessageSendEventsProvider {
+	crate::util::events::MessageSendEventsProvider {
+		this_arg: unsafe { (*this_arg).inner as *mut c_void },
+		get_and_clear_pending_msg_events: ChannelManager_MessageSendEventsProvider_get_and_clear_pending_msg_events,
+	}
+}
+use lightning::util::events::MessageSendEventsProvider as MessageSendEventsProviderTraitImport;
+#[must_use]
+extern "C" fn ChannelManager_MessageSendEventsProvider_get_and_clear_pending_msg_events(this_arg: *const c_void) -> crate::c_types::derived::CVec_MessageSendEventZ {
+	let mut ret = unsafe { &mut *(this_arg as *mut lnChannelManager) }.get_and_clear_pending_msg_events();
+	let mut local_ret = Vec::new(); for item in ret.drain(..) { local_ret.push( { crate::util::events::MessageSendEvent::ln_into(item) }); };
+	local_ret.into()
 }
 
 #[no_mangle]
@@ -620,7 +635,7 @@ use lightning::util::events::MessageSendEventsProvider as lnMessageSendEventsPro
 #[must_use]
 extern "C" fn ChannelManager_ChannelMessageHandler_get_and_clear_pending_msg_events(this_arg: *const c_void) -> crate::c_types::derived::CVec_MessageSendEventZ {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnChannelManager) }.get_and_clear_pending_msg_events();
-	let mut local_ret = Vec::new(); for item in ret.drain(..) { local_ret.push( { crate::util::events::MessageSendEvent { inner: Box::into_raw(Box::new(item)), _underlying_ref: false } }); };
+	let mut local_ret = Vec::new(); for item in ret.drain(..) { local_ret.push( { crate::util::events::MessageSendEvent::ln_into(item) }); };
 	local_ret.into()
 }
 
