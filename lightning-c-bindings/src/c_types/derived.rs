@@ -67,6 +67,7 @@ impl From<&[&bitcoin::blockdata::transaction::Transaction]> for CTransactionSlic
 	}
 }
 impl CTransactionSlice {
+	#[allow(dead_code)]
 	pub(crate) fn into_vec(mut self) -> Vec<bitcoin::blockdata::transaction::Transaction> {
 		let mut ret = Vec::new();
 		let mut orig: Vec<_> = unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.data, self.datalen)) }.into();
@@ -102,6 +103,7 @@ impl From<&[&lightning::ln::chan_utils::HTLCOutputInCommitment]> for CHTLCOutput
 	}
 }
 impl CHTLCOutputInCommitmentSlice {
+	#[allow(dead_code)]
 	pub(crate) fn into_vec(mut self) -> Vec<&'static lightning::ln::chan_utils::HTLCOutputInCommitment> {
 		let mut ret = Vec::new();
 		let mut orig: Vec<_> = unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.data, self.datalen)) }.into();
@@ -110,6 +112,15 @@ impl CHTLCOutputInCommitmentSlice {
 		}
 		// Make sure we don't try to de-allocate the things we just drain(..)ed
 		self.data = std::ptr::null_mut(); self.datalen = 0;
+		ret
+	}
+	#[allow(dead_code)]
+	pub(crate) fn as_vec(&self) -> Vec<&'static lightning::ln::chan_utils::HTLCOutputInCommitment> {
+		let mut ret = Vec::new();
+		let mut orig = unsafe { std::slice::from_raw_parts_mut(self.data, self.datalen) };
+		for e in orig.iter() {
+			ret.push(unsafe { &*e.inner });
+		}
 		ret
 	}
 }
@@ -363,6 +374,84 @@ pub static CVec_RouteHopZ_free: extern "C" fn(CVec_RouteHopZ) = crate::c_types::
 pub type CVec_CVec_RouteHopZZ = crate::c_types::CVecTempl<crate::c_types::CVecTempl<crate::routing::router::RouteHop>>;
 #[no_mangle]
 pub static CVec_CVec_RouteHopZZ_free: extern "C" fn(CVec_CVec_RouteHopZZ) = crate::c_types::CVecTempl_free::<crate::c_types::CVecTempl<crate::routing::router::RouteHop>>;
+
+#[no_mangle]
+pub type CChannelDetailsSlice = crate::c_types::CSliceTempl<crate::ln::channelmanager::ChannelDetails>;
+impl From<&[&lightning::ln::channelmanager::ChannelDetails]> for CChannelDetailsSlice {
+	fn from(slice: &[&lightning::ln::channelmanager::ChannelDetails]) -> Self {
+		let mut v = Vec::with_capacity(slice.len());
+		for e in slice.iter() {
+			v.push(crate::ln::channelmanager::ChannelDetails { inner: *e, _underlying_ref: true });
+		}
+		Self { datalen: v.len(), data: unsafe { (*Box::into_raw(v.into_boxed_slice())).as_mut_ptr() } }
+	}
+}
+impl CChannelDetailsSlice {
+	#[allow(dead_code)]
+	pub(crate) fn into_vec(mut self) -> Vec<&'static lightning::ln::channelmanager::ChannelDetails> {
+		let mut ret = Vec::new();
+		let mut orig: Vec<_> = unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.data, self.datalen)) }.into();
+		for e in orig.drain(..) {
+			ret.push(unsafe { &*e.inner });
+		}
+		// Make sure we don't try to de-allocate the things we just drain(..)ed
+		self.data = std::ptr::null_mut(); self.datalen = 0;
+		ret
+	}
+	#[allow(dead_code)]
+	pub(crate) fn as_vec(&self) -> Vec<&'static lightning::ln::channelmanager::ChannelDetails> {
+		let mut ret = Vec::new();
+		let mut orig = unsafe { std::slice::from_raw_parts_mut(self.data, self.datalen) };
+		for e in orig.iter() {
+			ret.push(unsafe { &*e.inner });
+		}
+		ret
+	}
+}
+#[no_mangle]
+pub type CRouteHintSlice = crate::c_types::CSliceTempl<crate::routing::router::RouteHint>;
+impl From<&[&lightning::routing::router::RouteHint]> for CRouteHintSlice {
+	fn from(slice: &[&lightning::routing::router::RouteHint]) -> Self {
+		let mut v = Vec::with_capacity(slice.len());
+		for e in slice.iter() {
+			v.push(crate::routing::router::RouteHint { inner: *e, _underlying_ref: true });
+		}
+		Self { datalen: v.len(), data: unsafe { (*Box::into_raw(v.into_boxed_slice())).as_mut_ptr() } }
+	}
+}
+impl CRouteHintSlice {
+	#[allow(dead_code)]
+	pub(crate) fn into_vec(mut self) -> Vec<&'static lightning::routing::router::RouteHint> {
+		let mut ret = Vec::new();
+		let mut orig: Vec<_> = unsafe { Box::from_raw(std::slice::from_raw_parts_mut(self.data, self.datalen)) }.into();
+		for e in orig.drain(..) {
+			ret.push(unsafe { &*e.inner });
+		}
+		// Make sure we don't try to de-allocate the things we just drain(..)ed
+		self.data = std::ptr::null_mut(); self.datalen = 0;
+		ret
+	}
+	#[allow(dead_code)]
+	pub(crate) fn as_vec(&self) -> Vec<&'static lightning::routing::router::RouteHint> {
+		let mut ret = Vec::new();
+		let mut orig = unsafe { std::slice::from_raw_parts_mut(self.data, self.datalen) };
+		for e in orig.iter() {
+			ret.push(unsafe { &*e.inner });
+		}
+		ret
+	}
+}
+#[no_mangle]
+pub type CResult_RouteLightningErrorZ = crate::c_types::CResultTempl<crate::routing::router::Route, crate::ln::msgs::LightningError>;
+#[no_mangle]
+pub static CResult_RouteLightningErrorZ_free: extern "C" fn(CResult_RouteLightningErrorZ) = crate::c_types::CResultTempl_free::<crate::routing::router::Route, crate::ln::msgs::LightningError>;
+#[no_mangle]
+pub static CResult_RouteLightningErrorZ_good: extern "C" fn (crate::routing::router::Route) -> CResult_RouteLightningErrorZ =
+	crate::c_types::CResultTempl::<crate::routing::router::Route, crate::ln::msgs::LightningError>::good;
+
+#[no_mangle]
+pub static CResult_RouteLightningErrorZ_err: extern "C" fn (crate::ln::msgs::LightningError) -> CResult_RouteLightningErrorZ =
+	crate::c_types::CResultTempl::<crate::routing::router::Route, crate::ln::msgs::LightningError>::err;
 
 #[no_mangle]
 pub type CVec_u64Z = crate::c_types::CVecTempl<u64>;

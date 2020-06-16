@@ -76,7 +76,7 @@ pub struct ChainWatchInterface {
 	/// " bytes are the block height, the next 3 the transaction index within the block, and the"
 	/// " final two the output within the transaction."
 	#[must_use]
-	pub get_chain_utxo: extern "C" fn (this_arg: *const c_void, genesis_hash: [u8; 32], unspent_tx_output_identifier: u64) -> crate::c_types::derived::CResult_C2Tuple_Scriptu64ZChainErrorZ,
+	pub get_chain_utxo: extern "C" fn (this_arg: *const c_void, genesis_hash: crate::c_types::ThirtyTwoBytes, unspent_tx_output_identifier: u64) -> crate::c_types::derived::CResult_C2Tuple_Scriptu64ZChainErrorZ,
 	/// " Gets the list of transaction indices within a given block that the ChainWatchInterface is"
 	/// " watching for."
 	#[must_use]
@@ -103,7 +103,7 @@ impl lnChainWatchInterface for ChainWatchInterface {
 		(self.watch_all_txn)(self.this_arg)
 	}
 	fn get_chain_utxo(&self, genesis_hash: bitcoin::hash_types::BlockHash, unspent_tx_output_identifier: u64) -> Result<(bitcoin::blockdata::script::Script, u64), lightning::chain::chaininterface::ChainError> {
-		let mut ret = (self.get_chain_utxo)(self.this_arg, genesis_hash.into_inner(), unspent_tx_output_identifier);
+		let mut ret = (self.get_chain_utxo)(self.this_arg, crate::c_types::ThirtyTwoBytes { data: genesis_hash.into_inner() }, unspent_tx_output_identifier);
 		let mut local_ret = match ret.result_good { true => Ok( { let (mut orig_ret_0_0, mut orig_ret_0_1) = (*unsafe { Box::from_raw(ret.contents.result.take_ptr()) }).to_rust(); let local_ret_0 = (::bitcoin::blockdata::script::Script::from(orig_ret_0_0.into_rust()), orig_ret_0_1); local_ret_0 }), false => Err( { (*unsafe { Box::from_raw(ret.contents.err.take_ptr()) }).into_ln() })};
 		local_ret
 	}
@@ -417,8 +417,8 @@ pub extern "C" fn BlockNotifier_block_connected(this_arg: &BlockNotifier, block:
 #[must_use]
 #[no_mangle]
 pub extern "C" fn BlockNotifier_block_connected_checked(this_arg: &BlockNotifier, header: *const [u8; 80], mut height: u32, txn_matched: crate::c_types::derived::CTransactionSlice, indexes_of_txn_matched: crate::c_types::u32slice) -> bool {
-	let local_txn_matched_vec = txn_matched.into_vec(); let mut local_txn_matched = local_txn_matched_vec.iter().collect::<Vec<_>>();
-	let mut ret = unsafe { &*this_arg.inner }.block_connected_checked(&::bitcoin::consensus::encode::deserialize(unsafe { &*header }).unwrap(), height, &local_txn_matched[..], indexes_of_txn_matched.to_slice());
+	let local_txn_matched = txn_matched.into_vec();
+	let mut ret = unsafe { &*this_arg.inner }.block_connected_checked(&::bitcoin::consensus::encode::deserialize(unsafe { &*header }).unwrap(), height, &local_txn_matched.iter().collect::<Vec<_>>()[..], indexes_of_txn_matched.to_slice());
 	ret
 }
 
@@ -477,8 +477,8 @@ extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_watch_all_txn(this_arg
 	unsafe { &mut *(this_arg as *mut lnChainWatchInterfaceUtil) }.watch_all_txn()
 }
 #[must_use]
-extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_get_chain_utxo(this_arg: *const c_void, mut genesis_hash: [u8; 32], mut _unspent_tx_output_identifier: u64) -> crate::c_types::derived::CResult_C2Tuple_Scriptu64ZChainErrorZ {
-	let mut ret = unsafe { &mut *(this_arg as *mut lnChainWatchInterfaceUtil) }.get_chain_utxo(::bitcoin::hash_types::BlockHash::from_slice(&genesis_hash[..]).unwrap(), _unspent_tx_output_identifier);
+extern "C" fn ChainWatchInterfaceUtil_ChainWatchInterface_get_chain_utxo(this_arg: *const c_void, mut genesis_hash: crate::c_types::ThirtyTwoBytes, mut _unspent_tx_output_identifier: u64) -> crate::c_types::derived::CResult_C2Tuple_Scriptu64ZChainErrorZ {
+	let mut ret = unsafe { &mut *(this_arg as *mut lnChainWatchInterfaceUtil) }.get_chain_utxo(::bitcoin::hash_types::BlockHash::from_slice(&genesis_hash.data[..]).unwrap(), _unspent_tx_output_identifier);
 	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { let (mut orig_ret_0_0, mut orig_ret_0_1) = o; let local_ret_0 = (orig_ret_0_0.into_bytes().into(), orig_ret_0_1).into(); local_ret_0 }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::chain::chaininterface::ChainError::ln_into(e) }) };
 	local_ret
 }

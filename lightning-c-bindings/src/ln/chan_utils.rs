@@ -188,6 +188,15 @@ pub extern "C" fn ChannelPublicKeys_read(ser: crate::c_types::u8slice) -> Channe
 		ChannelPublicKeys { inner: std::ptr::null(), _underlying_ref: false }
 	}
 }
+/// " A script either spendable by the revocation"
+/// " key or the delayed_payment_key and satisfying the relative-locktime OP_CSV constrain."
+/// " Encumbering a `to_local` output on a commitment transaction or 2nd-stage HTLC transactions."
+#[no_mangle]
+pub extern "C" fn get_revokeable_redeemscript(revocation_key: crate::c_types::PublicKey, to_self_delay: u16, delayed_payment_key: crate::c_types::PublicKey) -> crate::c_types::derived::CVec_u8Z {
+	let mut ret = lightning::ln::chan_utils::get_revokeable_redeemscript(&revocation_key.into_rust(), to_self_delay, &delayed_payment_key.into_rust());
+	ret.into_bytes().into()
+}
+
 
 use lightning::ln::chan_utils::HTLCOutputInCommitment as lnHTLCOutputInCommitmentImport;
 type lnHTLCOutputInCommitment = lnHTLCOutputInCommitmentImport;
@@ -268,8 +277,8 @@ pub extern "C" fn HTLCOutputInCommitment_get_payment_hash(this_ptr: &HTLCOutputI
 }
 /// " The hash of the preimage which unlocks this HTLC."
 #[no_mangle]
-pub extern "C" fn HTLCOutputInCommitment_set_payment_hash(this_ptr: &mut HTLCOutputInCommitment, mut val: [u8; 32]) {
-	unsafe { &mut *(this_ptr.inner as *mut lnHTLCOutputInCommitment) }.payment_hash = ::lightning::ln::channelmanager::PaymentHash(val);
+pub extern "C" fn HTLCOutputInCommitment_set_payment_hash(this_ptr: &mut HTLCOutputInCommitment, mut val: crate::c_types::ThirtyTwoBytes) {
+	unsafe { &mut *(this_ptr.inner as *mut lnHTLCOutputInCommitment) }.payment_hash = ::lightning::ln::channelmanager::PaymentHash(val.data);
 }
 #[no_mangle]
 pub extern "C" fn HTLCOutputInCommitment_write(obj: *const HTLCOutputInCommitment) -> crate::c_types::derived::CVec_u8Z {
@@ -283,6 +292,30 @@ pub extern "C" fn HTLCOutputInCommitment_read(ser: crate::c_types::u8slice) -> H
 		HTLCOutputInCommitment { inner: std::ptr::null(), _underlying_ref: false }
 	}
 }
+/// " note here that 'a_revocation_key' is generated using b_revocation_basepoint and a's"
+/// " commitment secret. 'htlc' does *not* need to have its previous_output_index filled."
+#[no_mangle]
+pub extern "C" fn get_htlc_redeemscript(htlc: &crate::ln::chan_utils::HTLCOutputInCommitment, keys: &crate::ln::chan_utils::TxCreationKeys) -> crate::c_types::derived::CVec_u8Z {
+	let mut ret = lightning::ln::chan_utils::get_htlc_redeemscript(unsafe { &*htlc.inner }, unsafe { &*keys.inner });
+	ret.into_bytes().into()
+}
+
+/// " Gets the redeemscript for a funding output from the two funding public keys."
+/// " Note that the order of funding public keys does not matter."
+#[no_mangle]
+pub extern "C" fn make_funding_redeemscript(a: crate::c_types::PublicKey, b: crate::c_types::PublicKey) -> crate::c_types::derived::CVec_u8Z {
+	let mut ret = lightning::ln::chan_utils::make_funding_redeemscript(&a.into_rust(), &b.into_rust());
+	ret.into_bytes().into()
+}
+
+/// " panics if htlc.transaction_output_index.is_none()!"
+#[no_mangle]
+pub extern "C" fn build_htlc_transaction(prev_hash: *const [u8; 32], feerate_per_kw: u64, to_self_delay: u16, htlc: &crate::ln::chan_utils::HTLCOutputInCommitment, a_delayed_payment_key: crate::c_types::PublicKey, revocation_key: crate::c_types::PublicKey) -> crate::c_types::derived::CVec_u8Z {
+	let mut ret = lightning::ln::chan_utils::build_htlc_transaction(&::bitcoin::hash_types::Txid::from_slice(&unsafe { &*prev_hash }[..]).unwrap(), feerate_per_kw, to_self_delay, unsafe { &*htlc.inner }, &a_delayed_payment_key.into_rust(), &revocation_key.into_rust());
+	let local_ret = ::bitcoin::consensus::encode::serialize(&ret);
+	local_ret.into()
+}
+
 
 use lightning::ln::chan_utils::LocalCommitmentTransaction as lnLocalCommitmentTransactionImport;
 type lnLocalCommitmentTransaction = lnLocalCommitmentTransactionImport;

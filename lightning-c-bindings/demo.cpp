@@ -84,6 +84,16 @@ const uint8_t block_2[] = {
 	0x00
 };
 
+const LDKThirtyTwoBytes payment_preimage_1 = {
+	.data = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1 }
+};
+const LDKThirtyTwoBytes payment_hash_1 = {
+	.data = {
+		0xdc, 0xb1, 0xac, 0x4a, 0x5d, 0xe3, 0x70, 0xca, 0xd0, 0x91, 0xc1, 0x3f, 0x13, 0xae, 0xe2, 0xf9,
+		0x36, 0xc2, 0x78, 0xfa, 0x05, 0xd2, 0x64, 0x65, 0x3c, 0x0c, 0x13, 0x21, 0x85, 0x2a, 0x35, 0xe8
+	}
+};
+
 void print_log(const void *this_arg, const char *record) {
 	printf("%p - %s\n", this_arg, record);
 }
@@ -121,10 +131,12 @@ LDKCResult_NoneChannelMonitorUpdateErrZ add_channel_monitor(const void *this_arg
 	});
 	return CResult_NoneChannelMonitorUpdateErrZ_good();
 }
+static int mons_updated = 0; // Technically a race, but ints are atomic on x86.
 LDKCResult_NoneChannelMonitorUpdateErrZ update_channel_monitor(const void *this_arg, LDKOutPoint funding_txo_arg, LDKChannelMonitorUpdate monitor_arg) {
 	// First bind the args to C++ objects so they auto-free
 	LDK::ChannelMonitorUpdate update(std::move(monitor_arg));
 	LDK::OutPoint funding_txo(std::move(funding_txo_arg));
+	mons_updated += 1;
 	return CResult_NoneChannelMonitorUpdateErrZ_good();
 }
 LDKCVec_HTLCUpdateZ monitors_pending_htlcs_updated(const void *this_arg) {
@@ -321,8 +333,8 @@ int main() {
 		std::this_thread::yield();
 	}
 
+	LDKEventsProvider ev1 = ChannelManager_as_EventsProvider(&cm1);
 	while (true) {
-		LDKEventsProvider ev1 = ChannelManager_as_EventsProvider(&cm1);
 		LDK::CVec_EventZ events = ev1.get_and_clear_pending_events(ev1.this_arg);
 		if (events->datalen == 1) {
 			assert(events->data[0].tag == LDKEvent_FundingGenerationReady);
@@ -339,10 +351,18 @@ int main() {
 		std::this_thread::yield();
 	}
 
-	// We can't observe when the funding signed messages have been exchanged without
-	// writing a message interceptor, so just sleep 10ms here and hope its enough.
+	// We observe when the funding signed messages have been exchanged by
+	// waiting for two monitors to be registered.
 	PeerManager_process_events(&net1);
-	std::this_thread::sleep_for(50ms);
+	while (true) {
+		LDK::CVec_EventZ events = ev1.get_and_clear_pending_events(ev1.this_arg);
+		if (events->datalen == 1) {
+			assert(events->data[0].tag == LDKEvent_FundingBroadcastSafe);
+			assert(events->data[0].funding_broadcast_safe.user_channel_id == 42);
+			break;
+		}
+		std::this_thread::yield();
+	}
 
 	BlockNotifier_block_connected(&blocks1, LDKu8slice { .data = channel_open_block, .datalen = sizeof(channel_open_block) }, 1);
 	BlockNotifier_block_connected(&blocks2, LDKu8slice { .data = channel_open_block, .datalen = sizeof(channel_open_block) }, 1);
@@ -353,11 +373,71 @@ int main() {
 	BlockNotifier_block_connected(&blocks1, LDKu8slice { .data = block_2, .datalen = sizeof(block_2) }, 3);
 	BlockNotifier_block_connected(&blocks2, LDKu8slice { .data = block_2, .datalen = sizeof(block_2) }, 3);
 
-	// We can't observe when the funding locked messages have been exchanged without
-	// writing a message interceptor, so just sleep 10ms here and hope its enough.
 	PeerManager_process_events(&net1);
 	PeerManager_process_events(&net2);
-	std::this_thread::sleep_for(50ms);
+
+	// Now send funds from 1 to 2!
+	while (true) {
+		LDK::CVec_ChannelDetailsZ outbound_channels = ChannelManager_list_usable_channels(&cm1);
+		if (outbound_channels->datalen == 1) { break; }
+		std::this_thread::yield();
+	}
+
+	LDK::CVec_ChannelDetailsZ outbound_channels = ChannelManager_list_usable_channels(&cm1);
+	LDK::CChannelDetailsSlice first_hops = LDKCChannelDetailsSlice {
+		.data = outbound_channels->data, .datalen = outbound_channels->datalen
+	};
+	// TODO: We need to expose a way to get the NetworkGraph fom the message handler
+	LDK::NetworkGraph net_graph3 = NetworkGraph_new();
+	LDK::CResult_RouteLightningErrorZ route = get_route(ChannelManager_get_our_node_id(&cm1), &net_graph3, ChannelManager_get_our_node_id(&cm2), &first_hops, LDKCRouteHintSlice {
+			.data = NULL, .datalen = 0
+		}, 5000, 10, logger1);
+	assert(route->result_good);
+	LDKThirtyTwoBytes payment_secret;
+	memset(payment_secret.data, 0x42, 32);
+	LDK::CResult_NonePaymentSendFailureZ send_res = ChannelManager_send_payment(&cm1, route->contents.result, payment_hash_1, &payment_secret);
+	assert(send_res->result_good);
+
+	mons_updated = 0;
+	PeerManager_process_events(&net1);
+	while (mons_updated != 4) {
+		std::this_thread::yield();
+	}
+
+	// Check that we received the payment!
+	LDKEventsProvider ev2 = ChannelManager_as_EventsProvider(&cm2);
+	while (true) {
+		LDK::CVec_EventZ events = ev2.get_and_clear_pending_events(ev2.this_arg);
+		if (events->datalen == 1) {
+			assert(events->data[0].tag == LDKEvent_PendingHTLCsForwardable);
+			break;
+		}
+		std::this_thread::yield();
+	}
+	ChannelManager_process_pending_htlc_forwards(&cm2);
+	PeerManager_process_events(&net2);
+
+	mons_updated = 0;
+	{
+		LDK::CVec_EventZ events = ev2.get_and_clear_pending_events(ev2.this_arg);
+		assert(events->datalen == 1);
+		assert(events->data[0].tag == LDKEvent_PaymentReceived);
+		assert(!memcmp(events->data[0].payment_received.payment_hash.data, payment_hash_1.data, 32));
+		assert(!memcmp(events->data[0].payment_received.payment_secret->data, payment_secret.data, 32));
+		assert(events->data[0].payment_received.amt == 5000);
+		assert(ChannelManager_claim_funds(&cm2, payment_preimage_1, &payment_secret, 5000));
+	}
+	PeerManager_process_events(&net2);
+	// Wait until we've passed through a full set of monitor updates (ie CS/RAA messages)
+	while (mons_updated != 4) {
+		std::this_thread::yield();
+	}
+	{
+		LDK::CVec_EventZ events = ev1.get_and_clear_pending_events(ev1.this_arg);
+		assert(events->datalen == 1);
+		assert(events->data[0].tag == LDKEvent_PaymentSent);
+		assert(!memcmp(events->data[0].payment_sent.payment_preimage.data, payment_preimage_1.data, 32));
+	}
 
 	close(pipefds_1_to_2[0]);
 	close(pipefds_2_to_1[0]);

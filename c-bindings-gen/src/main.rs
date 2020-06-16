@@ -1219,6 +1219,26 @@ fn println_enum<'a, 'b, W: std::io::Write>(w: &mut W, e: &'a syn::ItemEnum, type
 	}
 }
 
+fn println_fn<'a, 'b, W: std::io::Write>(w: &mut W, f: &'a syn::ItemFn, types: &mut TypeResolver<'b, 'a>) {
+	match export_status(&f.attrs) {
+		ExportStatus::Export => {},
+		ExportStatus::NoExport|ExportStatus::TestOnly => return,
+	}
+	println_docs(w, &f.attrs, "");
+
+
+	let mut gen_types = GenericTypes::new();
+	if !gen_types.learn_generics(&f.sig.generics, types) { return; }
+
+	write!(w, "#[no_mangle]\npub extern \"C\" fn {}(", f.sig.ident).unwrap();
+	print_method_params(w, &f.sig, &HashMap::new(), "", types, Some(&gen_types), false, false);
+	write!(w, " {{\n\t").unwrap();
+	print_method_var_decl_body(w, &f.sig, "", types, Some(&gen_types), false);
+	write!(w, "{}::{}::{}(", types.orig_crate, types.module_path, f.sig.ident).unwrap();
+	print_method_call_params(w, &f.sig, &HashMap::new(), "", types, Some(&gen_types), "", false);
+	writeln!(w, "\n}}\n").unwrap();
+}
+
 struct FullLibraryAST {
 	files: HashMap<String, syn::File>,
 }
@@ -1323,7 +1343,10 @@ fn convert_file<'a, 'b>(libast: &'a FullLibraryAST, crate_types: &mut CrateTypes
 					}
 				}
 			},
-			syn::Item::Fn(_c) => {
+			syn::Item::Fn(f) => {
+				if let syn::Visibility::Public(_) = f.vis {
+					println_fn(&mut out, &f, &mut type_resolver);
+				}
 			},
 			syn::Item::Macro(m) => {
 				if m.ident.is_none() { // If its not a macro definition

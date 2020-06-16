@@ -369,9 +369,9 @@ pub extern "C" fn ChannelManager_force_close_all_channels(this_arg: &ChannelMana
 /// " we assume the invoice had the basic_mpp feature set."
 #[must_use]
 #[no_mangle]
-pub extern "C" fn ChannelManager_send_payment(this_arg: &ChannelManager, route: &crate::routing::router::Route, mut payment_hash: [u8; 32], payment_secret: *const crate::c_types::ThirtyTwoBytes) -> crate::c_types::derived::CResult_NonePaymentSendFailureZ {
+pub extern "C" fn ChannelManager_send_payment(this_arg: &ChannelManager, route: &crate::routing::router::Route, mut payment_hash: crate::c_types::ThirtyTwoBytes, payment_secret: *const crate::c_types::ThirtyTwoBytes) -> crate::c_types::derived::CResult_NonePaymentSendFailureZ {
 	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some(* { &::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }.data) }) };
-	let mut ret = unsafe { &*this_arg.inner }.send_payment(unsafe { &*route.inner }, ::lightning::ln::channelmanager::PaymentHash(payment_hash), &local_payment_secret);
+	let mut ret = unsafe { &*this_arg.inner }.send_payment(unsafe { &*route.inner }, ::lightning::ln::channelmanager::PaymentHash(payment_hash.data), &local_payment_secret);
 	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { 0u8 /*o*/ }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::channelmanager::PaymentSendFailure { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
 	local_ret
 }
@@ -458,9 +458,9 @@ pub extern "C" fn ChannelManager_fail_htlc_backwards(this_arg: &ChannelManager, 
 /// " May panic if called except in response to a PaymentReceived event."
 #[must_use]
 #[no_mangle]
-pub extern "C" fn ChannelManager_claim_funds(this_arg: &ChannelManager, mut payment_preimage: [u8; 32], payment_secret: *const crate::c_types::ThirtyTwoBytes, mut expected_amount: u64) -> bool {
+pub extern "C" fn ChannelManager_claim_funds(this_arg: &ChannelManager, mut payment_preimage: crate::c_types::ThirtyTwoBytes, payment_secret: *const crate::c_types::ThirtyTwoBytes, mut expected_amount: u64) -> bool {
 	let mut local_payment_secret = if payment_secret.is_null() { None } else { Some(* { &::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }.data) }) };
-	let mut ret = unsafe { &*this_arg.inner }.claim_funds(::lightning::ln::channelmanager::PaymentPreimage(payment_preimage), &local_payment_secret, expected_amount);
+	let mut ret = unsafe { &*this_arg.inner }.claim_funds(::lightning::ln::channelmanager::PaymentPreimage(payment_preimage.data), &local_payment_secret, expected_amount);
 	ret
 }
 
@@ -537,8 +537,8 @@ pub extern "C" fn ChannelManager_as_ChainListener(this_arg: *const ChannelManage
 }
 use lightning::chain::chaininterface::ChainListener as ChainListenerTraitImport;
 extern "C" fn ChannelManager_ChainListener_block_connected(this_arg: *const c_void, header: *const [u8; 80], mut height: u32, txn_matched: crate::c_types::derived::CTransactionSlice, indexes_of_txn_matched: crate::c_types::u32slice) {
-	let local_txn_matched_vec = txn_matched.into_vec(); let mut local_txn_matched = local_txn_matched_vec.iter().collect::<Vec<_>>();
-	unsafe { &mut *(this_arg as *mut lnChannelManager) }.block_connected(&::bitcoin::consensus::encode::deserialize(unsafe { &*header }).unwrap(), height, &local_txn_matched[..], indexes_of_txn_matched.to_slice())
+	let local_txn_matched = txn_matched.into_vec();
+	unsafe { &mut *(this_arg as *mut lnChannelManager) }.block_connected(&::bitcoin::consensus::encode::deserialize(unsafe { &*header }).unwrap(), height, &local_txn_matched.iter().collect::<Vec<_>>()[..], indexes_of_txn_matched.to_slice())
 }
 extern "C" fn ChannelManager_ChainListener_block_disconnected(this_arg: *const c_void, header: *const [u8; 80], unused_0: u32) {
 	unsafe { &mut *(this_arg as *mut lnChannelManager) }.block_disconnected(&::bitcoin::consensus::encode::deserialize(unsafe { &*header }).unwrap(), unused_0)

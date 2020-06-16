@@ -47,7 +47,7 @@ pub enum Event {
 	/// " ChannelManager::fail_htlc_backwards within the HTLC's timeout, the HTLC will be"
 	/// " automatically failed."
 	PaymentReceived {
-		payment_hash: [u8; 32],
+		payment_hash: crate::c_types::ThirtyTwoBytes,
 		payment_secret: *const crate::c_types::ThirtyTwoBytes,
 		amt: u64,
 	},
@@ -56,14 +56,14 @@ pub enum Event {
 	/// " Note that duplicative PaymentSent Events may be generated - it is your responsibility to"
 	/// " deduplicate them by payment_preimage (which MUST be unique)!"
 	PaymentSent {
-		payment_preimage: [u8; 32],
+		payment_preimage: crate::c_types::ThirtyTwoBytes,
 	},
 	/// " Indicates an outbound payment we made failed. Probably some intermediary node dropped"
 	/// " something. You may wish to retry with a different route."
 	/// " Note that duplicative PaymentFailed Events may be generated - it is your responsibility to"
 	/// " deduplicate them by payment_hash (which MUST be unique)!"
 	PaymentFailed {
-		payment_hash: [u8; 32],
+		payment_hash: crate::c_types::ThirtyTwoBytes,
 		rejected_by_dest: bool,
 	},
 	/// " Used to indicate that ChannelManager::process_pending_htlc_forwards should be called at a"
@@ -106,10 +106,10 @@ impl Event {
 			},
 			Event::PaymentReceived {ref payment_hash, ref payment_secret, ref amt, } => {
 				let mut payment_hash_nonref = (*payment_hash).clone();
-				let mut payment_secret_nonref = (*payment_secret).clone();let mut local_payment_secret_nonref = if payment_secret_nonref.is_null() { None } else { Some( { ::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret_nonref }.data) }) };
+				let mut payment_secret_nonref = (*payment_secret).clone();let mut local_payment_secret_nonref = if payment_secret_nonref.is_null() { None } else { Some( { ::lightning::ln::channelmanager::PaymentSecret(unsafe { &*payment_secret_nonref }.data) }) };
 				let mut amt_nonref = (*amt).clone();
 				lnEvent::PaymentReceived {
-					payment_hash: ::lightning::ln::channelmanager::PaymentHash(payment_hash_nonref),
+					payment_hash: ::lightning::ln::channelmanager::PaymentHash(payment_hash_nonref.data),
 					payment_secret: local_payment_secret_nonref,
 					amt: amt_nonref,
 				}
@@ -117,14 +117,14 @@ impl Event {
 			Event::PaymentSent {ref payment_preimage, } => {
 				let mut payment_preimage_nonref = (*payment_preimage).clone();
 				lnEvent::PaymentSent {
-					payment_preimage: ::lightning::ln::channelmanager::PaymentPreimage(payment_preimage_nonref),
+					payment_preimage: ::lightning::ln::channelmanager::PaymentPreimage(payment_preimage_nonref.data),
 				}
 			},
 			Event::PaymentFailed {ref payment_hash, ref rejected_by_dest, } => {
 				let mut payment_hash_nonref = (*payment_hash).clone();
 				let mut rejected_by_dest_nonref = (*rejected_by_dest).clone();
 				lnEvent::PaymentFailed {
-					payment_hash: ::lightning::ln::channelmanager::PaymentHash(payment_hash_nonref),
+					payment_hash: ::lightning::ln::channelmanager::PaymentHash(payment_hash_nonref.data),
 					rejected_by_dest: rejected_by_dest_nonref,
 				}
 			},
@@ -160,21 +160,21 @@ impl Event {
 				}
 			},
 			Event::PaymentReceived {mut payment_hash, mut payment_secret, mut amt, } => {
-				let mut local_payment_secret = if payment_secret.is_null() { None } else { Some( { ::lightning::ln::channelmanager::PaymentSecret(unsafe { *payment_secret }.data) }) };
+				let mut local_payment_secret = if payment_secret.is_null() { None } else { Some( { ::lightning::ln::channelmanager::PaymentSecret(unsafe { &*payment_secret }.data) }) };
 				lnEvent::PaymentReceived {
-					payment_hash: ::lightning::ln::channelmanager::PaymentHash(payment_hash),
+					payment_hash: ::lightning::ln::channelmanager::PaymentHash(payment_hash.data),
 					payment_secret: local_payment_secret,
 					amt: amt,
 				}
 			},
 			Event::PaymentSent {mut payment_preimage, } => {
 				lnEvent::PaymentSent {
-					payment_preimage: ::lightning::ln::channelmanager::PaymentPreimage(payment_preimage),
+					payment_preimage: ::lightning::ln::channelmanager::PaymentPreimage(payment_preimage.data),
 				}
 			},
 			Event::PaymentFailed {mut payment_hash, mut rejected_by_dest, } => {
 				lnEvent::PaymentFailed {
-					payment_hash: ::lightning::ln::channelmanager::PaymentHash(payment_hash),
+					payment_hash: ::lightning::ln::channelmanager::PaymentHash(payment_hash.data),
 					rejected_by_dest: rejected_by_dest,
 				}
 			},
@@ -219,7 +219,7 @@ impl Event {
 				let mut payment_secret_nonref = (*payment_secret).clone();let mut local_payment_secret_nonref = if payment_secret_nonref.is_none() { std::ptr::null_mut() } else { Box::into_raw(Box::new( { crate::c_types::ThirtyTwoBytes { data: (payment_secret_nonref.unwrap()).0 } })) };
 				let mut amt_nonref = (*amt).clone();
 				Event::PaymentReceived {
-					payment_hash: payment_hash_nonref.0,
+					payment_hash: crate::c_types::ThirtyTwoBytes { data: payment_hash_nonref.0 },
 					payment_secret: local_payment_secret_nonref,
 					amt: amt_nonref,
 				}
@@ -227,14 +227,14 @@ impl Event {
 			lnEvent::PaymentSent {ref payment_preimage, } => {
 				let mut payment_preimage_nonref = (*payment_preimage).clone();
 				Event::PaymentSent {
-					payment_preimage: payment_preimage_nonref.0,
+					payment_preimage: crate::c_types::ThirtyTwoBytes { data: payment_preimage_nonref.0 },
 				}
 			},
 			lnEvent::PaymentFailed {ref payment_hash, ref rejected_by_dest, } => {
 				let mut payment_hash_nonref = (*payment_hash).clone();
 				let mut rejected_by_dest_nonref = (*rejected_by_dest).clone();
 				Event::PaymentFailed {
-					payment_hash: payment_hash_nonref.0,
+					payment_hash: crate::c_types::ThirtyTwoBytes { data: payment_hash_nonref.0 },
 					rejected_by_dest: rejected_by_dest_nonref,
 				}
 			},
@@ -272,19 +272,19 @@ impl Event {
 			lnEvent::PaymentReceived {mut payment_hash, mut payment_secret, mut amt, } => {
 				let mut local_payment_secret = if payment_secret.is_none() { std::ptr::null_mut() } else { Box::into_raw(Box::new( { crate::c_types::ThirtyTwoBytes { data: (payment_secret.unwrap()).0 } })) };
 				Event::PaymentReceived {
-					payment_hash: payment_hash.0,
+					payment_hash: crate::c_types::ThirtyTwoBytes { data: payment_hash.0 },
 					payment_secret: local_payment_secret,
 					amt: amt,
 				}
 			},
 			lnEvent::PaymentSent {mut payment_preimage, } => {
 				Event::PaymentSent {
-					payment_preimage: payment_preimage.0,
+					payment_preimage: crate::c_types::ThirtyTwoBytes { data: payment_preimage.0 },
 				}
 			},
 			lnEvent::PaymentFailed {mut payment_hash, mut rejected_by_dest, } => {
 				Event::PaymentFailed {
-					payment_hash: payment_hash.0,
+					payment_hash: crate::c_types::ThirtyTwoBytes { data: payment_hash.0 },
 					rejected_by_dest: rejected_by_dest,
 				}
 			},

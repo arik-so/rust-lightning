@@ -293,6 +293,9 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 			"Vec" if !is_ref => Some("crate::c_types::derived::CVec"),
 			"Option" => Some(""),
 
+			// Note that no !is_ref types can map to an array because Rust and C's call semantics
+			// for arrays are different (https://github.com/eqrion/cbindgen/issues/528)
+
 			"[u8; 32]" if !is_ref => Some("crate::c_types::ThirtyTwoBytes"),
 			"[u8; 16]" if !is_ref => Some("crate::c_types::SixteenBytes"),
 			"[u8; 10]" if !is_ref => Some("crate::c_types::TenBytes"),
@@ -316,18 +319,17 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 			"bitcoin::OutPoint" => Some("crate::chain::transaction::OutPoint"),
 			"bitcoin::network::constants::Network" => Some("crate::bitcoin::network::Network"),
 			"bitcoin::blockdata::block::BlockHeader" if is_ref  => Some("*const [u8; 80]"),
-			"bitcoin::blockdata::block::BlockHeader" if !is_ref => Some("[u8; 80]"),
 			"bitcoin::blockdata::block::Block" if is_ref  => Some("crate::c_types::u8slice"),
 
 			// Newtypes that we just expose in their original form.
 			"bitcoin::hash_types::Txid" if is_ref  => Some("*const [u8; 32]"),
 			"bitcoin::hash_types::Txid" if !is_ref => Some("crate::c_types::ThirtyTwoBytes"),
 			"bitcoin::hash_types::BlockHash" if is_ref  => Some("*const [u8; 32]"),
-			"bitcoin::hash_types::BlockHash" if !is_ref => Some("[u8; 32]"),
+			"bitcoin::hash_types::BlockHash" if !is_ref => Some("crate::c_types::ThirtyTwoBytes"),
 			"ln::channelmanager::PaymentHash" if is_ref => Some("*const [u8; 32]"),
-			"ln::channelmanager::PaymentHash" if !is_ref => Some("[u8; 32]"),
+			"ln::channelmanager::PaymentHash" if !is_ref => Some("crate::c_types::ThirtyTwoBytes"),
 			"ln::channelmanager::PaymentPreimage" if is_ref => Some("*const [u8; 32]"),
-			"ln::channelmanager::PaymentPreimage" if !is_ref => Some("[u8; 32]"),
+			"ln::channelmanager::PaymentPreimage" if !is_ref => Some("crate::c_types::ThirtyTwoBytes"),
 			"ln::channelmanager::PaymentSecret" if is_ref => Some("*const crate::c_types::ThirtyTwoBytes"),
 			"ln::channelmanager::PaymentSecret" if !is_ref => Some("crate::c_types::ThirtyTwoBytes"),
 
@@ -411,7 +413,7 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 				Some(("if ", vec![(".is_null() { None } else { Some(*".to_string(), format!("{}", var_name))], ") }"))
 			},
 			"Option" => {
-				Some(("if ", vec![(".is_null() { None } else { Some(".to_string(), format!("unsafe {{ *{} }}", var_name))], ") }"))
+				Some(("if ", vec![(".is_null() { None } else { Some(".to_string(), format!("unsafe {{ &*{} }}", var_name))], ") }"))
 			},
 			_ => None,
 		}
@@ -528,10 +530,10 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 			// Newtypes that we just expose in their original form.
 			"bitcoin::hash_types::Txid" if is_ref => Some(" }[..]).unwrap()"),
 			"bitcoin::hash_types::Txid" => Some(".data[..]).unwrap()"),
-			"bitcoin::hash_types::BlockHash" => Some("[..]).unwrap()"),
-			"ln::channelmanager::PaymentHash" if !is_ref => Some(")"),
+			"bitcoin::hash_types::BlockHash" if !is_ref => Some(".data[..]).unwrap()"),
+			"ln::channelmanager::PaymentHash" if !is_ref => Some(".data)"),
 			"ln::channelmanager::PaymentHash" if is_ref => Some(" })"),
-			"ln::channelmanager::PaymentPreimage" if !is_ref => Some(")"),
+			"ln::channelmanager::PaymentPreimage" if !is_ref => Some(".data)"),
 			"ln::channelmanager::PaymentPreimage" if is_ref => Some(" })"),
 			"ln::channelmanager::PaymentSecret" if is_ref=> Some(" }.data)"),
 			"ln::channelmanager::PaymentSecret" if !is_ref => Some(".data)"),
@@ -616,10 +618,12 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 
 			// Newtypes that we just expose in their original form.
 			"bitcoin::hash_types::Txid" if is_ref => Some(""),
-			"bitcoin::hash_types::BlockHash" => Some(""),
+			"bitcoin::hash_types::BlockHash" if is_ref => Some(""),
+			"bitcoin::hash_types::BlockHash" => Some("crate::c_types::ThirtyTwoBytes { data: "),
 			"ln::channelmanager::PaymentHash" if is_ref => Some("&"),
-			"ln::channelmanager::PaymentHash" => Some(""),
-			"ln::channelmanager::PaymentPreimage" => Some(""),
+			"ln::channelmanager::PaymentHash" if !is_ref => Some("crate::c_types::ThirtyTwoBytes { data: "),
+			"ln::channelmanager::PaymentPreimage" if is_ref => Some("&"),
+			"ln::channelmanager::PaymentPreimage" => Some("crate::c_types::ThirtyTwoBytes { data: "),
 			"ln::channelmanager::PaymentSecret" if !is_ref => Some("crate::c_types::ThirtyTwoBytes { data: "),
 
 			// Override the default since Records contain an fmt with a lifetime:
@@ -676,12 +680,14 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 			"bitcoin::hash_types::Txid" if !is_ref => Some(".into_inner() }"),
 
 			// Newtypes that we just expose in their original form.
-			"bitcoin::hash_types::Txid" => Some(".as_inner()"),
-			"bitcoin::hash_types::BlockHash" if !is_ref => Some(".into_inner()"),
-			"bitcoin::hash_types::BlockHash" => Some(".as_inner()"),
-			"ln::channelmanager::PaymentHash" => Some(".0"),
-			"ln::channelmanager::PaymentPreimage" => Some(".0"),
-			"ln::channelmanager::PaymentSecret" => Some(".0 }"),
+			"bitcoin::hash_types::Txid" if is_ref => Some(".as_inner()"),
+			"bitcoin::hash_types::BlockHash" if is_ref => Some(".as_inner()"),
+			"bitcoin::hash_types::BlockHash" => Some(".into_inner() }"),
+			"ln::channelmanager::PaymentHash" if is_ref => Some(".0"),
+			"ln::channelmanager::PaymentHash" => Some(".0 }"),
+			"ln::channelmanager::PaymentPreimage" if is_ref => Some(".0"),
+			"ln::channelmanager::PaymentPreimage" => Some(".0 }"),
+			"ln::channelmanager::PaymentSecret" if !is_ref => Some(".0 }"),
 
 			// Override the default since Records contain an fmt with a lifetime:
 			"util::logger::Record" => Some(".as_ptr()"),
@@ -1029,16 +1035,16 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 		}
 	}
 
-	fn print_conversion_inline_intern<W: std::io::Write, LP: Fn(&str, bool, bool) -> Option<String>, DL: Fn(&mut W, &DeclType, &str, bool)>
+	fn print_conversion_inline_intern<W: std::io::Write,
+			LP: Fn(&str, bool, bool) -> Option<String>, DL: Fn(&mut W, &DeclType, &str, bool), SC: Fn(bool) -> &'static str>
 			(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool,
-			 tupleconv: &str, sliceconv: &str, prefix: bool,
-			 path_lookup: LP, decl_lookup: DL) {
+			 tupleconv: &str, prefix: bool, sliceconv: SC, path_lookup: LP, decl_lookup: DL) {
 		match t {
 			syn::Type::Reference(r) => {
 				if let Some(lft) = &r.lifetime {
 					if format!("{}", lft.ident) != "static" { unimplemented!(); }
 				}
-				self.print_conversion_inline_intern(w, &*r.elem, generics, true, ptr_for_ref, tupleconv, sliceconv, prefix, path_lookup, decl_lookup);
+				self.print_conversion_inline_intern(w, &*r.elem, generics, true, ptr_for_ref, tupleconv, prefix, sliceconv, path_lookup, decl_lookup);
 			},
 			syn::Type::Path(p) => {
 				if p.qself.is_some() || p.path.leading_colon.is_some() {
@@ -1075,7 +1081,7 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 				}
 			},
 			syn::Type::Array(a) => {
-				// We assume all arrays contain only [u8; X]s.
+				// We assume all arrays contain only [int_literal; X]s.
 				// This may result in some outputs not compiling.
 				if let syn::Expr::Lit(l) = &a.len {
 					if let syn::Lit::Int(i) = &l.lit {
@@ -1084,14 +1090,16 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 				} else { unimplemented!(); }
 			},
 			syn::Type::Slice(s) => {
-				// We assume all slices contain only u8s.
+				// We assume all slices contain only literals or references.
 				// This may result in some outputs not compiling.
 				if let syn::Type::Path(p) = &*s.elem {
 					let resolved = self.resolve_path(&p.path);
 					assert!(self.is_primitive(&resolved));
 					write!(w, "{}", path_lookup("[u8]", is_ref, ptr_for_ref).unwrap()).unwrap();
-				} else if let syn::Type::Reference(_) = &*s.elem {
-					write!(w, "{}", sliceconv).unwrap();
+				} else if let syn::Type::Reference(r) = &*s.elem {
+					if let syn::Type::Path(p) = &*r.elem {
+						write!(w, "{}", sliceconv(self.c_type_has_inner_from_path(&self.resolve_path(&p.path)))).unwrap();
+					} else { unimplemented!(); }
 				} else { unimplemented!(); }
 			},
 			syn::Type::Tuple(t) => {
@@ -1108,7 +1116,7 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 	}
 
 	fn print_to_c_conversion_inline_prefix_inner<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool, from_ptr: bool) {
-		self.print_conversion_inline_intern(w, t, generics, is_ref, ptr_for_ref, "0u8 /*", "", true,
+		self.print_conversion_inline_intern(w, t, generics, is_ref, ptr_for_ref, "0u8 /*", true, |_| "",
 				|a, b, c| self.to_c_conversion_inline_prefix_from_path(a, b, c),
 				|w, decl_type, decl_path, is_ref| {
 					match decl_type {
@@ -1130,7 +1138,7 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 		self.print_to_c_conversion_inline_prefix_inner(w, t, generics, false, ptr_for_ref, false);
 	}
 	fn print_to_c_conversion_inline_suffix_inner<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool, from_ptr: bool) {
-		self.print_conversion_inline_intern(w, t, generics, is_ref, ptr_for_ref, "*/", ".into()", false,
+		self.print_conversion_inline_intern(w, t, generics, is_ref, ptr_for_ref, "*/", false, |_| ".into()",
 				|a, b, c| self.to_c_conversion_inline_suffix_from_path(a, b, c),
 				|w, decl_type, _full_path, is_ref| match decl_type {
 					DeclType::MirroredEnum => write!(w, ")").unwrap(),
@@ -1146,7 +1154,7 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 	}
 
 	fn print_from_c_conversion_prefix_inner<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool) {
-		self.print_conversion_inline_intern(w, t, generics, is_ref, false, "() /*", "&local_", true,
+		self.print_conversion_inline_intern(w, t, generics, is_ref, false, "() /*", true, |_| "&local_",
 				|a, b, _c| self.from_c_conversion_prefix_from_path(a, b),
 				|w, decl_type, _full_path, is_ref| match decl_type {
 					DeclType::StructImported if is_ref && ptr_for_ref => write!(w, "unsafe {{ &*(*").unwrap(),
@@ -1162,7 +1170,11 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 		self.print_from_c_conversion_prefix_inner(w, t, generics, false, false);
 	}
 	fn print_from_c_conversion_suffix_inner<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>, is_ref: bool, ptr_for_ref: bool) {
-		self.print_conversion_inline_intern(w, t, generics, is_ref, false, "*/", "[..]", false,
+		self.print_conversion_inline_intern(w, t, generics, is_ref, false, "*/", false,
+				|has_inner| match has_inner {
+					false => ".iter().collect::<Vec<_>>()[..]",
+					true => "[..]",
+				},
 				|a, b, _c| self.from_c_conversion_suffix_from_path(a, b),
 				|w, decl_type, _full_path, is_ref| match decl_type {
 					DeclType::StructImported if is_ref && ptr_for_ref => write!(w, ").inner }}").unwrap(),
@@ -1180,7 +1192,7 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 	// Note that compared to the above conversion functions, the following are generally
 	// significantly undertested:
 	pub fn print_from_c_conversion_to_ref_prefix<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>) {
-		self.print_conversion_inline_intern(w, t, generics, false, false, "() /*", "&", true,
+		self.print_conversion_inline_intern(w, t, generics, false, false, "() /*", true, |_| "&local_",
 				|a, b, _c| {
 					if let Some(conv) = self.from_c_conversion_prefix_from_path(a, b) {
 						Some(format!("&{}", conv))
@@ -1192,7 +1204,11 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 				});
 	}
 	pub fn print_from_c_conversion_to_ref_suffix<W: std::io::Write>(&self, w: &mut W, t: &syn::Type, generics: Option<&GenericTypes>) {
-		self.print_conversion_inline_intern(w, t, generics, false, false, "*/", ".into_vec()[..]", false,
+		self.print_conversion_inline_intern(w, t, generics, false, false, "*/", false,
+				|has_inner| match has_inner {
+					false => ".iter().collect::<Vec<_>>()[..]",
+					true => "[..]",
+				},
 				|a, b, _c| self.from_c_conversion_suffix_from_path(a, b),
 				|w, decl_type, _full_path, is_ref| match decl_type {
 					DeclType::StructImported if !is_ref => write!(w, ".inner }}").unwrap(),
@@ -1212,7 +1228,12 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 				if let Some(lft) = &r.lifetime {
 					if format!("{}", lft.ident) != "static" { unimplemented!(); }
 				}
-				self.print_conversion_new_var_intern(w, ident, var, &*r.elem, generics, true, to_c, path_lookup, container_lookup, var_prefix, var_suffix)
+				if let syn::Type::Slice(_) = &*r.elem {
+					self.print_conversion_new_var_intern(w, ident, var, &*r.elem, generics, is_ref, to_c, path_lookup, container_lookup, var_prefix, var_suffix)
+				} else {
+					self.print_conversion_new_var_intern(w, ident, var, &*r.elem, generics, true, to_c, path_lookup, container_lookup, var_prefix, var_suffix)
+				}
+
 			},
 			syn::Type::Path(p) => {
 				if p.qself.is_some() || p.path.leading_colon.is_some() {
@@ -1232,12 +1253,15 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 					if let syn::PathArguments::AngleBracketed(args) = &p.path.segments.iter().next().unwrap().arguments {
 						let mut needs_ref_map = false;
 						let mut only_contained_has_inner = false;
+						let mut contains_slice = false;
 						if args.args.len() == 1 && self.is_transparent_container(&resolved_path, is_ref) {
 							if let syn::GenericArgument::Type(syn::Type::Reference(t)) = args.args.iter().next().unwrap() {
 								if let syn::Type::Path(p) = &*t.elem {
 									only_contained_has_inner = self.c_type_has_inner_from_path(&self.resolve_path(&p.path));
+									is_ref = true;
+								} else if let syn::Type::Slice(s) = &*t.elem {
+									contains_slice = true;
 								} else { return false; }
-								is_ref = true;
 								needs_ref_map = true;
 							} else if let syn::GenericArgument::Type(syn::Type::Path(p)) = args.args.iter().next().unwrap() {
 								only_contained_has_inner = self.c_type_has_inner_from_path(&self.resolve_path(&p.path));
@@ -1263,16 +1287,16 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 								write!(w, "{} {{ ", pfx).unwrap();
 								let new_var_name = format!("{}_{}", ident, idx);
 								let new_var = self.print_conversion_new_var_intern(w, &syn::Ident::new(&new_var_name, Span::call_site()),
-										&var_name, ty, generics, false, to_c, path_lookup, container_lookup, var_prefix, var_suffix);
+										&var_access, ty, generics, contains_slice, to_c, path_lookup, container_lookup, var_prefix, var_suffix);
 								if new_var { write!(w, " ").unwrap(); }
 								if needs_ref_map && to_c && !only_contained_has_inner {
 									write!(w, "Box::into_raw(Box::new(").unwrap();
 								}
-								if !only_contained_has_inner || !to_c {
+								if (!only_contained_has_inner || !to_c) && !contains_slice {
 									var_prefix(w, ty, generics, is_ref, false);
 								}
-								write!(w, "{}", if new_var { new_var_name } else { var_access }).unwrap();
-								if !only_contained_has_inner || !to_c {
+								write!(w, "{}{}", if contains_slice { "local_" } else { "" }, if new_var { new_var_name } else { var_access }).unwrap();
+								if (!only_contained_has_inner || !to_c) && !contains_slice {
 									var_suffix(w, ty, generics, is_ref, false);
 								}
 								if needs_ref_map && to_c && !only_contained_has_inner {
@@ -1289,7 +1313,13 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 						}
 						write!(w, ";").unwrap();
 						if !to_c && needs_ref_map {
-							write!(w, " let mut local_{} = local_{}_base.as_ref();", ident, ident).unwrap();
+							write!(w, " let mut local_{} = local_{}_base.as_ref()", ident, ident).unwrap();
+							if contains_slice {
+								if let syn::GenericArgument::Type(ty) = args.args.iter().next().unwrap() {
+									write!(w, ".map(|a| &a[..])").unwrap();
+								} else { unimplemented!(); }
+							}
+							write!(w, ";").unwrap();
 						}
 					} else { unimplemented!(); }
 					true
@@ -1314,20 +1344,17 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 					let resolved = self.resolve_path(&p.path);
 					assert!(self.is_primitive(&resolved));
 					let slice_path = format!("[{}]", resolved);
-					if let Some((prefix, suffix)) = path_lookup(&slice_path, is_ref) {
+					if let Some((prefix, suffix)) = path_lookup(&slice_path, true) {
 						write!(w, "let local_{} = {}{}{};", ident, prefix, var, suffix).unwrap();
 						true
 					} else { false }
 				} else if let syn::Type::Reference(r) = &*s.elem {
 					if !to_c {
-						if let syn::Type::Path(p) = &*r.elem {
-							if !self.c_type_has_inner_from_path(&self.resolve_path(&p.path)) {
-								write!(w, "let local_{}_vec = {}.into_vec(); let mut local_{} = local_{}_vec.iter().collect::<Vec<_>>();",
-									ident, ident, ident, ident).unwrap();
-							} else {
-								write!(w, "let local_{} = {}.into_vec();", ident, ident).unwrap();
-							}
-						} else { unimplemented!(); };
+						if is_ref {
+							write!(w, "let local_{} = {}.as_vec();", ident, var).unwrap();
+						} else {
+							write!(w, "let local_{} = {}.into_vec();", ident, var).unwrap();
+						}
 						true
 					} else { false }
 				} else { unimplemented!() }
@@ -1462,6 +1489,7 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 			writeln!(w, "}}").unwrap();
 
 			writeln!(w, "impl {} {{", mangled_container).unwrap();
+			writeln!(w, "\t#[allow(dead_code)]").unwrap();
 			write!(w, "\tpub(crate) fn into_vec(mut self) -> Vec<").unwrap();
 			if has_inner {
 				write!(w, "&'static ").unwrap();
@@ -1488,6 +1516,21 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 			writeln!(w, "\t\t// Make sure we don't try to de-allocate the things we just drain(..)ed").unwrap();
 			writeln!(w, "\t\tself.data = std::ptr::null_mut(); self.datalen = 0;").unwrap();
 			writeln!(w, "\t\tret\n\t}}").unwrap();
+
+			if has_inner {
+				writeln!(w, "\t#[allow(dead_code)]").unwrap();
+				write!(w, "\tpub(crate) fn as_vec(&self) -> Vec<").unwrap();
+				write!(w, "&'static ").unwrap();
+				self.print_template_generics(w, &mut args.iter().map(|t| *t), is_ref, false);
+				writeln!(w, "> {{").unwrap();
+				writeln!(w, "\t\tlet mut ret = Vec::new();").unwrap();
+				writeln!(w, "\t\tlet mut orig = unsafe {{ std::slice::from_raw_parts_mut(self.data, self.datalen) }};").unwrap();
+				writeln!(w, "\t\tfor e in orig.iter() {{").unwrap();
+				writeln!(w, "\t\t\tret.push(unsafe {{ &*e.inner }});").unwrap();
+				writeln!(w, "\t\t}}").unwrap();
+				writeln!(w, "\t\tret\n\t}}").unwrap();
+			}
+
 			writeln!(w, "}}").unwrap();
 		} else if container_type.ends_with("Tuple") {
 			write!(w, "#[no_mangle]\npub extern \"C\" fn {}_new(", mangled_container).unwrap();
@@ -1658,10 +1701,15 @@ impl<'a, 'c: 'a> TypeResolver<'a, 'c> {
 			} else if let syn::Type::Path(p_arg) = arg {
 				print_path!(p_arg, None);
 			} else if let syn::Type::Reference(refty) = arg {
+				if args.len() != 1 { return false; }
 				if let syn::Type::Path(p_arg) = &*refty.elem {
-					if args.len() != 1 { return false; }
 					write!(w, "*const ").unwrap();
 					print_path!(p_arg, None);
+				} else if let syn::Type::Slice(s_arg) = &*refty.elem {
+					// print_c_type will actually do exactly what we want here, we just need to
+					// make it a pointer so that its an option.
+					write!(w, "*const ").unwrap();
+					self.print_c_type(w, arg, None, true);
 				} else { return false; }
 			} else if let syn::Type::Array(a) = arg {
 				if let syn::Type::Path(p_arg) = &*a.elem {

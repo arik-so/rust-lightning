@@ -236,3 +236,28 @@ pub extern "C" fn RouteHint_new(mut src_node_id_arg: crate::c_types::PublicKey, 
 		htlc_minimum_msat: htlc_minimum_msat_arg,
 	})), _underlying_ref: false }
 }
+/// " Gets a route from us (as specified in the provided NetworkGraph) to the given target node."
+/// ""
+/// " Extra routing hops between known nodes and the target will be used if they are included in"
+/// " last_hops."
+/// ""
+/// " If some channels aren't announced, it may be useful to fill in a first_hops with the"
+/// " results from a local ChannelManager::list_usable_channels() call. If it is filled in, our"
+/// " view of our local channels (from net_graph_msg_handler) will be ignored, and only those in first_hops"
+/// " will be used."
+/// ""
+/// " Panics if first_hops contains channels without short_channel_ids"
+/// " (ChannelManager::list_usable_channels will never include such channels)."
+/// ""
+/// " The fees on channels from us to next-hops are ignored (as they are assumed to all be"
+/// " equal), however the enabled/disabled bit on such channels as well as the htlc_minimum_msat"
+/// " *is* checked as they may change based on the receiving node."
+#[no_mangle]
+pub extern "C" fn get_route(our_node_id: crate::c_types::PublicKey, network: &crate::routing::network_graph::NetworkGraph, target: crate::c_types::PublicKey, first_hops: *const crate::c_types::derived::CChannelDetailsSlice, last_hops: crate::c_types::derived::CRouteHintSlice, final_value_msat: u64, final_cltv: u32, logger: crate::util::logger::Logger) -> crate::c_types::derived::CResult_RouteLightningErrorZ {
+	let mut local_first_hops_base = if first_hops.is_null() { None } else { Some( { let local_first_hops_0 = unsafe { &*first_hops }.as_vec(); local_first_hops_0 }) }; let mut local_first_hops = local_first_hops_base.as_ref().map(|a| &a[..]);
+	let local_last_hops = last_hops.into_vec();
+	let mut ret = lightning::routing::router::get_route(&our_node_id.into_rust(), unsafe { &*network.inner }, &target.into_rust(), local_first_hops, &local_last_hops[..], final_value_msat, final_cltv, logger);
+	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { crate::routing::router::Route { inner: Box::into_raw(Box::new(o)), _underlying_ref: false } }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::msgs::LightningError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
+	local_ret
+}
+
