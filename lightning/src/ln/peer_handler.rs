@@ -278,15 +278,23 @@ impl<Descriptor: SocketDescriptor, CM: Deref, RM: Deref, L: Deref> PeerManager<D
 	}
 
 	fn get_ephemeral_key(&self) -> SecretKey {
+		println!("GEK A");
 		let mut ephemeral_hash = self.ephemeral_key_midstate.clone();
+		println!("GEK B");
 		let low = self.peer_counter_low.fetch_add(1, Ordering::AcqRel);
+		println!("GEK C");
 		let high = if low == 0 {
+			println!("GEK C.a");
 			self.peer_counter_high.fetch_add(1, Ordering::AcqRel)
 		} else {
+			println!("GEK C.b");
 			self.peer_counter_high.load(Ordering::Acquire)
 		};
+		println!("GEK D");
 		ephemeral_hash.input(&byte_utils::le64_to_array(low as u64));
+		println!("GEK E");
 		ephemeral_hash.input(&byte_utils::le64_to_array(high as u64));
+		println!("GEK F");
 		SecretKey::from_slice(&Sha256::from_engine(ephemeral_hash).into_inner()).expect("You broke SHA-256!")
 	}
 
@@ -300,11 +308,23 @@ impl<Descriptor: SocketDescriptor, CM: Deref, RM: Deref, L: Deref> PeerManager<D
 	/// socket_disconnected().
 	/// (C-not exported) due to Result + Vec
 	pub fn new_outbound_connection(&self, their_node_id: PublicKey, descriptor: Descriptor) -> Result<Vec<u8>, PeerHandleError> {
-		let mut peer_encryptor = PeerChannelEncryptor::new_outbound(their_node_id.clone(), self.get_ephemeral_key());
+		println!("NOC A");
+		// println!("self peer counter low: {:?}", self.peer_counter_low);
+		println!("self node secret: {:?}", &self.our_node_secret[..]);
+		let node_id_clone = their_node_id.clone();
+		println!("NOC B");
+		let eph_key = self.get_ephemeral_key();
+		// let eph_key = SecretKey::from_slice(&self.our_node_secret[..]).unwrap();
+		println!("NOC C");
+		let mut peer_encryptor = PeerChannelEncryptor::new_outbound(node_id_clone, eph_key);
+		println!("NOC D");
 		let res = peer_encryptor.get_act_one().to_vec();
+		println!("raw rust first message: {:?}", res);
+		println!("NOC E");
 		let pending_read_buffer = [0; 50].to_vec(); // Noise act two is 50 bytes
-
+		println!("NOC F");
 		let mut peers = self.peers.lock().unwrap();
+		println!("NOC G");
 		if peers.peers.insert(descriptor, Peer {
 			channel_encryptor: peer_encryptor,
 			outbound: true,
@@ -325,6 +345,7 @@ impl<Descriptor: SocketDescriptor, CM: Deref, RM: Deref, L: Deref> PeerManager<D
 		}).is_some() {
 			panic!("PeerManager driver duplicated descriptors!");
 		};
+		println!("NOC H");
 		Ok(res)
 	}
 
@@ -556,7 +577,10 @@ impl<Descriptor: SocketDescriptor, CM: Deref, RM: Deref, L: Deref> PeerManager<D
 										},
 										hash_map::Entry::Vacant(entry) => {
 											log_trace!(self.logger, "Finished noise handshake for connection with {}", log_pubkey!(peer.their_node_id.unwrap()));
-											entry.insert(peer_descriptor.clone())
+											println!("rust finished logging");
+											let current_specific_return = entry.insert(peer_descriptor.clone());
+											println!("rust finished inerting peer descriptor clone");
+											current_specific_return
 										},
 									};
 								}
@@ -577,13 +601,20 @@ impl<Descriptor: SocketDescriptor, CM: Deref, RM: Deref, L: Deref> PeerManager<D
 
 									peer.their_node_id = Some(their_node_id);
 									insert_node_id!();
+									println!("act2 A");
 									let mut features = InitFeatures::known();
+									println!("act2 B");
 									if !self.message_handler.route_handler.should_request_full_sync(&peer.their_node_id.unwrap()) {
+										println!("act2 B.1");
 										features.clear_initial_routing_sync();
 									}
 
+									println!("act2 C");
+
 									let resp = msgs::Init { features };
+									println!("act2 D");
 									self.enqueue_message(&mut peers.peers_needing_send, peer, peer_descriptor.clone(), &resp);
+									println!("act2 E");
 								},
 								NextNoiseStep::ActThree => {
 									let their_node_id = try_potential_handleerror!(peer.channel_encryptor.process_act_three(&peer.pending_read_buffer[..]));
@@ -591,6 +622,7 @@ impl<Descriptor: SocketDescriptor, CM: Deref, RM: Deref, L: Deref> PeerManager<D
 									peer.pending_read_is_header = true;
 									peer.their_node_id = Some(their_node_id);
 									insert_node_id!();
+									println!("act3 A");
 								},
 								NextNoiseStep::NoiseComplete => {
 									if peer.pending_read_is_header {

@@ -8,7 +8,7 @@
 //! " on-chain transactions (it only monitors the chain to watch for any force-closes that might"
 //! " imply it needs to fail HTLCs/payments/channels it manages)."
 
-use std::ffi::c_void;
+use std::ffi::{c_void, CString};
 use bitcoin::hashes::Hash;
 use crate::c_types::*;
 
@@ -253,7 +253,15 @@ pub extern "C" fn PaymentSendFailure_free(this_ptr: PaymentSendFailure) { }
 #[must_use]
 #[no_mangle]
 pub extern "C" fn ChannelManager_new(mut network: crate::bitcoin::network::Network, mut fee_est: crate::chain::chaininterface::FeeEstimator, mut monitor: crate::ln::channelmonitor::ManyChannelMonitor, mut tx_broadcaster: crate::chain::chaininterface::BroadcasterInterface, mut logger: crate::util::logger::Logger, mut keys_manager: crate::chain::keysinterface::KeysInterface, mut config: crate::util::config::UserConfig, mut current_blockchain_height: usize) -> ChannelManager {
+	println!("cmn A");
+	let log = logger.log;
+	println!("cmn B");
+	let string = "logging test".to_string();
+	let c_string = CString::new(string).unwrap();
+	log(std::ptr::null(), c_string.as_ptr());
+	println!("cmn C");
 	let mut ret = lightning::ln::channelmanager::ChannelManager::new(network.into_bitcoin(), fee_est, monitor, tx_broadcaster, logger, keys_manager, *unsafe { Box::from_raw(config.inner.take_ptr() as *mut _) }, current_blockchain_height);
+	println!("cmn D");
 	ChannelManager { inner: Box::into_raw(Box::new(ret)), _underlying_ref: false }
 }
 
@@ -632,6 +640,8 @@ extern "C" fn ChannelManager_ChannelMessageHandler_handle_error(this_arg: *const
 	unsafe { &mut *(this_arg as *mut lnChannelManager) }.handle_error(&their_node_id.into_rust(), unsafe { &*msg.inner })
 }
 use lightning::util::events::MessageSendEventsProvider as lnMessageSendEventsProviderTrait;
+use lightning::util::logger::Logger;
+
 #[must_use]
 extern "C" fn ChannelManager_ChannelMessageHandler_get_and_clear_pending_msg_events(this_arg: *const c_void) -> crate::c_types::derived::CVec_MessageSendEventZ {
 	let mut ret = unsafe { &mut *(this_arg as *mut lnChannelManager) }.get_and_clear_pending_msg_events();

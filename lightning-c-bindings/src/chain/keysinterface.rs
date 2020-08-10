@@ -573,7 +573,7 @@ pub extern "C" fn KeysManager_free(this_ptr: KeysManager) { }
 #[no_mangle]
 pub extern "C" fn KeysManager_new(seed: *const [u8; 32], mut network: crate::bitcoin::network::Network, mut starting_time_secs: u64, mut starting_time_nanos: u32) -> KeysManager {
 	let mut ret = lightning::chain::keysinterface::KeysManager::new(unsafe { &*seed}, network.into_bitcoin(), starting_time_secs, starting_time_nanos);
-	KeysManager { inner: Box::into_raw(Box::new(ret)), _underlying_ref: false }
+	KeysManager { inner: Box::into_raw(Box::new(ret)), _underlying_ref: true }
 }
 
 /// " Derive an old set of ChannelKeys for per-channel secrets based on a key derivation"
@@ -589,7 +589,10 @@ pub extern "C" fn KeysManager_derive_channel_keys(this_arg: &KeysManager, mut ch
 }
 
 #[no_mangle]
-pub extern "C" fn KeysManager_as_KeysInterface(this_arg: *const KeysManager) -> crate::chain::keysinterface::KeysInterface {
+pub extern "C" fn KeysManager_as_KeysInterface(arg_a: u8, mut arg_b: u8, this_arg: *const KeysManager) -> crate::chain::keysinterface::KeysInterface {
+	println!("kmaki arg_a: {}", arg_a);
+	println!("kmaki arg_b: {}", arg_b);
+	unsafe { println!("kmaki: has underlying ref? {}", (*this_arg)._underlying_ref); }
 	crate::chain::keysinterface::KeysInterface {
 		this_arg: unsafe { (*this_arg).inner as *mut c_void },
 		get_node_secret: KeysManager_KeysInterface_get_node_secret,
@@ -600,6 +603,92 @@ pub extern "C" fn KeysManager_as_KeysInterface(this_arg: *const KeysManager) -> 
 		get_channel_id: KeysManager_KeysInterface_get_channel_id,
 	}
 }
+
+#[repr(C)]
+pub union ArikUnionType {
+	pub eight: u8,
+	pub sixteen: u16
+}
+
+#[repr(C)]
+pub struct ArikType {
+	pub first: *const ArikUnionType,
+	pub message: *const crate::c_types::derived::CResult_CVec_u8ZPeerHandleErrorZ,
+	// pub union_max: u16,
+	pub second: u8,
+	pub third: u8,
+	pub fourth: u8,
+	pub fifth: u8,
+	pub sixth: u8,
+	pub seventh: u8,
+	pub eigth: u8,
+	pub ninth: u8,
+	pub tenth: u8,
+	pub eleventh: u8,
+	pub twelvth: u8,
+	pub thirteenth: u8,
+	pub fourteenth: u8,
+	// pub fifteenth: u8
+}
+
+#[repr(C)]
+pub struct ArikSubType {
+	pub fifth: u8,
+	pub sixth: u8,
+	pub seventh: u8,
+	// eigth: u8,
+}
+
+#[no_mangle]
+pub extern "C" fn arik_test_km(arg_a: u8, mut arg_b: u8, this_arg: *const KeysManager) -> ArikType {
+	println!("arik_test_km");
+
+	println!("size of ariktype: {}", std::mem::size_of::<ArikType>());
+
+	println!("arg_a: {}", arg_a);
+	println!("arg_b: {}", arg_b);
+
+
+	let union = ArikUnionType{
+		eight: 2
+	};
+	let ptr = Box::into_raw(Box::new(union));
+
+	ArikType{
+		// union_max: 3,
+		first: ptr,
+		message: std::ptr::null(),
+		second: 0,
+		third: 0,
+		fourth: 0,
+		fifth: 0,
+		sixth: 0,
+		seventh: 0,
+		eigth: 0,
+		ninth: 0,
+		tenth: 0,
+		eleventh: 0,
+		twelvth: 0,
+		thirteenth: 0,
+		fourteenth: 0,
+		// fifteenth: 0
+	}
+
+	// ArikType {
+	// 	first: 15,
+	// 	second: 16,
+	// 	third: 17,
+	// 	// fourth: 18,
+	// 	sub: ArikSubType{
+	// 		fifth: 20,
+	// 		sixth: 21,
+	// 		seventh: 22,
+	// 		// eigth: 23
+	// 	}
+	// }
+}
+
+
 use lightning::chain::keysinterface::KeysInterface as KeysInterfaceTraitImport;
 #[must_use]
 extern "C" fn KeysManager_KeysInterface_get_node_secret(this_arg: *const c_void) -> crate::c_types::SecretKey {

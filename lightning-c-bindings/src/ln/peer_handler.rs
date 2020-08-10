@@ -184,6 +184,8 @@ pub extern "C" fn PeerHandleError_new(mut no_connection_possible_arg: bool) -> P
 }
 
 use lightning::ln::peer_handler::PeerManager as lnPeerManagerImport;
+use crate::chain::keysinterface::{ArikType, ArikSubType, ArikUnionType};
+
 type lnPeerManager = lnPeerManagerImport<crate::ln::peer_handler::SocketDescriptor, crate::ln::msgs::ChannelMessageHandler, crate::ln::msgs::RoutingMessageHandler, crate::util::logger::Logger>;
 
 /// " A PeerManager manages a set of peers, described by their SocketDescriptor and marshalls socket"
@@ -201,6 +203,7 @@ pub struct PeerManager {
 	///the Rust equivalent takes an Option, it may be set to null to indicate None.
 	pub inner: *const lnPeerManager,
 	pub _underlying_ref: bool,
+	pub arik_number: u8
 }
 
 impl Drop for PeerManager {
@@ -217,9 +220,78 @@ pub extern "C" fn PeerManager_free(this_ptr: PeerManager) { }
 /// " cryptographically secure random bytes."
 #[must_use]
 #[no_mangle]
-pub extern "C" fn PeerManager_new(mut message_handler: crate::ln::peer_handler::MessageHandler, mut our_node_secret: crate::c_types::SecretKey, ephemeral_random_data: *const [u8; 32], mut logger: crate::util::logger::Logger) -> PeerManager {
+pub extern "C" fn PeerManager_new(arg_a: u8, mut message_handler: crate::ln::peer_handler::MessageHandler, mut our_node_secret: crate::c_types::SecretKey, ephemeral_random_data: *const [u8; 32], mut logger: crate::util::logger::Logger) -> PeerManager {
+	println!("arg_a: {}", arg_a);
 	let mut ret = lightning::ln::peer_handler::PeerManager::new(*unsafe { Box::from_raw(message_handler.inner.take_ptr() as *mut _) }, our_node_secret.into_rust(), unsafe { &*ephemeral_random_data}, logger);
-	PeerManager { inner: Box::into_raw(Box::new(ret)), _underlying_ref: false }
+	PeerManager { inner: Box::into_raw(Box::new(ret)), _underlying_ref: true, arik_number: 27 }
+}
+
+#[no_mangle]
+pub extern "C" fn arik_test(arg_a: u8, mut arg_b: u8) -> ArikType{
+// pub extern "C" fn arik_test(arg_a: u8, mut arg_b: u8, this_arg_ptr: *const PeerManager, mut their_node_id: crate::c_types::PublicKey, mut descriptor: crate::ln::peer_handler::SocketDescriptor) -> /* CVecTempl<u8> { // */ crate::c_types::derived::CResult_CVec_u8ZPeerHandleErrorZ{
+	println!("arg_a: {}", arg_a);
+	println!("arg_b: {}", arg_b);
+
+	// println!("complicated return type size: {}", std::mem::size_of::<crate::c_types::derived::CResult_CVec_u8ZPeerHandleErrorZ>());
+	println!("arik_test return type size: {}", std::mem::size_of::<ArikType>());
+
+	let union = ArikUnionType{
+		sixteen: 3000
+	};
+	let ptr = Box::into_raw(Box::new(union));
+
+	ArikType{
+		// union_max: 3,
+		first: ptr,
+		message: std::ptr::null(),
+		second: 0,
+		third: 0,
+		fourth: 0,
+		fifth: 0,
+		sixth: 0,
+		seventh: 0,
+		eigth: 0,
+		ninth: 0,
+		tenth: 0,
+		eleventh: 0,
+		twelvth: 0,
+		thirteenth: 0,
+		fourteenth: 0,
+		// fifteenth: 0
+	}
+
+	// let this_arg = unsafe { (&*this_arg_ptr) };
+	// println!("pm arik number: {:?}", this_arg.arik_number);
+	// let public_key = their_node_id.into_rust();
+	// println!("public key: {:?}", &public_key.serialize()[..]);
+	// let hash = descriptor.hash;
+	// let result = hash(descriptor.this_arg);
+	// println!("hash result: {}", result);
+	//
+	// println!("nobc A");
+	// let rust_node_id = their_node_id.into_rust();
+	// println!("nobc B");
+	// // println!("has underlying ref? {}", this_arg._underlying_ref);
+	// println!("nobc arg_a: {}", arg_a);
+	// println!("nobc arik number: {}", this_arg.arik_number);
+	// // println!("arik argument: {}", arik_argument);
+	// let mut ret = unsafe { &*this_arg.inner }.new_outbound_connection(rust_node_id, descriptor);
+	// println!("nobc C");
+	// let mut local_ret: crate::c_types::derived::CResult_CVec_u8ZPeerHandleErrorZ = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { let mut local_ret_0 = Vec::new(); for item in o.drain(..) { local_ret_0.push( { item }); }; local_ret_0.into() }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
+
+
+	// /*let mut data = vec![5u8, 4, 3, 2, 1];
+	// std::mem::forget(&data);
+	// let vec_templ = CVecTempl{
+	// 	data: data.as_mut_ptr(),
+	// 	datalen: 50
+	// };*/
+	// println!("nobc D");
+	// //*
+	// local_ret
+	// /*/
+	// vec_templ
+	// */
 }
 
 /// " Get the list of node ids for peers which have completed the initial handshake."
@@ -245,10 +317,53 @@ pub extern "C" fn PeerManager_get_peer_node_ids(this_arg: &PeerManager) -> crate
 /// " socket_disconnected()."
 #[must_use]
 #[no_mangle]
-pub extern "C" fn PeerManager_new_outbound_connection(this_arg: &PeerManager, mut their_node_id: crate::c_types::PublicKey, mut descriptor: crate::ln::peer_handler::SocketDescriptor) -> crate::c_types::derived::CResult_CVec_u8ZPeerHandleErrorZ {
-	let mut ret = unsafe { &*this_arg.inner }.new_outbound_connection(their_node_id.into_rust(), descriptor);
-	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { let mut local_ret_0 = Vec::new(); for item in o.drain(..) { local_ret_0.push( { item }); }; local_ret_0.into() }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
-	local_ret
+// pub extern "C" fn PeerManager_new_outbound_connection(arg_a: u8, this_arg: &PeerManager, mut their_node_id: crate::c_types::PublicKey, mut descriptor: crate::ln::peer_handler::SocketDescriptor) -> crate::c_types::derived::CResult_CVec_u8ZPeerHandleErrorZ {
+pub extern "C" fn PeerManager_new_outbound_connection(arg_a: u8, arg_b: u8, this_arg: &PeerManager, mut their_node_id: crate::c_types::PublicKey, mut descriptor: crate::ln::peer_handler::SocketDescriptor) -> ArikType {
+	// let return_size = std::mem::size_of::<crate::c_types::derived::CResult_CVec_u8ZPeerHandleErrorZ>();
+	let return_size = std::mem::size_of::<ArikType>();
+	println!("nobc return_size: {}", return_size);
+	println!("nobc arg_a: {}", arg_a);
+	println!("nobc arg_b: {}", arg_b);
+
+
+	println!("nobc A");
+	let rust_node_id = their_node_id.into_rust();
+	println!("nobc B");
+	// println!("has underlying ref? {}", this_arg._underlying_ref);
+	println!("nobc arik number: {}", this_arg.arik_number);
+	// println!("arik argument: {}", arik_argument);
+	let mut ret = unsafe { &*this_arg.inner }.new_outbound_connection(rust_node_id, descriptor);
+	println!("nobc C");
+	let mut local_ret: crate::c_types::derived::CResult_CVec_u8ZPeerHandleErrorZ = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { let mut local_ret_0 = Vec::new(); for item in o.drain(..) { local_ret_0.push( { item }); }; local_ret_0.into() }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
+	println!("nobc D");
+
+
+	let union = ArikUnionType{
+		sixteen: 3000
+	};
+	let ptr = Box::into_raw(Box::new(union));
+	let message = Box::into_raw(Box::new(local_ret));
+
+	ArikType{
+		// union_max: 3,
+		first: ptr,
+		message,
+		second: 0,
+		third: 0,
+		fourth: 0,
+		fifth: 0,
+		sixth: 0,
+		seventh: 0,
+		eigth: 0,
+		ninth: 0,
+		tenth: 0,
+		eleventh: 0,
+		twelvth: 0,
+		thirteenth: 0,
+		fourteenth: 0,
+		// fifteenth: 0
+	}
+
 }
 
 /// " Indicates a new inbound connection has been established."
@@ -300,9 +415,17 @@ pub extern "C" fn PeerManager_write_buffer_space_avail(this_arg: &PeerManager, d
 /// " Panics if the descriptor was not previously registered in a new_*_connection event."
 #[must_use]
 #[no_mangle]
-pub extern "C" fn PeerManager_read_event(this_arg: &PeerManager, peer_descriptor: &mut crate::ln::peer_handler::SocketDescriptor, data: crate::c_types::u8slice) -> crate::c_types::derived::CResult_boolPeerHandleErrorZ {
-	let mut ret = unsafe { &*this_arg.inner }.read_event(peer_descriptor, data.to_slice());
+pub extern "C" fn PeerManager_read_event(arg_a: u8, this_arg: &PeerManager, peer_descriptor: &mut crate::ln::peer_handler::SocketDescriptor, data: crate::c_types::u8slice) -> crate::c_types::derived::CResult_boolPeerHandleErrorZ {
+	println!("pmre arg_a: {}", arg_a);
+	println!("pmre return type size: {}", std::mem::size_of::<crate::c_types::derived::CResult_boolPeerHandleErrorZ>());
+	let data_slice = data.to_slice();
+	if(data_slice.len() < 150) {
+		println!("pmre read event: {:?}", data_slice);
+	}
+	let mut ret = unsafe { &*this_arg.inner }.read_event(peer_descriptor, data_slice);
+
 	let mut local_ret = match ret{ Ok(mut o) => crate::c_types::CResultTempl::good( { o }), Err(mut e) => crate::c_types::CResultTempl::err( { crate::ln::peer_handler::PeerHandleError { inner: Box::into_raw(Box::new(e)), _underlying_ref: false } }) };
+	// Box::into_raw(Box::new(local_ret))
 	local_ret
 }
 

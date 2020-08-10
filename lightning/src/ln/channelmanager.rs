@@ -3296,7 +3296,7 @@ impl<ChanSigner: ChannelKeys, M: Deref + Sync + Send, T: Deref + Sync + Send, K:
 	}
 
 	fn peer_connected(&self, their_node_id: &PublicKey, init_msg: &msgs::Init) {
-		log_debug!(self.logger, "Generating channel_reestablish events for {}", log_pubkey!(their_node_id));
+		// log_debug!(self.logger, "Generating channel_reestablish events for {}", log_pubkey!(their_node_id));
 
 		let _ = self.total_consistency_lock.read().unwrap();
 
