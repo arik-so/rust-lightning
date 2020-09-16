@@ -43,7 +43,8 @@ use ln::peers::transport::{PayloadQueuer, Transport};
 use bitcoin::hashes::core::iter::Filter;
 use std::collections::hash_map::IterMut;
 
-const MSG_BUFF_SIZE: usize = 10;
+// Number of items that can exist in the OutboundQueue before Sync message flow control is triggered
+const OUTBOUND_QUEUE_SIZE: usize = 10;
 
 /// Interface PeerManager uses to interact with the Transport object
 pub(super) trait ITransport: MessageQueuer {
@@ -65,7 +66,7 @@ pub(super) trait ITransport: MessageQueuer {
 	/// Returns the node_id of the remote node. Panics if not connected.
 	fn get_their_node_id(&self) -> PublicKey;
 
-	/// Returns all Messages that have been received and can be parsed by the Transport
+	/// Returns all Messages that have been received and can be successfully parsed by the Transport
 	fn drain_messages<L: Deref>(&mut self, logger: L) -> Result<Vec<Message>, PeerHandleError> where L::Target: Logger;
 }
 
@@ -77,7 +78,8 @@ pub(super) trait MessageQueuer {
 	fn enqueue_message<M: Encode + Writeable, Q: PayloadQueuer, L: Deref>(&mut self, message: &M, output_buffer: &mut Q, logger: L) where L::Target: Logger;
 }
 
-/// Trait representing a container that can try to flush data through a SocketDescriptor
+/// Trait representing a container that can try to flush data through a SocketDescriptor. Used by the
+/// PeerManager to handle flushing the outbound queue and flow control.
 pub(super) trait SocketDescriptorFlusher {
 	/// Write previously enqueued data to the SocketDescriptor. A return of false indicates the
 	/// underlying SocketDescriptor could not fulfill the send_data() call and the blocked state
@@ -198,7 +200,7 @@ impl<TransportImpl: ITransport> Peer<TransportImpl> {
 	fn new(outbound: bool, transport: TransportImpl) -> Self {
 		Self {
 			outbound,
-			outbound_queue: OutboundQueue::new(MSG_BUFF_SIZE),
+			outbound_queue: OutboundQueue::new(OUTBOUND_QUEUE_SIZE),
 			post_init_state: None,
 			transport
 		}

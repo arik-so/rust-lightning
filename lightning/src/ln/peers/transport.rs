@@ -28,7 +28,8 @@ pub trait IPeerHandshake {
 	fn process_act(&mut self, input: &[u8]) -> Result<(Option<Vec<u8>>, Option<(Conduit, PublicKey)>), String>;
 }
 
-/// Trait representing a container that allows enqueuing of Vec<[u8]>
+/// Trait representing a container that allows enqueuing of Vec<[u8]>. Used by Transport to enqueue
+/// NOISE handshake messages and post-NOISE encrypted Lightning Messages to be sent to a peer.
 pub(super) trait PayloadQueuer {
 	/// Enqueue item to the queue
 	fn push_back(&mut self, item: Vec<u8>);
@@ -40,6 +41,8 @@ pub(super) trait PayloadQueuer {
 	fn queue_space(&self) -> usize;
 }
 
+/// Used by the PeerManager to work with a BOLT8 authenticated transport layer. Abstracts the NOISE
+/// handshake as well as post-NOISE encrypted Lightning Message encryption/decryption.
 pub(super) struct Transport<PeerHandshakeImpl: IPeerHandshake=PeerHandshake> {
 	pub(super) conduit: Option<Conduit>,
 	handshake: PeerHandshakeImpl,
