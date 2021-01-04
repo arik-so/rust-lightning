@@ -1,0 +1,24 @@
+[package]
+name = "lightning-wasm-bindings"
+version = "0.0.1"
+authors = ["Matt Corallo"]
+license = "Apache-2.0"
+edition = "2018"
+description = "Intermediary state code for the generation of WASM bindings for LDK"
+
+[package.metadata.wasm-pack.profile.release]
+#wasm-opt = false
+#wasm-opt = ["-Oz", "--enable-mutable-globals"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+bitcoin = "0.24"
+js-sys = "0.3.45"
+lightning = { version = "0.0.12", path = "../lightning" }
+serde = { version = "1.0", features = ["derive"] }
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+web-sys = { version = "0.3.45", features = ['console'] }
+
+[workspace]
