@@ -37,7 +37,7 @@ use chain;
 use chain::{Confirm, ChannelMonitorUpdateErr, Watch, BestBlock};
 use chain::chaininterface::{BroadcasterInterface, ConfirmationTarget, FeeEstimator};
 use chain::channelmonitor::{ChannelMonitor, ChannelMonitorUpdate, ChannelMonitorUpdateStep, HTLC_FAIL_BACK_BUFFER, CLTV_CLAIM_BUFFER, LATENCY_GRACE_PERIOD_BLOCKS, ANTI_REORG_DELAY, MonitorEvent, CLOSED_CHANNEL_UPDATE_ID};
-use chain::transaction::{OutPoint, TransactionData};
+use chain::transaction::{OutPoint, IndexedTransaction};
 // Since this struct is returned in `list_channels` methods, expose it here in case users want to
 // construct one themselves.
 use ln::{inbound_payment, PaymentHash, PaymentPreimage, PaymentSecret};
@@ -5319,7 +5319,7 @@ where
 	F::Target: FeeEstimator,
 	L::Target: Logger,
 {
-	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &TransactionData, height: u32) {
+	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &IndexedTransaction, height: u32) {
 		{
 			let best_block = self.best_block.read().unwrap();
 			assert_eq!(best_block.block_hash(), header.prev_blockhash,
@@ -5356,7 +5356,7 @@ where
 	F::Target: FeeEstimator,
 	L::Target: Logger,
 {
-	fn transactions_confirmed(&self, header: &BlockHeader, txdata: &TransactionData, height: u32) {
+	fn transactions_confirmed(&self, header: &BlockHeader, txdata: &IndexedTransaction, height: u32) {
 		// Note that we MUST NOT end up calling methods on self.chain_monitor here - we're called
 		// during initialization prior to the chain_monitor being fully configured in some cases.
 		// See the docs for `ChannelManagerReadArgs` for more.

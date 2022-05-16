@@ -41,7 +41,7 @@ use ln::channelmanager::HTLCSource;
 use chain;
 use chain::{BestBlock, WatchedOutput};
 use chain::chaininterface::{BroadcasterInterface, FeeEstimator};
-use chain::transaction::{OutPoint, TransactionData};
+use chain::transaction::{OutPoint, IndexedTransaction};
 use chain::keysinterface::{SpendableOutputDescriptor, StaticPaymentOutputDescriptor, DelayedPaymentOutputDescriptor, Sign, KeysInterface};
 use chain::onchaintx::OnchainTxHandler;
 use chain::package::{CounterpartyOfferedHTLCOutput, CounterpartyReceivedHTLCOutput, HolderFundingOutput, HolderHTLCOutput, PackageSolvingData, PackageTemplate, RevokedOutput, RevokedHTLCOutput};
@@ -1231,13 +1231,13 @@ impl<Signer: Sign> ChannelMonitor<Signer> {
 	///
 	/// [`get_outputs_to_watch`]: #method.get_outputs_to_watch
 	pub fn block_connected<B: Deref, F: Deref, L: Deref>(
-		&self,
-		header: &BlockHeader,
-		txdata: &TransactionData,
-		height: u32,
-		broadcaster: B,
-		fee_estimator: F,
-		logger: L,
+        &self,
+        header: &BlockHeader,
+        txdata: &IndexedTransaction,
+        height: u32,
+        broadcaster: B,
+        fee_estimator: F,
+        logger: L,
 	) -> Vec<TransactionOutputs>
 	where
 		B::Target: BroadcasterInterface,
@@ -1274,13 +1274,13 @@ impl<Signer: Sign> ChannelMonitor<Signer> {
 	///
 	/// [`block_connected`]: Self::block_connected
 	pub fn transactions_confirmed<B: Deref, F: Deref, L: Deref>(
-		&self,
-		header: &BlockHeader,
-		txdata: &TransactionData,
-		height: u32,
-		broadcaster: B,
-		fee_estimator: F,
-		logger: L,
+        &self,
+        header: &BlockHeader,
+        txdata: &IndexedTransaction,
+        height: u32,
+        broadcaster: B,
+        fee_estimator: F,
+        logger: L,
 	) -> Vec<TransactionOutputs>
 	where
 		B::Target: BroadcasterInterface,
@@ -2325,7 +2325,7 @@ impl<Signer: Sign> ChannelMonitorImpl<Signer> {
 		holder_transactions
 	}
 
-	pub fn block_connected<B: Deref, F: Deref, L: Deref>(&mut self, header: &BlockHeader, txdata: &TransactionData, height: u32, broadcaster: B, fee_estimator: F, logger: L) -> Vec<TransactionOutputs>
+	pub fn block_connected<B: Deref, F: Deref, L: Deref>(&mut self, header: &BlockHeader, txdata: &IndexedTransaction, height: u32, broadcaster: B, fee_estimator: F, logger: L) -> Vec<TransactionOutputs>
 		where B::Target: BroadcasterInterface,
 		      F::Target: FeeEstimator,
 					L::Target: Logger,
@@ -2363,13 +2363,13 @@ impl<Signer: Sign> ChannelMonitorImpl<Signer> {
 	}
 
 	fn transactions_confirmed<B: Deref, F: Deref, L: Deref>(
-		&mut self,
-		header: &BlockHeader,
-		txdata: &TransactionData,
-		height: u32,
-		broadcaster: B,
-		fee_estimator: F,
-		logger: L,
+        &mut self,
+        header: &BlockHeader,
+        txdata: &IndexedTransaction,
+        height: u32,
+        broadcaster: B,
+        fee_estimator: F,
+        logger: L,
 	) -> Vec<TransactionOutputs>
 	where
 		B::Target: BroadcasterInterface,
@@ -2624,7 +2624,7 @@ impl<Signer: Sign> ChannelMonitorImpl<Signer> {
 
 	/// Filters a block's `txdata` for transactions spending watched outputs or for any child
 	/// transactions thereof.
-	fn filter_block<'a>(&self, txdata: &TransactionData<'a>) -> Vec<&'a Transaction> {
+	fn filter_block<'a>(&self, txdata: &IndexedTransaction<'a>) -> Vec<&'a Transaction> {
 		let mut matched_txn = HashSet::new();
 		txdata.iter().filter(|&&(_, tx)| {
 			let mut matches = self.spends_watched_output(tx);
@@ -3010,7 +3010,7 @@ where
 	F::Target: FeeEstimator,
 	L::Target: Logger,
 {
-	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &TransactionData, height: u32) {
+	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &IndexedTransaction, height: u32) {
 		self.0.block_connected(header, txdata, height, &*self.1, &*self.2, &*self.3);
 	}
 
@@ -3025,7 +3025,7 @@ where
 	F::Target: FeeEstimator,
 	L::Target: Logger,
 {
-	fn transactions_confirmed(&self, header: &BlockHeader, txdata: &TransactionData, height: u32) {
+	fn transactions_confirmed(&self, header: &BlockHeader, txdata: &IndexedTransaction, height: u32) {
 		self.0.transactions_confirmed(header, txdata, height, &*self.1, &*self.2, &*self.3);
 	}
 

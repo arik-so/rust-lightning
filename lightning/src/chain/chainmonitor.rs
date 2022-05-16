@@ -30,7 +30,7 @@ use chain;
 use chain::{ChannelMonitorUpdateErr, Filter, WatchedOutput};
 use chain::chaininterface::{BroadcasterInterface, FeeEstimator};
 use chain::channelmonitor::{ChannelMonitor, ChannelMonitorUpdate, Balance, MonitorEvent, TransactionOutputs, LATENCY_GRACE_PERIOD_BLOCKS};
-use chain::transaction::{OutPoint, TransactionData};
+use chain::transaction::{OutPoint, IndexedTransaction};
 use chain::keysinterface::Sign;
 use util::atomic_counter::AtomicCounter;
 use util::logger::Logger;
@@ -258,9 +258,9 @@ where C::Target: chain::Filter,
 	/// updated `txdata`.
 	///
 	/// Calls which represent a new blockchain tip height should set `best_height`.
-	fn process_chain_data<FN>(&self, header: &BlockHeader, best_height: Option<u32>, txdata: &TransactionData, process: FN)
+	fn process_chain_data<FN>(&self, header: &BlockHeader, best_height: Option<u32>, txdata: &IndexedTransaction, process: FN)
 	where
-		FN: Fn(&ChannelMonitor<ChannelSigner>, &TransactionData) -> Vec<TransactionOutputs>
+		FN: Fn(&ChannelMonitor<ChannelSigner>, &IndexedTransaction) -> Vec<TransactionOutputs>
 	{
 		let mut dependent_txdata = Vec::new();
 		{
@@ -501,7 +501,7 @@ where
 	L::Target: Logger,
 	P::Target: Persist<ChannelSigner>,
 {
-	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &TransactionData, height: u32) {
+	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &IndexedTransaction, height: u32) {
 		log_debug!(self.logger, "New best block {} at height {} provided via block_connected", header.block_hash(), height);
 		self.process_chain_data(header, Some(height), &txdata, |monitor, txdata| {
 			monitor.block_connected(
@@ -528,7 +528,7 @@ where
 	L::Target: Logger,
 	P::Target: Persist<ChannelSigner>,
 {
-	fn transactions_confirmed(&self, header: &BlockHeader, txdata: &TransactionData, height: u32) {
+	fn transactions_confirmed(&self, header: &BlockHeader, txdata: &IndexedTransaction, height: u32) {
 		log_debug!(self.logger, "{} provided transactions confirmed at height {} in block {}", txdata.len(), height, header.block_hash());
 		self.process_chain_data(header, None, txdata, |monitor, txdata| {
 			monitor.transactions_confirmed(

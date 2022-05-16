@@ -18,7 +18,7 @@ use bitcoin::network::constants::Network;
 
 use chain::channelmonitor::{ChannelMonitor, ChannelMonitorUpdate, MonitorEvent};
 use chain::keysinterface::Sign;
-use chain::transaction::{OutPoint, TransactionData};
+use chain::transaction::{OutPoint, IndexedTransaction};
 
 use prelude::*;
 
@@ -94,7 +94,7 @@ pub trait Access {
 pub trait Listen {
 	/// Notifies the listener that a block was added at the given height, with the transaction data
 	/// possibly filtered.
-	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &TransactionData, height: u32);
+	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &IndexedTransaction, height: u32);
 
 	/// Notifies the listener that a block was added at the given height.
 	fn block_connected(&self, block: &Block, height: u32) {
@@ -152,7 +152,7 @@ pub trait Confirm {
 	///
 	/// [chain order]: Confirm#Order
 	/// [`best_block_updated`]: Self::best_block_updated
-	fn transactions_confirmed(&self, header: &BlockHeader, txdata: &TransactionData, height: u32);
+	fn transactions_confirmed(&self, header: &BlockHeader, txdata: &IndexedTransaction, height: u32);
 
 	/// Processes a transaction that is no longer confirmed as result of a chain reorganization.
 	///
@@ -366,7 +366,7 @@ pub struct WatchedOutput {
 }
 
 impl<T: Listen> Listen for core::ops::Deref<Target = T> {
-	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &TransactionData, height: u32) {
+	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &IndexedTransaction, height: u32) {
 		(**self).filtered_block_connected(header, txdata, height);
 	}
 
@@ -380,7 +380,7 @@ where
 	T::Target: Listen,
 	U::Target: Listen,
 {
-	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &TransactionData, height: u32) {
+	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &IndexedTransaction, height: u32) {
 		self.0.filtered_block_connected(header, txdata, height);
 		self.1.filtered_block_connected(header, txdata, height);
 	}

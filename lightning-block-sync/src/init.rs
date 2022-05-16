@@ -203,7 +203,7 @@ impl<'a, C: Cache> Cache for ReadOnlyCache<'a, C> {
 struct DynamicChainListener<'a, L: chain::Listen + ?Sized>(&'a L);
 
 impl<'a, L: chain::Listen + ?Sized> chain::Listen for DynamicChainListener<'a, L> {
-	fn filtered_block_connected(&self, _header: &BlockHeader, _txdata: &chain::transaction::TransactionData, _height: u32) {
+	fn filtered_block_connected(&self, _header: &BlockHeader, _txdata: &chain::transaction::IndexedTransaction, _height: u32) {
 		unreachable!()
 	}
 
@@ -216,7 +216,7 @@ impl<'a, L: chain::Listen + ?Sized> chain::Listen for DynamicChainListener<'a, L
 struct ChainListenerSet<'a, L: chain::Listen + ?Sized>(Vec<(u32, &'a L)>);
 
 impl<'a, L: chain::Listen + ?Sized> chain::Listen for ChainListenerSet<'a, L> {
-	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &chain::transaction::TransactionData, height: u32) {
+	fn filtered_block_connected(&self, header: &BlockHeader, txdata: &chain::transaction::IndexedTransaction, height: u32) {
 		for (starting_height, chain_listener) in self.0.iter() {
 			if height > *starting_height {
 				chain_listener.filtered_block_connected(header, txdata, height);

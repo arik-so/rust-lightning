@@ -33,7 +33,7 @@ use ln::chan_utils;
 use chain::BestBlock;
 use chain::chaininterface::{FeeEstimator,ConfirmationTarget};
 use chain::channelmonitor::{ChannelMonitor, ChannelMonitorUpdate, ChannelMonitorUpdateStep, LATENCY_GRACE_PERIOD_BLOCKS};
-use chain::transaction::{OutPoint, TransactionData};
+use chain::transaction::{OutPoint, IndexedTransaction};
 use chain::keysinterface::{Sign, KeysInterface};
 use util::events::ClosureReason;
 use util::ser::{Readable, ReadableArgs, Writeable, Writer, VecWriter};
@@ -4634,8 +4634,8 @@ impl<Signer: Sign> Channel<Signer> {
 	/// In the first case, we store the confirmation height and calculating the short channel id.
 	/// In the second, we simply return an Err indicating we need to be force-closed now.
 	pub fn transactions_confirmed<L: Deref>(&mut self, block_hash: &BlockHash, height: u32,
-		txdata: &TransactionData, genesis_block_hash: BlockHash, node_pk: PublicKey, logger: &L)
-	-> Result<(Option<msgs::FundingLocked>, Option<msgs::AnnouncementSignatures>), ClosureReason> where L::Target: Logger {
+											txdata: &IndexedTransaction, genesis_block_hash: BlockHash, node_pk: PublicKey, logger: &L)
+											-> Result<(Option<msgs::FundingLocked>, Option<msgs::AnnouncementSignatures>), ClosureReason> where L::Target: Logger {
 		let non_shutdown_state = self.channel_state & (!MULTI_STATE_FLAGS);
 		if let Some(funding_txo) = self.get_funding_txo() {
 			for &(index_in_block, tx) in txdata.iter() {

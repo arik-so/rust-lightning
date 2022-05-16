@@ -13,8 +13,8 @@ use bitcoin::hash_types::Txid;
 use bitcoin::blockdata::transaction::OutPoint as BitcoinOutPoint;
 use bitcoin::blockdata::transaction::Transaction;
 
-/// Transaction data where each item consists of a transaction reference paired with the index of
-/// the transaction within a block.
+/// Indexed transaction data where each item consists of a transaction reference paired with the
+/// index of the transaction within a block.
 ///
 /// Useful for passing enumerated transactions from a block, possibly filtered, in order to retain
 /// the transaction index.
@@ -26,13 +26,13 @@ use bitcoin::blockdata::transaction::Transaction;
 /// use bitcoin::blockdata::block::Block;
 /// use bitcoin::blockdata::constants::genesis_block;
 /// use bitcoin::network::constants::Network;
-/// use lightning::chain::transaction::TransactionData;
+/// use lightning::chain::transaction::IndexedTransaction;
 ///
 /// let block = genesis_block(Network::Bitcoin);
 /// let txdata: Vec<_> = block.txdata.iter().enumerate().collect();
 /// check_block(&block, &txdata);
 ///
-/// fn check_block(block: &Block, txdata: &TransactionData) {
+/// fn check_block(block: &Block, txdata: &IndexedTransaction) {
 /// 	assert_eq!(block.txdata.len(), 1);
 /// 	assert_eq!(txdata.len(), 1);
 ///
@@ -41,7 +41,7 @@ use bitcoin::blockdata::transaction::Transaction;
 /// 	assert_eq!(tx, &block.txdata[0]);
 /// }
 /// ```
-pub type TransactionData<'a> = [(usize, &'a Transaction)];
+pub type IndexedTransaction<'a> = [(usize, &'a Transaction)];
 
 /// A reference to a transaction output.
 ///
