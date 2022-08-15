@@ -131,6 +131,8 @@ mod sealed {
 		ChannelType | SCIDPrivacy,
 		// Byte 6
 		ZeroConf,
+		// Byte 7
+		SimpleTaproot,
 	]);
 	define_context!(NodeContext, [
 		// Byte 0
@@ -147,6 +149,8 @@ mod sealed {
 		ChannelType | SCIDPrivacy,
 		// Byte 6
 		ZeroConf | Keysend,
+		// Byte 7
+		SimpleTaproot,
 	]);
 	define_context!(ChannelContext, []);
 	define_context!(InvoiceContext, [
@@ -174,6 +178,8 @@ mod sealed {
 		SCIDPrivacy,
 		// Byte 6
 		ZeroConf,
+		// Byte 7
+		SimpleTaproot,
 	]);
 
 	/// Defines a feature with the given bits for the specified [`Context`]s. The generated trait is
@@ -364,6 +370,9 @@ mod sealed {
 	define_feature!(55, Keysend, [NodeContext],
 		"Feature flags for keysend payments.", set_keysend_optional, set_keysend_required,
 		supports_keysend, requires_keysend);
+	define_feature!(61, SimpleTaproot, [InitContext, NodeContext, ChannelTypeContext],
+		"Feature flag for supporting simple Taproot channels. Called `option_simple_taproot` in the BOLT draft",
+		set_simple_taproot_optional, set_simple_taproot_required, supports_simple_taproot, requires_simple_taproot);
 
 	#[cfg(test)]
 	define_feature!(123456789, UnknownFeature, [NodeContext, ChannelContext, InvoiceContext],
