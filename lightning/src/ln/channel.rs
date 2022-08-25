@@ -3117,6 +3117,7 @@ impl<Signer: Sign> Channel<Signer> {
 			channel_id: self.channel_id,
 			per_commitment_secret,
 			next_per_commitment_point,
+			local_musig2_pubnonce: None,
 		}, commitment_signed, monitor_update))
 	}
 
@@ -3712,6 +3713,7 @@ impl<Signer: Sign> Channel<Signer> {
 				channel_id: self.channel_id(),
 				next_per_commitment_point,
 				short_channel_id_alias: Some(self.outbound_scid_alias),
+				musig2_nonces: None,
 			})
 		} else { None };
 
@@ -3793,6 +3795,7 @@ impl<Signer: Sign> Channel<Signer> {
 			channel_id: self.channel_id,
 			per_commitment_secret,
 			next_per_commitment_point,
+			local_musig2_pubnonce: None,
 		}
 	}
 
@@ -3959,6 +3962,7 @@ impl<Signer: Sign> Channel<Signer> {
 					channel_id: self.channel_id(),
 					next_per_commitment_point,
 					short_channel_id_alias: Some(self.outbound_scid_alias),
+					musig2_nonces: None,
 				}),
 				raa: None, commitment_update: None, mon_update: None,
 				order: RAACommitmentOrder::CommitmentFirst,
@@ -3995,6 +3999,7 @@ impl<Signer: Sign> Channel<Signer> {
 				channel_id: self.channel_id(),
 				next_per_commitment_point,
 				short_channel_id_alias: Some(self.outbound_scid_alias),
+				musig2_nonces: None,
 			})
 		} else { None };
 
@@ -4189,6 +4194,7 @@ impl<Signer: Sign> Channel<Signer> {
 				min_fee_satoshis: our_min_fee,
 				max_fee_satoshis: our_max_fee,
 			}),
+			musig2_pubnonce: None,
 		}), None))
 	}
 
@@ -4399,6 +4405,7 @@ impl<Signer: Sign> Channel<Signer> {
 						min_fee_satoshis: our_min_fee,
 						max_fee_satoshis: our_max_fee,
 					}),
+					musig2_pubnonce: None,
 				}), signed_tx))
 			}
 		}
@@ -4871,6 +4878,7 @@ impl<Signer: Sign> Channel<Signer> {
 						channel_id: self.channel_id,
 						next_per_commitment_point,
 						short_channel_id_alias: Some(self.outbound_scid_alias),
+						musig2_nonces: None,
 					});
 				}
 			} else {
@@ -5100,6 +5108,7 @@ impl<Signer: Sign> Channel<Signer> {
 				None => Builder::new().into_script(),
 			}),
 			channel_type: Some(self.channel_type.clone()),
+			musig2_nonces: None
 		}
 	}
 
@@ -5166,6 +5175,7 @@ impl<Signer: Sign> Channel<Signer> {
 				None => Builder::new().into_script(),
 			}),
 			channel_type: Some(self.channel_type.clone()),
+			musig2_nonces: None
 		}
 	}
 
@@ -5423,6 +5433,7 @@ impl<Signer: Sign> Channel<Signer> {
 			// overflow here.
 			next_remote_commitment_number: INITIAL_COMMITMENT_NUMBER - self.cur_counterparty_commitment_transaction_number - 1,
 			data_loss_protect,
+			musig2_nonces: None,
 		}
 	}
 
@@ -5725,6 +5736,7 @@ impl<Signer: Sign> Channel<Signer> {
 			channel_id: self.channel_id,
 			signature,
 			htlc_signatures,
+			remote_musig2_pubnonce: None
 		}, (counterparty_commitment_txid, commitment_stats.htlcs_included)))
 	}
 

@@ -131,6 +131,19 @@ pub struct Pong {
 	pub byteslen: u16,
 }
 
+/// A public nonce used for Musig2, comprised of two ECPoints
+#[derive(Clone, Debug, PartialEq)]
+pub struct Musig2PublicNonce(PublicKey, PublicKey);
+
+/// A set of Musig2 nonces used for Taproot
+#[derive(Clone, Debug, PartialEq)]
+pub struct Musig2Nonces {
+	/// Musig2 nonce set for the to_local output
+	pub local_musig2_pubnonce: Musig2PublicNonce,
+	/// Musig2 nonce set for the to_remote output
+	pub remote_musig2_pubnonce: Musig2PublicNonce
+}
+
 /// An open_channel message to be sent or received from a peer
 #[derive(Clone, Debug, PartialEq)]
 pub struct OpenChannel {
@@ -176,6 +189,8 @@ pub struct OpenChannel {
 	/// type from the intersection of our feature bits with our counterparty's feature bits from
 	/// the Init message.
 	pub channel_type: Option<ChannelTypeFeatures>,
+	/// Musig2 nonce TLVs used for opening Taproot channels
+	pub musig2_nonces: Option<Musig2Nonces>,
 }
 
 /// An accept_channel message to be sent or received from a peer
@@ -217,6 +232,8 @@ pub struct AcceptChannel {
 	///
 	/// This is required to match the equivalent field in [`OpenChannel::channel_type`].
 	pub channel_type: Option<ChannelTypeFeatures>,
+	/// Musig2 nonce TLVs used for opening Taproot channels
+	pub musig2_nonces: Option<Musig2Nonces>,
 }
 
 /// A funding_created message to be sent or received from a peer
@@ -251,6 +268,7 @@ pub struct ChannelReady {
 	/// If set, provides a short_channel_id alias for this channel. The sender will accept payments
 	/// to be forwarded over this SCID and forward them to this messages' recipient.
 	pub short_channel_id_alias: Option<u64>,
+	pub musig2_nonces: Option<Musig2Nonces>
 }
 
 /// A shutdown message to be sent or received from a peer
@@ -288,6 +306,7 @@ pub struct ClosingSigned {
 	/// The minimum and maximum fees which the sender is willing to accept, provided only by new
 	/// nodes.
 	pub fee_range: Option<ClosingSignedFeeRange>,
+	pub musig2_pubnonce: Option<Musig2PublicNonce>
 }
 
 /// An update_add_htlc message to be sent or received from a peer
@@ -356,6 +375,8 @@ pub struct CommitmentSigned {
 	pub signature: Signature,
 	/// Signatures on the HTLC transactions
 	pub htlc_signatures: Vec<Signature>,
+	/// Remote Musig2 nonce used for Taproot
+	pub remote_musig2_pubnonce: Option<Musig2PublicNonce>
 }
 
 /// A revoke_and_ack message to be sent or received from a peer
@@ -367,6 +388,8 @@ pub struct RevokeAndACK {
 	pub per_commitment_secret: [u8; 32],
 	/// The next sender-broadcast commitment transaction's per-commitment point
 	pub next_per_commitment_point: PublicKey,
+	/// Local Musig2 nonce used for Taproot
+	pub local_musig2_pubnonce: Option<Musig2PublicNonce>
 }
 
 /// An update_fee message to be sent or received from a peer
@@ -402,6 +425,8 @@ pub struct ChannelReestablish {
 	pub next_remote_commitment_number: u64,
 	/// Optionally, a field proving that next_remote_commitment_number-1 has been revoked
 	pub data_loss_protect: OptionalField<DataLossProtect>,
+	/// Musig2 nonce TLVs used for opening Taproot channels
+	pub musig2_nonces: Option<Musig2Nonces>,
 }
 
 /// An announcement_signatures message to be sent or received from a peer
@@ -1178,26 +1203,6 @@ impl Readable for OptionalField<u64> {
 }
 
 
-impl_writeable_msg!(AcceptChannel, {
-	temporary_channel_id,
-	dust_limit_satoshis,
-	max_htlc_value_in_flight_msat,
-	channel_reserve_satoshis,
-	htlc_minimum_msat,
-	minimum_depth,
-	to_self_delay,
-	max_accepted_htlcs,
-	funding_pubkey,
-	revocation_basepoint,
-	payment_point,
-	delayed_payment_basepoint,
-	htlc_basepoint,
-	first_per_commitment_point,
-	shutdown_scriptpubkey
-}, {
-	(1, channel_type, option),
-});
-
 impl_writeable_msg!(AnnouncementSignatures, {
 	channel_id,
 	short_channel_id,
@@ -1217,34 +1222,62 @@ impl Writeable for ChannelReestablish {
 			},
 			OptionalField::Absent => {}
 		}
+		if let Some(ref nonces) = self.musig2_nonces {
+			encode_tlv_stream!(w, {
+				(2, nonces.local_musig2_pubnonce, required)
+			});
+			encode_tlv_stream!(w, {
+				(4, nonces.remote_musig2_pubnonce, required)
+			});
+		}
 		Ok(())
 	}
 }
 
 impl Readable for ChannelReestablish{
 	fn read<R: Read>(r: &mut R) -> Result<Self, DecodeError> {
-		Ok(Self {
-			channel_id: Readable::read(r)?,
-			next_local_commitment_number: Readable::read(r)?,
-			next_remote_commitment_number: Readable::read(r)?,
-			data_loss_protect: {
-				match <[u8; 32] as Readable>::read(r) {
-					Ok(your_last_per_commitment_secret) =>
-						OptionalField::Present(DataLossProtect {
-							your_last_per_commitment_secret,
-							my_current_per_commitment_point: Readable::read(r)?,
-						}),
-					Err(DecodeError::ShortRead) => OptionalField::Absent,
-					Err(e) => return Err(e)
-				}
+		let channel_id = Readable::read(r)?;
+		let next_local_commitment_number = Readable::read(r)?;
+		let next_remote_commitment_number = Readable::read(r)?;
+		let data_loss_protect = {
+			match <[u8; 32] as Readable>::read(r) {
+				Ok(your_last_per_commitment_secret) =>
+					OptionalField::Present(DataLossProtect {
+						your_last_per_commitment_secret,
+						my_current_per_commitment_point: Readable::read(r)?,
+					}),
+				Err(DecodeError::ShortRead) => OptionalField::Absent,
+				Err(e) => return Err(e)
 			}
+		};
+		let mut local_musig2_nonce: Option<Musig2PublicNonce> = None;
+		let mut remote_musig2_nonce: Option<Musig2PublicNonce> = None;
+		decode_tlv_stream!(r, {
+			(2, local_musig2_nonce, option),
+			(4, remote_musig2_nonce, option)
+		});
+		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (local_musig2_nonce, remote_musig2_nonce) {
+			Some(Musig2Nonces {
+				local_musig2_pubnonce,
+				remote_musig2_pubnonce
+			})
+		} else { None };
+		Ok(Self {
+			channel_id: channel_id,
+			next_local_commitment_number: next_local_commitment_number,
+			next_remote_commitment_number: next_remote_commitment_number,
+			data_loss_protect: data_loss_protect,
+			musig2_nonces
 		})
 	}
 }
 
 impl_writeable_msg!(ClosingSigned,
 	{ channel_id, fee_satoshis, signature },
-	{ (1, fee_range, option) }
+	{
+		(1, fee_range, option),
+		(2, musig2_pubnonce, option)
+	}
 );
 
 impl_writeable!(ClosingSignedFeeRange, {
@@ -1256,7 +1289,9 @@ impl_writeable_msg!(CommitmentSigned, {
 	channel_id,
 	signature,
 	htlc_signatures
-}, {});
+}, {
+	(2, remote_musig2_pubnonce, option)
+});
 
 impl_writeable!(DecodedOnionErrorPacket, {
 	hmac,
@@ -1275,13 +1310,6 @@ impl_writeable_msg!(FundingSigned, {
 	channel_id,
 	signature
 }, {});
-
-impl_writeable_msg!(ChannelReady, {
-	channel_id,
-	next_per_commitment_point,
-}, {
-	(1, short_channel_id_alias, option),
-});
 
 impl Writeable for Init {
 	fn write<W: Writer>(&self, w: &mut W) -> Result<(), io::Error> {
@@ -1311,35 +1339,261 @@ impl Readable for Init {
 	}
 }
 
-impl_writeable_msg!(OpenChannel, {
-	chain_hash,
-	temporary_channel_id,
-	funding_satoshis,
-	push_msat,
-	dust_limit_satoshis,
-	max_htlc_value_in_flight_msat,
-	channel_reserve_satoshis,
-	htlc_minimum_msat,
-	feerate_per_kw,
-	to_self_delay,
-	max_accepted_htlcs,
-	funding_pubkey,
-	revocation_basepoint,
-	payment_point,
-	delayed_payment_basepoint,
-	htlc_basepoint,
-	first_per_commitment_point,
-	channel_flags,
-	shutdown_scriptpubkey
-}, {
-	(1, channel_type, option),
-});
+impl Writeable for Musig2PublicNonce {
+	fn write<W: Writer>(&self, w: &mut W) -> Result<(), io::Error> {
+		self.0.write(w)?;
+		self.1.write(w)?;
+		Ok(())
+	}
+}
+
+impl Readable for Musig2PublicNonce {
+	fn read<R: Read>(r: &mut R) -> Result<Self, DecodeError> {
+		let first_nonce = Readable::read(r)?;
+		let second_nonce = Readable::read(r)?;
+		Ok(Musig2PublicNonce(first_nonce, second_nonce))
+	}
+}
+
+impl Writeable for OpenChannel {
+	fn write<W: Writer>(&self, w: &mut W) -> Result<(), io::Error> {
+		self.chain_hash.write(w)?;
+		self.temporary_channel_id.write(w)?;
+		self.funding_satoshis.write(w)?;
+		self.push_msat.write(w)?;
+		self.dust_limit_satoshis.write(w)?;
+		self.max_htlc_value_in_flight_msat.write(w)?;
+		self.channel_reserve_satoshis.write(w)?;
+		self.htlc_minimum_msat.write(w)?;
+		self.feerate_per_kw.write(w)?;
+		self.to_self_delay.write(w)?;
+		self.max_accepted_htlcs.write(w)?;
+		self.funding_pubkey.write(w)?;
+		self.revocation_basepoint.write(w)?;
+		self.payment_point.write(w)?;
+		self.delayed_payment_basepoint.write(w)?;
+		self.htlc_basepoint.write(w)?;
+		self.first_per_commitment_point.write(w)?;
+		self.channel_flags.write(w)?;
+		self.shutdown_scriptpubkey.write(w)?;
+		encode_tlv_stream!(w, {
+			(1, self.channel_type, option)
+		});
+		if let Some(ref nonces) = self.musig2_nonces {
+			encode_tlv_stream!(w, {
+				(2, nonces.local_musig2_pubnonce, required)
+			});
+			encode_tlv_stream!(w, {
+				(4, nonces.remote_musig2_pubnonce, required)
+			});
+		}
+		Ok(())
+	}
+}
+
+impl Readable for OpenChannel {
+	fn read<R: Read>(r: &mut R) -> Result<Self, DecodeError> {
+		let chain_hash = Readable::read(r)?;
+		let temporary_channel_id = Readable::read(r)?;
+		let funding_satoshis = Readable::read(r)?;
+		let push_msat = Readable::read(r)?;
+		let dust_limit_satoshis = Readable::read(r)?;
+		let max_htlc_value_in_flight_msat = Readable::read(r)?;
+		let channel_reserve_satoshis = Readable::read(r)?;
+		let htlc_minimum_msat = Readable::read(r)?;
+		let feerate_per_kw = Readable::read(r)?;
+		let to_self_delay = Readable::read(r)?;
+		let max_accepted_htlcs = Readable::read(r)?;
+		let funding_pubkey = Readable::read(r)?;
+		let revocation_basepoint = Readable::read(r)?;
+		let payment_point = Readable::read(r)?;
+		let delayed_payment_basepoint = Readable::read(r)?;
+		let htlc_basepoint = Readable::read(r)?;
+		let first_per_commitment_point = Readable::read(r)?;
+		let channel_flags = Readable::read(r)?;
+		let shutdown_scriptpubkey = Readable::read(r)?;
+		let mut channel_type = None;
+		let mut local_musig2_nonce: Option<Musig2PublicNonce> = None;
+		let mut remote_musig2_nonce: Option<Musig2PublicNonce> = None;
+		decode_tlv_stream!(r, {
+			(1, channel_type, option),
+			(2, local_musig2_nonce, option),
+			(4, remote_musig2_nonce, option)
+		});
+		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (local_musig2_nonce, remote_musig2_nonce) {
+			Some(Musig2Nonces {
+				local_musig2_pubnonce,
+				remote_musig2_pubnonce
+			})
+		} else { None };
+		Ok(OpenChannel {
+			chain_hash,
+			temporary_channel_id,
+			funding_satoshis,
+			push_msat,
+			dust_limit_satoshis,
+			max_htlc_value_in_flight_msat,
+			channel_reserve_satoshis,
+			htlc_minimum_msat,
+			feerate_per_kw,
+			to_self_delay,
+			max_accepted_htlcs,
+			funding_pubkey,
+			revocation_basepoint,
+			payment_point,
+			delayed_payment_basepoint,
+			htlc_basepoint,
+			first_per_commitment_point,
+			channel_flags,
+			shutdown_scriptpubkey,
+			channel_type,
+			musig2_nonces
+		})
+	}
+}
+
+impl Writeable for AcceptChannel {
+	fn write<W: Writer>(&self, w: &mut W) -> Result<(), io::Error> {
+		self.temporary_channel_id.write(w)?;
+		self.dust_limit_satoshis.write(w)?;
+		self.max_htlc_value_in_flight_msat.write(w)?;
+		self.channel_reserve_satoshis.write(w)?;
+		self.htlc_minimum_msat.write(w)?;
+		self.minimum_depth.write(w)?;
+		self.to_self_delay.write(w)?;
+		self.max_accepted_htlcs.write(w)?;
+		self.funding_pubkey.write(w)?;
+		self.revocation_basepoint.write(w)?;
+		self.payment_point.write(w)?;
+		self.delayed_payment_basepoint.write(w)?;
+		self.htlc_basepoint.write(w)?;
+		self.first_per_commitment_point.write(w)?;
+		self.shutdown_scriptpubkey.write(w)?;
+		encode_tlv_stream!(w, {
+			(1, self.channel_type, option)
+		});
+		if let Some(ref nonces) = self.musig2_nonces {
+			encode_tlv_stream!(w, {
+				(2, nonces.local_musig2_pubnonce, required)
+			});
+			encode_tlv_stream!(w, {
+				(4, nonces.remote_musig2_pubnonce, required)
+			});
+		}
+		Ok(())
+	}
+}
+
+impl Readable for AcceptChannel {
+	fn read<R: Read>(r: &mut R) -> Result<Self, DecodeError> {
+		let temporary_channel_id = Readable::read(r)?;
+		let dust_limit_satoshis = Readable::read(r)?;
+		let max_htlc_value_in_flight_msat = Readable::read(r)?;
+		let channel_reserve_satoshis = Readable::read(r)?;
+		let htlc_minimum_msat = Readable::read(r)?;
+		let minimum_depth = Readable::read(r)?;
+		let to_self_delay = Readable::read(r)?;
+		let max_accepted_htlcs = Readable::read(r)?;
+		let funding_pubkey = Readable::read(r)?;
+		let revocation_basepoint = Readable::read(r)?;
+		let payment_point = Readable::read(r)?;
+		let delayed_payment_basepoint = Readable::read(r)?;
+		let htlc_basepoint = Readable::read(r)?;
+		let first_per_commitment_point = Readable::read(r)?;
+		let shutdown_scriptpubkey = Readable::read(r)?;
+		let mut channel_type = None;
+		let mut local_musig2_nonce: Option<Musig2PublicNonce> = None;
+		let mut remote_musig2_nonce: Option<Musig2PublicNonce> = None;
+		decode_tlv_stream!(r, {
+			(1, channel_type, option),
+			(2, local_musig2_nonce, option),
+			(4, remote_musig2_nonce, option)
+		});
+		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (local_musig2_nonce, remote_musig2_nonce) {
+			Some(Musig2Nonces {
+				local_musig2_pubnonce,
+				remote_musig2_pubnonce
+			})
+		} else { None };
+		Ok(AcceptChannel {
+			temporary_channel_id,
+			dust_limit_satoshis,
+			max_htlc_value_in_flight_msat,
+			channel_reserve_satoshis,
+			htlc_minimum_msat,
+			minimum_depth,
+			to_self_delay,
+			max_accepted_htlcs,
+			funding_pubkey,
+			revocation_basepoint,
+			payment_point,
+			delayed_payment_basepoint,
+			htlc_basepoint,
+			first_per_commitment_point,
+			shutdown_scriptpubkey,
+			channel_type,
+			musig2_nonces
+		})
+	}
+}
+
+impl Writeable for ChannelReady {
+
+	fn write<W: Writer>(&self, w: &mut W) -> Result<(), io::Error> {
+		self.channel_id.write(w)?;
+		self.next_per_commitment_point.write(w)?;
+		if let Some(ref nonces) = self.musig2_nonces {
+			encode_tlv_stream!(w, {
+				(0, nonces.local_musig2_pubnonce, required)
+			});
+		}
+		encode_tlv_stream!(w, {
+			(1, self.short_channel_id_alias, option)
+		});
+		if let Some(ref nonces) = self.musig2_nonces {
+			encode_tlv_stream!(w, {
+				(2, nonces.remote_musig2_pubnonce, required)
+			});
+		}
+		Ok(())
+	}
+}
+
+impl Readable for ChannelReady {
+
+	fn read<R: Read>(r: &mut R) -> Result<Self, DecodeError> {
+		let channel_id = Readable::read(r)?;
+		let next_per_commitment_point = Readable::read(r)?;
+		let mut short_channel_id_alias = None;
+		let mut local_musig2_nonce: Option<Musig2PublicNonce> = None;
+		let mut remote_musig2_nonce: Option<Musig2PublicNonce> = None;
+		decode_tlv_stream!(r, {
+			(0, local_musig2_nonce, option),
+			(1, short_channel_id_alias, option),
+			(2, remote_musig2_nonce, option)
+		});
+		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (local_musig2_nonce, remote_musig2_nonce) {
+			Some(Musig2Nonces {
+				local_musig2_pubnonce,
+				remote_musig2_pubnonce
+			})
+		} else { None };
+		Ok(ChannelReady {
+			channel_id,
+			next_per_commitment_point,
+			short_channel_id_alias,
+			musig2_nonces
+		})
+	}
+}
 
 impl_writeable_msg!(RevokeAndACK, {
 	channel_id,
 	per_commitment_secret,
 	next_per_commitment_point
-}, {});
+}, {
+	(2, local_musig2_pubnonce, option)
+});
 
 impl_writeable_msg!(Shutdown, {
 	channel_id,
@@ -1987,6 +2241,7 @@ mod tests {
 			next_local_commitment_number: 3,
 			next_remote_commitment_number: 4,
 			data_loss_protect: OptionalField::Absent,
+			musig2_nonces: None,
 		};
 
 		let encoded_value = cr.encode();
@@ -2008,6 +2263,7 @@ mod tests {
 			next_local_commitment_number: 3,
 			next_remote_commitment_number: 4,
 			data_loss_protect: OptionalField::Present(msgs::DataLossProtect { your_last_per_commitment_secret: [9;32], my_current_per_commitment_point: public_key}),
+			musig2_nonces: None,
 		};
 
 		let encoded_value = cr.encode();
@@ -2298,6 +2554,7 @@ mod tests {
 			channel_flags: if random_bit { 1 << 5 } else { 0 },
 			shutdown_scriptpubkey: if shutdown { OptionalField::Present(Address::p2pkh(&::bitcoin::PublicKey{compressed: true, inner: pubkey_1}, Network::Testnet).script_pubkey()) } else { OptionalField::Absent },
 			channel_type: if incl_chan_type { Some(ChannelTypeFeatures::empty()) } else { None },
+			musig2_nonces: None
 		};
 		let encoded_value = open_channel.encode();
 		let mut target_value = Vec::new();
@@ -2354,6 +2611,7 @@ mod tests {
 			first_per_commitment_point: pubkey_6,
 			shutdown_scriptpubkey: if shutdown { OptionalField::Present(Address::p2pkh(&::bitcoin::PublicKey{compressed: true, inner: pubkey_1}, Network::Testnet).script_pubkey()) } else { OptionalField::Absent },
 			channel_type: None,
+			musig2_nonces: None
 		};
 		let encoded_value = accept_channel.encode();
 		let mut target_value = hex::decode("020202020202020202020202020202020202020202020202020202020202020212345678901234562334032891223698321446687011447600083a840000034d000c89d4c0bcc0bc031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f024d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d076602531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe33703462779ad4aad39514614751a71085f2f10e1c7a593e4e030efb5b8721ce55b0b0362c0a046dacce86ddd0343c6d3c7c79c2208ba0d9c9cf24a6d046d21d21f90f703f006a18d5653c4edf5391ff23a61f03ff83d237e880ee61187fa9f379a028e0a").unwrap();
@@ -2407,6 +2665,7 @@ mod tests {
 			channel_id: [2; 32],
 			next_per_commitment_point: pubkey_1,
 			short_channel_id_alias: None,
+			musig2_nonces: None,
 		};
 		let encoded_value = channel_ready.encode();
 		let target_value = hex::decode("0202020202020202020202020202020202020202020202020202020202020202031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f").unwrap();
@@ -2457,6 +2716,7 @@ mod tests {
 			fee_satoshis: 2316138423780173,
 			signature: sig_1,
 			fee_range: None,
+			musig2_pubnonce: None,
 		};
 		let encoded_value = closing_signed.encode();
 		let target_value = hex::decode("020202020202020202020202020202020202020202020202020202020202020200083a840000034dd977cb9b53d93a6ff64bb5f1e158b4094b66e798fb12911168a3ccdf80a83096340a6a95da0ae8d9f776528eecdbb747eb6b545495a4319ed5378e35b21e073a").unwrap();
@@ -2471,6 +2731,7 @@ mod tests {
 				min_fee_satoshis: 0xdeadbeef,
 				max_fee_satoshis: 0x1badcafe01234567,
 			}),
+			musig2_pubnonce: None,
 		};
 		let encoded_value_with_range = closing_signed_with_range.encode();
 		let target_value_with_range = hex::decode("020202020202020202020202020202020202020202020202020202020202020200083a840000034dd977cb9b53d93a6ff64bb5f1e158b4094b66e798fb12911168a3ccdf80a83096340a6a95da0ae8d9f776528eecdbb747eb6b545495a4319ed5378e35b21e073a011000000000deadbeef1badcafe01234567").unwrap();
@@ -2556,6 +2817,7 @@ mod tests {
 			channel_id: [2; 32],
 			signature: sig_1,
 			htlc_signatures: if htlcs { vec![sig_2, sig_3, sig_4] } else { Vec::new() },
+			remote_musig2_pubnonce: None,
 		};
 		let encoded_value = commitment_signed.encode();
 		let mut target_value = hex::decode("0202020202020202020202020202020202020202020202020202020202020202d977cb9b53d93a6ff64bb5f1e158b4094b66e798fb12911168a3ccdf80a83096340a6a95da0ae8d9f776528eecdbb747eb6b545495a4319ed5378e35b21e073a").unwrap();
@@ -2581,6 +2843,7 @@ mod tests {
 			channel_id: [2; 32],
 			per_commitment_secret: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 			next_per_commitment_point: pubkey_1,
+			local_musig2_pubnonce: None,
 		};
 		let encoded_value = raa.encode();
 		let target_value = hex::decode("02020202020202020202020202020202020202020202020202020202020202020101010101010101010101010101010101010101010101010101010101010101031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f").unwrap();
