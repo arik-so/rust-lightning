@@ -26,6 +26,7 @@ pub mod wakers;
 pub(crate) mod atomic_counter;
 pub(crate) mod byte_utils;
 pub(crate) mod chacha20;
+pub(crate) mod musig2;
 #[cfg(all(any(feature = "_bench_unstable", not(test)), feature = "std"))]
 pub(crate) mod fairrwlock;
 #[cfg(fuzzing)]
@@ -57,4 +58,3 @@ pub mod test_utils;
 /// machine errors and used in fuzz targets and tests.
 #[cfg(any(test, fuzzing, feature = "_test_utils"))]
 pub mod enforcing_trait_impls;
-

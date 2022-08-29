@@ -45,6 +45,7 @@ use util::logger;
 use util::ser::{BigSize, LengthReadable, Readable, ReadableArgs, Writeable, Writer, FixedLengthReader, HighZeroBytesDroppedBigSize, Hostname};
 
 use ln::{PaymentPreimage, PaymentHash, PaymentSecret};
+use util::musig2::Musig2PublicNonce;
 
 /// 21 million * 10^8 * 1000
 pub(crate) const MAX_VALUE_MSAT: u64 = 21_000_000_0000_0000_000;
@@ -130,10 +131,6 @@ pub struct Pong {
 	/// This field is not sent on the wire. byteslen zeros are sent.
 	pub byteslen: u16,
 }
-
-/// A public nonce used for Musig2, comprised of two ECPoints
-#[derive(Clone, Debug, PartialEq)]
-pub struct Musig2PublicNonce(PublicKey, PublicKey);
 
 /// A set of Musig2 nonces used for Taproot
 #[derive(Clone, Debug, PartialEq)]
