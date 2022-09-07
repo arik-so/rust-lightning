@@ -23,7 +23,7 @@ use bitcoin::hash_types::{Txid, PubkeyHash};
 use ln::{PaymentHash, PaymentPreimage};
 use ln::msgs::DecodeError;
 use util::ser::{Readable, Writeable, Writer};
-use util::{byte_utils, transaction_utils};
+use util::{byte_utils, musig2, transaction_utils};
 
 use bitcoin::hash_types::WPubkeyHash;
 use bitcoin::secp256k1::{SecretKey, PublicKey, Scalar};
@@ -650,6 +650,16 @@ pub fn make_funding_redeemscript(broadcaster: &PublicKey, countersignatory: &Pub
 		builder.push_slice(&countersignatory_funding_key)
 			.push_slice(&broadcaster_funding_key)
 	}.push_opcode(opcodes::all::OP_PUSHNUM_2).push_opcode(opcodes::all::OP_CHECKMULTISIG).into_script()
+}
+
+/// Create a Musig2-aggregated Taproot internal key
+pub fn make_taproot_funding_outputscript(broadcaster: &PublicKey, countersignatory: &PublicKey) -> Script {
+	// MuSig2 key aggregation:
+	let public_keys = vec![broadcaster.clone(), countersignatory.clone()];
+	let aggregate_key = musig2::aggregate_keys(public_keys.as_slice());
+
+	let secp = Secp256k1::new();
+	Script::new_v1_p2tr(&secp, aggregate_key.0, None)
 }
 
 /// Builds an unsigned HTLC-Success or HTLC-Timeout transaction from the given channel and HTLC

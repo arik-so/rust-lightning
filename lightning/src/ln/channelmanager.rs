@@ -2944,7 +2944,7 @@ impl<Signer: Sign, M: Deref, T: Deref, K: Deref, F: Deref, L: Deref> ChannelMana
 		}
 		self.funding_transaction_generated_intern(temporary_channel_id, counterparty_node_id, funding_transaction, |chan, tx| {
 			let mut output_index = None;
-			let expected_spk = chan.get_funding_redeemscript().to_v0_p2wsh();
+			let expected_spk = chan.get_funding_outputscript();
 			for (idx, outp) in tx.output.iter().enumerate() {
 				if outp.script_pubkey == expected_spk && outp.value == chan.get_value_satoshis() {
 					if output_index.is_some() {
@@ -4502,7 +4502,7 @@ impl<Signer: Sign, M: Deref, T: Deref, K: Deref, F: Deref, L: Deref> ChannelMana
 						return Err(MsgHandleErrInternal::send_err_msg_no_close("Got a message for a channel from the wrong node!".to_owned(), msg.temporary_channel_id));
 					}
 					try_chan_entry!(self, chan.get_mut().accept_channel(&msg, &self.default_configuration.channel_handshake_limits, &their_features), channel_state, chan);
-					(chan.get().get_value_satoshis(), chan.get().get_funding_redeemscript().to_v0_p2wsh(), chan.get().get_user_id())
+					(chan.get().get_value_satoshis(), chan.get().get_funding_outputscript(), chan.get().get_user_id())
 				},
 				hash_map::Entry::Vacant(_) => return Err(MsgHandleErrInternal::send_err_msg_no_close("Failed to find corresponding channel".to_owned(), msg.temporary_channel_id))
 			}

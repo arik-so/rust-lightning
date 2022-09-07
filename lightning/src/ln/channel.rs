@@ -25,10 +25,10 @@ use bitcoin::secp256k1;
 use ln::{PaymentPreimage, PaymentHash};
 use ln::features::{ChannelTypeFeatures, InitFeatures};
 use ln::msgs;
-use ln::msgs::{DecodeError, OptionalField, DataLossProtect};
+use ln::msgs::{DecodeError, OptionalField, DataLossProtect, Musig2SecretNonces};
 use ln::script::{self, ShutdownScript};
 use ln::channelmanager::{self, CounterpartyForwardingInfo, PendingHTLCStatus, HTLCSource, HTLCFailReason, HTLCFailureMsg, PendingHTLCInfo, RAACommitmentOrder, BREAKDOWN_TIMEOUT, MIN_CLTV_EXPIRY_DELTA, MAX_LOCAL_BREAKDOWN_TIMEOUT};
-use ln::chan_utils::{CounterpartyCommitmentSecrets, TxCreationKeys, HTLCOutputInCommitment, htlc_success_tx_weight, htlc_timeout_tx_weight, make_funding_redeemscript, ChannelPublicKeys, CommitmentTransaction, HolderCommitmentTransaction, ChannelTransactionParameters, CounterpartyChannelTransactionParameters, MAX_HTLCS, get_commitment_transaction_number_obscure_factor, ClosingTransaction};
+use ln::chan_utils::{CounterpartyCommitmentSecrets, TxCreationKeys, HTLCOutputInCommitment, htlc_success_tx_weight, htlc_timeout_tx_weight, make_funding_redeemscript, ChannelPublicKeys, CommitmentTransaction, HolderCommitmentTransaction, ChannelTransactionParameters, CounterpartyChannelTransactionParameters, MAX_HTLCS, get_commitment_transaction_number_obscure_factor, ClosingTransaction, make_taproot_funding_outputscript};
 use ln::chan_utils;
 use chain::BestBlock;
 use chain::chaininterface::{FeeEstimator, ConfirmationTarget, LowerBoundedFeeEstimator};
@@ -49,6 +49,7 @@ use core::ops::Deref;
 #[cfg(any(test, fuzzing, debug_assertions))]
 use sync::Mutex;
 use bitcoin::hashes::hex::ToHex;
+use util::musig2::Musig2SecretNonce;
 
 #[cfg(test)]
 pub struct ChannelValueStat {
@@ -736,6 +737,12 @@ pub(super) struct Channel<Signer: Sign> {
 	// don't currently support node id aliases and eventually privacy should be provided with
 	// blinded paths instead of simple scid+node_id aliases.
 	outbound_scid_alias: u64,
+
+	/// Indicates whether a channel should use Taproot-style funding and commitment transactions
+	is_simple_taproot: bool,
+
+	// TODO: determine whether storing nonces here is wise
+	musig2_nonces: Option<Musig2SecretNonces>
 }
 
 #[cfg(any(test, fuzzing))]
@@ -952,6 +959,22 @@ impl<Signer: Sign> Channel<Signer> {
 			}
 		}
 
+		let is_simple_taproot = their_features.supports_simple_taproot();
+		let musig2_nonces = if is_simple_taproot {
+			let sk_1 = SecretKey::from_slice(&keys_provider.get_secure_random_bytes()).unwrap();
+			let sk_2 = SecretKey::from_slice(&keys_provider.get_secure_random_bytes()).unwrap();
+			let sk_3 = SecretKey::from_slice(&keys_provider.get_secure_random_bytes()).unwrap();
+			let sk_4 = SecretKey::from_slice(&keys_provider.get_secure_random_bytes()).unwrap();
+			let local_musig2_nonce = Musig2SecretNonce(sk_1, sk_2);
+			let remote_musig2_nonce = Musig2SecretNonce(sk_3, sk_4);
+			Some(Musig2SecretNonces {
+				local_musig2_nonce,
+				remote_musig2_nonce
+			})
+		} else {
+			None
+		};
+
 		Ok(Channel {
 			user_id,
 
@@ -1067,6 +1090,9 @@ impl<Signer: Sign> Channel<Signer> {
 			historical_inbound_htlc_fulfills: HashSet::new(),
 
 			channel_type: Self::get_initial_channel_type(&config),
+
+			is_simple_taproot,
+			musig2_nonces
 		})
 	}
 
@@ -1280,6 +1306,14 @@ impl<Signer: Sign> Channel<Signer> {
 			}
 		}
 
+		let mut is_simple_taproot = false;
+		if their_features.supports_simple_taproot() {
+			if msg.musig2_nonces.is_none() {
+				return Err(ChannelError::Close("Peer is signaling simple_taproot support without providing values for local_musig2_pubnonce and remote_musig2_pubnonce".to_string()))
+			}
+			is_simple_taproot = true;
+		}
+
 		let mut secp_ctx = Secp256k1::new();
 		secp_ctx.seeded_randomize(&keys_provider.get_secure_random_bytes());
 
@@ -1401,6 +1435,9 @@ impl<Signer: Sign> Channel<Signer> {
 			historical_inbound_htlc_fulfills: HashSet::new(),
 
 			channel_type,
+
+			is_simple_taproot,
+			musig2_nonces: None
 		};
 
 		Ok(chan)
@@ -1761,6 +1798,13 @@ impl<Signer: Sign> Channel<Signer> {
 	/// Panics if called before accept_channel/new_from_req
 	pub fn get_funding_redeemscript(&self) -> Script {
 		make_funding_redeemscript(&self.get_holder_pubkeys().funding_pubkey, self.counterparty_funding_pubkey())
+	}
+
+	pub fn get_funding_outputscript(&self) -> Script {
+		if self.is_simple_taproot {
+			return make_taproot_funding_outputscript(&self.get_holder_pubkeys().funding_pubkey, self.counterparty_funding_pubkey());
+		}
+		self.get_funding_redeemscript().to_v0_p2wsh()
 	}
 
 	/// Claims an HTLC while we're disconnected from a peer, dropping the [`ChannelMonitorUpdate`]
@@ -5084,6 +5128,14 @@ impl<Signer: Sign> Channel<Signer> {
 		let first_per_commitment_point = self.holder_signer.get_per_commitment_point(self.cur_holder_commitment_transaction_number, &self.secp_ctx);
 		let keys = self.get_holder_pubkeys();
 
+		let musig2_nonces = if self.is_simple_taproot {
+			self.musig2_nonces.as_ref().map(|nonce| {
+				nonce.to_public()
+			})
+		} else {
+			None
+		};
+
 		msgs::OpenChannel {
 			chain_hash,
 			temporary_channel_id: self.channel_id,
@@ -5108,7 +5160,7 @@ impl<Signer: Sign> Channel<Signer> {
 				None => Builder::new().into_script(),
 			}),
 			channel_type: Some(self.channel_type.clone()),
-			musig2_nonces: None
+			musig2_nonces
 		}
 	}
 
@@ -5154,6 +5206,13 @@ impl<Signer: Sign> Channel<Signer> {
 	fn generate_accept_channel_message(&self) -> msgs::AcceptChannel {
 		let first_per_commitment_point = self.holder_signer.get_per_commitment_point(self.cur_holder_commitment_transaction_number, &self.secp_ctx);
 		let keys = self.get_holder_pubkeys();
+
+		let musig2_nonces = if self.is_simple_taproot {
+			// TODO: access entropy source to generate musig2 nonces
+			None
+		} else {
+			None
+		};
 
 		msgs::AcceptChannel {
 			temporary_channel_id: self.channel_id,
@@ -6643,6 +6702,10 @@ impl<'a, Signer: Sign, K: Deref> ReadableArgs<(&'a K, u32)> for Channel<Signer>
 			historical_inbound_htlc_fulfills,
 
 			channel_type: channel_type.unwrap(),
+
+			// TODO: find adequate backwards-compatible serialization approach
+			is_simple_taproot: false,
+			musig2_nonces: None
 		})
 	}
 }

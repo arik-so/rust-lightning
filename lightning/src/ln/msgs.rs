@@ -45,7 +45,7 @@ use util::logger;
 use util::ser::{BigSize, LengthReadable, Readable, ReadableArgs, Writeable, Writer, FixedLengthReader, HighZeroBytesDroppedBigSize, Hostname};
 
 use ln::{PaymentPreimage, PaymentHash, PaymentSecret};
-use util::musig2::Musig2PublicNonce;
+use util::musig2::{Musig2PublicNonce, Musig2SecretNonce};
 
 /// 21 million * 10^8 * 1000
 pub(crate) const MAX_VALUE_MSAT: u64 = 21_000_000_0000_0000_000;
@@ -134,11 +134,29 @@ pub struct Pong {
 
 /// A set of Musig2 nonces used for Taproot
 #[derive(Clone, Debug, PartialEq)]
-pub struct Musig2Nonces {
+pub struct Musig2PublicNonces {
 	/// Musig2 nonce set for the to_local output
 	pub local_musig2_pubnonce: Musig2PublicNonce,
 	/// Musig2 nonce set for the to_remote output
 	pub remote_musig2_pubnonce: Musig2PublicNonce
+}
+
+/// A set of Musig2 nonce secrets stored on the Channel object for Taproot
+#[derive(Clone, Debug, PartialEq)]
+pub struct Musig2SecretNonces {
+	/// TODO
+	pub local_musig2_nonce: Musig2SecretNonce,
+	/// TODO
+	pub remote_musig2_nonce: Musig2SecretNonce
+}
+
+impl Musig2SecretNonces {
+	pub(crate) fn to_public(&self) -> Musig2PublicNonces {
+		Musig2PublicNonces {
+			local_musig2_pubnonce: self.local_musig2_nonce.to_public(),
+			remote_musig2_pubnonce: self.remote_musig2_nonce.to_public()
+		}
+	}
 }
 
 /// An open_channel message to be sent or received from a peer
@@ -187,7 +205,7 @@ pub struct OpenChannel {
 	/// the Init message.
 	pub channel_type: Option<ChannelTypeFeatures>,
 	/// Musig2 nonce TLVs used for opening Taproot channels
-	pub musig2_nonces: Option<Musig2Nonces>,
+	pub musig2_nonces: Option<Musig2PublicNonces>,
 }
 
 /// An accept_channel message to be sent or received from a peer
@@ -230,7 +248,7 @@ pub struct AcceptChannel {
 	/// This is required to match the equivalent field in [`OpenChannel::channel_type`].
 	pub channel_type: Option<ChannelTypeFeatures>,
 	/// Musig2 nonce TLVs used for opening Taproot channels
-	pub musig2_nonces: Option<Musig2Nonces>,
+	pub musig2_nonces: Option<Musig2PublicNonces>,
 }
 
 /// A funding_created message to be sent or received from a peer
@@ -265,7 +283,7 @@ pub struct ChannelReady {
 	/// If set, provides a short_channel_id alias for this channel. The sender will accept payments
 	/// to be forwarded over this SCID and forward them to this messages' recipient.
 	pub short_channel_id_alias: Option<u64>,
-	pub musig2_nonces: Option<Musig2Nonces>
+	pub musig2_nonces: Option<Musig2PublicNonces>
 }
 
 /// A shutdown message to be sent or received from a peer
@@ -423,7 +441,7 @@ pub struct ChannelReestablish {
 	/// Optionally, a field proving that next_remote_commitment_number-1 has been revoked
 	pub data_loss_protect: OptionalField<DataLossProtect>,
 	/// Musig2 nonce TLVs used for opening Taproot channels
-	pub musig2_nonces: Option<Musig2Nonces>,
+	pub musig2_nonces: Option<Musig2PublicNonces>,
 }
 
 /// An announcement_signatures message to be sent or received from a peer
@@ -1254,7 +1272,7 @@ impl Readable for ChannelReestablish{
 			(4, remote_musig2_nonce, option)
 		});
 		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (local_musig2_nonce, remote_musig2_nonce) {
-			Some(Musig2Nonces {
+			Some(Musig2PublicNonces {
 				local_musig2_pubnonce,
 				remote_musig2_pubnonce
 			})
@@ -1418,7 +1436,7 @@ impl Readable for OpenChannel {
 			(4, remote_musig2_nonce, option)
 		});
 		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (local_musig2_nonce, remote_musig2_nonce) {
-			Some(Musig2Nonces {
+			Some(Musig2PublicNonces {
 				local_musig2_pubnonce,
 				remote_musig2_pubnonce
 			})
@@ -1507,7 +1525,7 @@ impl Readable for AcceptChannel {
 			(4, remote_musig2_nonce, option)
 		});
 		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (local_musig2_nonce, remote_musig2_nonce) {
-			Some(Musig2Nonces {
+			Some(Musig2PublicNonces {
 				local_musig2_pubnonce,
 				remote_musig2_pubnonce
 			})
@@ -1570,7 +1588,7 @@ impl Readable for ChannelReady {
 			(2, remote_musig2_nonce, option)
 		});
 		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (local_musig2_nonce, remote_musig2_nonce) {
-			Some(Musig2Nonces {
+			Some(Musig2PublicNonces {
 				local_musig2_pubnonce,
 				remote_musig2_pubnonce
 			})
