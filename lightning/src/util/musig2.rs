@@ -4,6 +4,7 @@
 //! Q: aggregate_public_key
 //! aggnonce: aggregate_nonce (technically a compound nonce, prior to the linear combination)
 //! R: public_nonce (aggregate_nonce.0 + b * aggregate_nonce.1)
+use core::borrow::Borrow;
 use bitcoin::hashes::{Hash, HashEngine};
 use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::sha256::HashEngine as ShaEngine;
@@ -43,13 +44,13 @@ impl Into<Musig2PublicNonce> for Musig2SecretNonce {
 	}
 }
 
-pub(crate) fn aggregate_keys(sorted_keys: &[PublicKey]) -> Musig2AggregateKey {
+pub(crate) fn aggregate_keys<K: Borrow<PublicKey>>(sorted_keys: &[K]) -> Musig2AggregateKey {
 	let secp = Secp256k1::new();
 
 	let mut key_summands = Vec::with_capacity(sorted_keys.len());
 
 	for i in 0..sorted_keys.len() {
-		let current_key = sorted_keys[i];
+		let current_key = sorted_keys[i].borrow();
 		let current_coefficient = key_aggregation_coefficient_internal(sorted_keys, &current_key);
 
 		let current_summand = current_key.mul_tweak(&secp, &current_coefficient).unwrap();
@@ -62,14 +63,20 @@ pub(crate) fn aggregate_keys(sorted_keys: &[PublicKey]) -> Musig2AggregateKey {
 	combined_pubkey.x_only_public_key()
 }
 
-pub(crate) fn aggregate_nonces(nonces: &[Musig2PublicNonce]) -> Musig2PublicNonce {
+fn fake_aggregate<K: Borrow<PublicKey>>(array: &[K]) {
+	for current_key in array {
+		println!("key: {:?}", current_key.borrow().serialize());
+	}
+}
+
+pub(crate) fn aggregate_nonces<N: Borrow<Musig2PublicNonce>>(nonces: &[N]) -> Musig2PublicNonce {
 
 	let mut first_nonce_summands = Vec::with_capacity(nonces.len());
 	let mut second_nonce_summands = Vec::with_capacity(nonces.len());
 
 	for current_nonce in nonces {
-		let first_nonce = &current_nonce.0;
-		let second_nonce = &current_nonce.1;
+		let first_nonce = &current_nonce.borrow().0;
+		let second_nonce = &current_nonce.borrow().1;
 
 		first_nonce_summands.push(first_nonce);
 		second_nonce_summands.push(second_nonce);
@@ -89,7 +96,7 @@ pub(crate) fn calculate_final_nonce(aggregate_nonce: &Musig2PublicNonce, aggrega
 	public_nonce
 }
 
-pub(crate) fn sign(secret_key: SecretKey, secret_nonce: &Musig2SecretNonce, aggregate_public_key: &Musig2AggregateKey, aggregate_nonce: &Musig2PublicNonce, sorted_keys: &[PublicKey], message: &[u8]) -> SecretKey {
+pub(crate) fn sign<K: Borrow<PublicKey>>(secret_key: SecretKey, secret_nonce: &Musig2SecretNonce, aggregate_public_key: &Musig2AggregateKey, aggregate_nonce: &Musig2PublicNonce, sorted_keys: &[K], message: &[u8]) -> SecretKey {
 	let public_nonce = calculate_final_nonce(aggregate_nonce, aggregate_public_key, message);
 
 	let final_secret_nonce = if has_even_y(&public_nonce) {
@@ -127,10 +134,10 @@ pub(crate) fn sign(secret_key: SecretKey, secret_nonce: &Musig2SecretNonce, aggr
 	s
 }
 
-pub(crate) fn aggregate_partial_signatures(partial_signatures: &[SecretKey], final_nonce: &PublicKey) -> Vec<u8> {
+pub(crate) fn aggregate_partial_signatures<K: Borrow<SecretKey>>(partial_signatures: &[K], final_nonce: &PublicKey) -> Vec<u8> {
 	let mut aggregate_signature = Scalar::ZERO;
 	for current_signature in partial_signatures {
-		aggregate_signature = Scalar::from(current_signature.add_tweak(&aggregate_signature).unwrap());
+		aggregate_signature = Scalar::from(current_signature.borrow().add_tweak(&aggregate_signature).unwrap());
 	}
 	let mut serialized_signature = Vec::with_capacity(64);
 	final_nonce.x_only_public_key().0.serialize().write(&mut serialized_signature).unwrap();
@@ -149,10 +156,10 @@ fn has_even_y(public_key: &PublicKey) -> bool {
 	first_byte == 2
 }
 
-fn sort_keys(keys: &[PublicKey]) -> Vec<PublicKey> {
+pub(crate) fn sort_keys<K: Borrow<PublicKey>>(keys: &[K]) -> Vec<PublicKey> {
 	let mut sorted_keys = Vec::with_capacity(keys.len());
 	for current_key in keys {
-		sorted_keys.push(current_key.clone());
+		sorted_keys.push(current_key.borrow().clone());
 	}
 	sorted_keys.sort_by(|key_a, key_b| {
 		let slice_a = key_a.serialize();
@@ -162,18 +169,18 @@ fn sort_keys(keys: &[PublicKey]) -> Vec<PublicKey> {
 	sorted_keys
 }
 
-fn hash_keys(sorted_keys: &[PublicKey]) -> [u8; 32] {
+fn hash_keys<K: Borrow<PublicKey>>(sorted_keys: &[K]) -> [u8; 32] {
 	let mut sha_engine = tagged_sha_engine("KeyAgg list");
 	for current_key in sorted_keys {
-		sha_engine.input(&current_key.serialize());
+		sha_engine.input(&current_key.borrow().serialize());
 	}
 	Sha256::from_engine(sha_engine).into_inner()
 }
 
-fn get_second_key_serialization(sorted_keys: &[PublicKey]) -> [u8; 33] {
-	let first_key = sorted_keys[0];
+fn get_second_key_serialization<K: Borrow<PublicKey>>(sorted_keys: &[K]) -> [u8; 33] {
+	let first_key = sorted_keys[0].borrow();
 	for j in 1..sorted_keys.len() {
-		let current_key = sorted_keys[j];
+		let current_key = sorted_keys[j].borrow();
 		if current_key != first_key {
 			return current_key.serialize();
 		}
@@ -181,7 +188,7 @@ fn get_second_key_serialization(sorted_keys: &[PublicKey]) -> [u8; 33] {
 	[0; 33]
 }
 
-fn key_aggregation_coefficient_internal(sorted_keys: &[PublicKey], public_key: &PublicKey) -> Scalar {
+fn key_aggregation_coefficient_internal<K: Borrow<PublicKey>>(sorted_keys: &[K], public_key: &PublicKey) -> Scalar {
 	// could be memoized
 	let second_key = get_second_key_serialization(sorted_keys);
 	let referenced_key = public_key.serialize();
@@ -220,8 +227,21 @@ fn tagged_hash_scalar(tag: &str, inputs: &[&[u8]]) -> Scalar {
 mod tests {
 	use std::io::Cursor;
 	use bitcoin::secp256k1::{PublicKey, SecretKey};
-	use util::musig2::{aggregate_keys, aggregate_nonces, aggregate_partial_signatures, calculate_final_nonce, key_aggregation_coefficient_internal, Musig2PublicNonce, sort_keys};
+	use util::musig2::{aggregate_keys, aggregate_nonces, aggregate_partial_signatures, calculate_final_nonce, fake_aggregate, key_aggregation_coefficient_internal, Musig2PublicNonce, sort_keys};
 	use util::ser::{Readable, Writeable};
+
+	#[test]
+	fn test_reference_passing() {
+		let keys = vec![
+			PublicKey::from_slice(&hex::decode("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9").unwrap()).unwrap(),
+			PublicKey::from_slice(&hex::decode("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9").unwrap()).unwrap(),
+			PublicKey::from_slice(&hex::decode("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9").unwrap()).unwrap(),
+		];
+		fake_aggregate(keys.as_slice());
+
+		let reference_keys: Vec<&PublicKey> = keys.iter().collect();
+		fake_aggregate(reference_keys.as_slice());
+	}
 
 	#[test]
 	fn test_key_sorting() {
@@ -300,7 +320,7 @@ mod tests {
 
 		assert_eq!(public_nonces.len(), 2);
 
-		let aggregate_nonce = aggregate_nonces(public_nonces.as_slice());
+		let aggregate_nonce = aggregate_nonces(&public_nonces);
 		let mut aggregate_nonce_bytes = Vec::with_capacity(66);
 		aggregate_nonce.write(&mut aggregate_nonce_bytes).unwrap();
 		let aggregate_nonce_hex = hex::encode(aggregate_nonce_bytes);
@@ -327,7 +347,7 @@ mod tests {
 
 		assert_eq!(public_nonces.len(), 2);
 
-		let aggregate_nonce = aggregate_nonces(public_nonces.as_slice());
+		let aggregate_nonce = aggregate_nonces(&public_nonces);
 		let mut aggregate_nonce_bytes = Vec::with_capacity(66);
 		aggregate_nonce.write(&mut aggregate_nonce_bytes).unwrap();
 		let aggregate_nonce_hex = hex::encode(aggregate_nonce_bytes);
@@ -377,7 +397,7 @@ mod tests {
 
 		let message = hex::decode("599c67ea410d005b9da90817cf03ed3b1c868e4da4edf00a5880b0082c237869").unwrap();
 
-		let aggregate_nonce = aggregate_nonces(public_nonces.as_slice());
+		let aggregate_nonce = aggregate_nonces(&public_nonces);
 		let aggregate_nonce_hex = hex::encode(aggregate_nonce.encode());
 		assert_eq!(aggregate_nonce_hex, "02bc34cdf6fa1298d7b6a126812fad0739005bc44e45c21276eefe41aaf841c86f03f3562aed52243bb99f43d1677db59f0fefb961633997f7ac924b78fbd0b0334f");
 
