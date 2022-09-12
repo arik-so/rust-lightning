@@ -102,6 +102,10 @@ pub struct ChannelHandshakeConfig {
 	/// [`ChannelManager`]: crate::ln::channelmanager::ChannelManager
 	/// [`DecodeError::InvalidValue`]: crate::ln::msgs::DecodeError::InvalidValue
 	pub negotiate_scid_privacy: bool,
+
+	/// TODO (jkczyz): write something coherent
+	pub negotiate_simple_taproot: bool,
+
 	/// Set to announce the channel publicly and notify all nodes that they can route via this
 	/// channel.
 	///
@@ -160,9 +164,10 @@ impl Default for ChannelHandshakeConfig {
 			our_htlc_minimum_msat: 1,
 			max_inbound_htlc_value_in_flight_percent_of_channel: 10,
 			negotiate_scid_privacy: false,
+			negotiate_simple_taproot: false,
 			announced_channel: false,
 			commit_upfront_shutdown_pubkey: true,
-			their_channel_reserve_proportional_millionths: 10_000,
+			their_channel_reserve_proportional_millionths: 10_000
 		}
 	}
 }

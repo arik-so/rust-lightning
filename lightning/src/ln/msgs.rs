@@ -24,7 +24,7 @@
 //! raw socket events into your non-internet-facing system and then send routing events back to
 //! track the network on the less-secure system.
 
-use bitcoin::secp256k1::PublicKey;
+use bitcoin::secp256k1::{PublicKey, SecretKey};
 use bitcoin::secp256k1::ecdsa::Signature;
 use bitcoin::secp256k1;
 use bitcoin::blockdata::script::Script;
@@ -205,7 +205,7 @@ pub struct OpenChannel {
 	/// the Init message.
 	pub channel_type: Option<ChannelTypeFeatures>,
 	/// Musig2 nonce TLVs used for opening Taproot channels
-	pub musig2_nonces: Option<Musig2PublicNonces>,
+	pub musig2_partial_nonces: Option<Musig2PublicNonces>,
 }
 
 /// An accept_channel message to be sent or received from a peer
@@ -248,7 +248,7 @@ pub struct AcceptChannel {
 	/// This is required to match the equivalent field in [`OpenChannel::channel_type`].
 	pub channel_type: Option<ChannelTypeFeatures>,
 	/// Musig2 nonce TLVs used for opening Taproot channels
-	pub musig2_nonces: Option<Musig2PublicNonces>,
+	pub musig2_partial_nonces: Option<Musig2PublicNonces>,
 }
 
 /// A funding_created message to be sent or received from a peer
@@ -262,6 +262,10 @@ pub struct FundingCreated {
 	pub funding_output_index: u16,
 	/// The signature of the channel initiator (funder) on the initial commitment transaction
 	pub signature: Signature,
+	/// TODO
+	pub partial_signature_for_remote: Option<SecretKey>,
+	/// TODO
+	pub musig2_nonce: Option<Musig2PublicNonce>
 }
 
 /// A funding_signed message to be sent or received from a peer
@@ -271,6 +275,10 @@ pub struct FundingSigned {
 	pub channel_id: [u8; 32],
 	/// The signature of the channel acceptor (fundee) on the initial commitment transaction
 	pub signature: Signature,
+	/// TODO
+	pub partial_signature_for_remote: Option<SecretKey>,
+	/// TODO
+	pub musig2_nonce: Option<Musig2PublicNonce>
 }
 
 /// A channel_ready message to be sent or received from a peer
@@ -1319,12 +1327,18 @@ impl_writeable_msg!(FundingCreated, {
 	funding_txid,
 	funding_output_index,
 	signature
-}, {});
+}, {
+	(6, partial_signature_for_remote, option),
+	(8, musig2_nonce, option)
+});
 
 impl_writeable_msg!(FundingSigned, {
 	channel_id,
 	signature
-}, {});
+}, {
+	(6, partial_signature_for_remote, option),
+	(8, musig2_nonce, option)
+});
 
 impl Writeable for Init {
 	fn write<W: Writer>(&self, w: &mut W) -> Result<(), io::Error> {
@@ -1394,7 +1408,7 @@ impl Writeable for OpenChannel {
 		encode_tlv_stream!(w, {
 			(1, self.channel_type, option)
 		});
-		if let Some(ref nonces) = self.musig2_nonces {
+		if let Some(ref nonces) = self.musig2_partial_nonces {
 			encode_tlv_stream!(w, {
 				(2, nonces.local_musig2_pubnonce, required)
 			});
@@ -1462,7 +1476,7 @@ impl Readable for OpenChannel {
 			channel_flags,
 			shutdown_scriptpubkey,
 			channel_type,
-			musig2_nonces
+			musig2_partial_nonces: musig2_nonces
 		})
 	}
 }
@@ -1487,7 +1501,7 @@ impl Writeable for AcceptChannel {
 		encode_tlv_stream!(w, {
 			(1, self.channel_type, option)
 		});
-		if let Some(ref nonces) = self.musig2_nonces {
+		if let Some(ref nonces) = self.musig2_partial_nonces {
 			encode_tlv_stream!(w, {
 				(2, nonces.local_musig2_pubnonce, required)
 			});
@@ -1547,10 +1561,40 @@ impl Readable for AcceptChannel {
 			first_per_commitment_point,
 			shutdown_scriptpubkey,
 			channel_type,
-			musig2_nonces
+			musig2_partial_nonces: musig2_nonces
 		})
 	}
 }
+
+// impl Writeable for FundingCreated {
+// 	/// impl_writeable_msg!(FundingCreated, {
+// 	// 	temporary_channel_id,
+// 	// 	funding_txid,
+// 	// 	funding_output_index,
+// 	// 	signature
+// 	// }, {});
+// 	fn write<W: Writer>(&self, w: &mut W) -> Result<(), io::Error> {
+// 		self.temporary_channel_id.write(w)?;
+// 		self.funding_txid.write(w)?;
+// 		self.funding_output_index.write(w)?;
+// 		self.signature.write(w)?;
+//
+// 		if let Some(ref nonces) = self.musig2_nonces {
+// 			encode_tlv_stream!(w, {
+// 				(0, nonces.local_musig2_pubnonce, required)
+// 			});
+// 		}
+// 		encode_tlv_stream!(w, {
+// 			(1, self.short_channel_id_alias, option)
+// 		});
+// 		if let Some(ref nonces) = self.musig2_nonces {
+// 			encode_tlv_stream!(w, {
+// 				(2, nonces.remote_musig2_pubnonce, required)
+// 			});
+// 		}
+// 		Ok(())
+// 	}
+// }
 
 impl Writeable for ChannelReady {
 
@@ -2569,7 +2613,7 @@ mod tests {
 			channel_flags: if random_bit { 1 << 5 } else { 0 },
 			shutdown_scriptpubkey: if shutdown { OptionalField::Present(Address::p2pkh(&::bitcoin::PublicKey{compressed: true, inner: pubkey_1}, Network::Testnet).script_pubkey()) } else { OptionalField::Absent },
 			channel_type: if incl_chan_type { Some(ChannelTypeFeatures::empty()) } else { None },
-			musig2_nonces: None
+			musig2_partial_nonces: None
 		};
 		let encoded_value = open_channel.encode();
 		let mut target_value = Vec::new();
@@ -2626,7 +2670,7 @@ mod tests {
 			first_per_commitment_point: pubkey_6,
 			shutdown_scriptpubkey: if shutdown { OptionalField::Present(Address::p2pkh(&::bitcoin::PublicKey{compressed: true, inner: pubkey_1}, Network::Testnet).script_pubkey()) } else { OptionalField::Absent },
 			channel_type: None,
-			musig2_nonces: None
+			musig2_partial_nonces: None
 		};
 		let encoded_value = accept_channel.encode();
 		let mut target_value = hex::decode("020202020202020202020202020202020202020202020202020202020202020212345678901234562334032891223698321446687011447600083a840000034d000c89d4c0bcc0bc031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f024d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d076602531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe33703462779ad4aad39514614751a71085f2f10e1c7a593e4e030efb5b8721ce55b0b0362c0a046dacce86ddd0343c6d3c7c79c2208ba0d9c9cf24a6d046d21d21f90f703f006a18d5653c4edf5391ff23a61f03ff83d237e880ee61187fa9f379a028e0a").unwrap();
@@ -2652,6 +2696,8 @@ mod tests {
 			funding_txid: Txid::from_hex("c2d4449afa8d26140898dd54d3390b057ba2a5afcf03ba29d7dc0d8b9ffe966e").unwrap(),
 			funding_output_index: 255,
 			signature: sig_1,
+			musig2_nonce: None,
+			partial_signature_for_remote: None
 		};
 		let encoded_value = funding_created.encode();
 		let target_value = hex::decode("02020202020202020202020202020202020202020202020202020202020202026e96fe9f8b0ddcd729ba03cfafa5a27b050b39d354dd980814268dfa9a44d4c200ffd977cb9b53d93a6ff64bb5f1e158b4094b66e798fb12911168a3ccdf80a83096340a6a95da0ae8d9f776528eecdbb747eb6b545495a4319ed5378e35b21e073a").unwrap();
@@ -2666,6 +2712,8 @@ mod tests {
 		let funding_signed = msgs::FundingSigned {
 			channel_id: [2; 32],
 			signature: sig_1,
+			musig2_nonce: None,
+			partial_signature_for_remote: None
 		};
 		let encoded_value = funding_signed.encode();
 		let target_value = hex::decode("0202020202020202020202020202020202020202020202020202020202020202d977cb9b53d93a6ff64bb5f1e158b4094b66e798fb12911168a3ccdf80a83096340a6a95da0ae8d9f776528eecdbb747eb6b545495a4319ed5378e35b21e073a").unwrap();

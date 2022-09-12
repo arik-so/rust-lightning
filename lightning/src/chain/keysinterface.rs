@@ -46,6 +46,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use io::{self, Error};
 use ln::msgs::{DecodeError, MAX_VALUE_MSAT};
 use util::invoice::construct_invoice_preimage;
+use util::musig2::{Musig2PartialSignature, Musig2PublicNonce, Musig2SecretNonce};
 
 /// Used as initial key material, to be expanded into multiple secret keys (but not to be used
 /// directly). This is used within LDK to encrypt/decrypt inbound payment data.
@@ -265,6 +266,9 @@ pub trait BaseSign {
 	/// forward and it is safe to sign the next counterparty commitment.
 	fn validate_counterparty_revocation(&self, idx: u64, secret: &SecretKey) -> Result<(), ()>;
 
+	// TODO: implement
+	fn musig2_partially_sign_counterparty_taproot_commitment(&self, commitment_tx: &CommitmentTransaction, preimages: Vec<PaymentPreimage>, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[PublicKey], secp_ctx: &Secp256k1<secp256k1::All>) -> Result<Musig2PartialSignature, ()>;
+
 	/// Create a signatures for a holder's commitment transaction and its claiming HTLC transactions.
 	/// This will only ever be called with a non-revoked commitment_tx.  This will be called with the
 	/// latest commitment_tx when we initiate a force-close.
@@ -432,6 +436,13 @@ pub trait KeysInterface {
 	///
 	/// This method must return a different value each time it is called.
 	fn get_secure_random_bytes(&self) -> [u8; 32];
+
+	/// TODO:
+	fn generate_secure_musig2_nonce(&self) -> Musig2SecretNonce {
+		let secret_key_a = SecretKey::from_slice(&self.get_secure_random_bytes()).unwrap();
+		let secret_key_b = SecretKey::from_slice(&self.get_secure_random_bytes()).unwrap();
+		Musig2SecretNonce(secret_key_a, secret_key_b)
+	}
 
 	/// Reads a `Signer` for this `KeysInterface` from the given input stream.
 	/// This is only called during deserialization of other objects which contain
@@ -686,6 +697,20 @@ impl BaseSign for InMemorySigner {
 		}
 
 		Ok((commitment_sig, htlc_sigs))
+	}
+
+	fn musig2_partially_sign_counterparty_taproot_commitment(&self, commitment_tx: &CommitmentTransaction, preimages: Vec<PaymentPreimage>, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[PublicKey], secp_ctx: &Secp256k1<secp256k1::All>) -> Result<Musig2PartialSignature, ()> {
+		let trusted_tx = commitment_tx.trust();
+		let keys = trusted_tx.keys();
+
+		let funding_pubkey = PublicKey::from_secret_key(secp_ctx, &self.funding_key);
+		let channel_funding_redeemscript = make_funding_redeemscript(&funding_pubkey, &self.counterparty_pubkeys().funding_pubkey);
+
+		let built_tx = trusted_tx.built_transaction();
+		let commitment_sig = built_tx.musig2_partially_sign(&self.funding_key, &channel_funding_redeemscript, self.channel_value_satoshis, secret_nonce, aggregate_nonce, sorted_public_keys);
+		let commitment_txid = built_tx.txid;
+		// unimplemented!("InMemorySigner::musig2_partially_sign_counterparty_taproot_commitment")
+		Ok(commitment_sig)
 	}
 
 	fn validate_counterparty_revocation(&self, _idx: u64, _secret: &SecretKey) -> Result<(), ()> {

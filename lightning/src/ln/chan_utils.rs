@@ -10,7 +10,8 @@
 //! Various utilities for building scripts and deriving keys related to channels. These are
 //! largely of interest for those implementing chain::keysinterface::Sign message signing by hand.
 
-use bitcoin::blockdata::script::{Script,Builder};
+use core::borrow::Borrow;
+use bitcoin::blockdata::script::{Script, Builder};
 use bitcoin::blockdata::opcodes;
 use bitcoin::blockdata::transaction::{TxIn,TxOut,OutPoint,Transaction, EcdsaSighashType};
 use bitcoin::util::sighash;
@@ -29,7 +30,7 @@ use bitcoin::hash_types::WPubkeyHash;
 use bitcoin::secp256k1::{SecretKey, PublicKey, Scalar};
 use bitcoin::secp256k1::{Secp256k1, ecdsa::Signature, Message};
 use bitcoin::secp256k1::Error as SecpError;
-use bitcoin::{PackedLockTime, secp256k1, Sequence, Witness};
+use bitcoin::{PackedLockTime, SchnorrSighashType, secp256k1, Sequence, Witness};
 
 use io;
 use prelude::*;
@@ -38,8 +39,10 @@ use ln::chan_utils;
 use util::transaction_utils::sort_outputs;
 use ln::channel::{INITIAL_COMMITMENT_NUMBER, ANCHOR_OUTPUT_VALUE_SATOSHI};
 use core::ops::Deref;
+use bitcoin::psbt::Prevouts;
 use chain;
 use util::crypto::sign;
+use util::musig2::{Musig2PartialSignature, Musig2PublicNonce, Musig2SecretNonce};
 
 pub(crate) const MAX_HTLCS: u16 = 483;
 pub(crate) const OFFERED_HTLC_SCRIPT_WEIGHT: usize = 133;
@@ -655,8 +658,9 @@ pub fn make_funding_redeemscript(broadcaster: &PublicKey, countersignatory: &Pub
 /// Create a Musig2-aggregated Taproot internal key
 pub fn make_taproot_funding_outputscript(broadcaster: &PublicKey, countersignatory: &PublicKey) -> Script {
 	// MuSig2 key aggregation:
-	let public_keys = vec![broadcaster.clone(), countersignatory.clone()];
-	let aggregate_key = musig2::aggregate_keys(public_keys.as_slice());
+	let public_keys = vec![broadcaster, countersignatory];
+	let sorted_keys = musig2::sort_keys(&public_keys);
+	let aggregate_key = musig2::aggregate_keys(sorted_keys.as_slice());
 
 	let secp = Secp256k1::new();
 	Script::new_v1_p2tr(&secp, aggregate_key.0, None)
@@ -1009,6 +1013,16 @@ impl BuiltCommitmentTransaction {
 	pub fn sign<T: secp256k1::Signing>(&self, funding_key: &SecretKey, funding_redeemscript: &Script, channel_value_satoshis: u64, secp_ctx: &Secp256k1<T>) -> Signature {
 		let sighash = self.get_sighash_all(funding_redeemscript, channel_value_satoshis);
 		sign(secp_ctx, &sighash, funding_key)
+	}
+
+	pub fn musig2_partially_sign<K: Borrow<PublicKey>>(&self, funding_key: &SecretKey, funding_redeemscript: &Script, channel_value_satoshis: u64, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[K]) -> Musig2PartialSignature {
+		let previous_output_as_tx_out = TxOut {
+			value: channel_value_satoshis,
+			script_pubkey: funding_redeemscript.clone(),
+		};
+		let prevouts = vec![previous_output_as_tx_out];
+		let message = sighash::SighashCache::new(&self.transaction).taproot_key_spend_signature_hash(0, &Prevouts::All(&prevouts), SchnorrSighashType::Default).unwrap();
+		musig2::sign(funding_key, secret_nonce, aggregate_nonce, sorted_public_keys, &message[..])
 	}
 }
 

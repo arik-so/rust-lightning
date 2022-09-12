@@ -21,6 +21,7 @@ pub struct Musig2PublicNonce(pub(crate) PublicKey, pub(crate) PublicKey);
 pub struct Musig2SecretNonce(pub(crate) SecretKey, pub(crate) SecretKey);
 
 pub(crate) type Musig2AggregateKey = (XOnlyPublicKey, Parity);
+pub type Musig2PartialSignature = SecretKey;
 
 impl Musig2SecretNonce {
 	pub(crate) fn to_public(&self) -> Musig2PublicNonce {
@@ -96,8 +97,9 @@ pub(crate) fn calculate_final_nonce(aggregate_nonce: &Musig2PublicNonce, aggrega
 	public_nonce
 }
 
-pub(crate) fn sign<K: Borrow<PublicKey>>(secret_key: SecretKey, secret_nonce: &Musig2SecretNonce, aggregate_public_key: &Musig2AggregateKey, aggregate_nonce: &Musig2PublicNonce, sorted_keys: &[K], message: &[u8]) -> SecretKey {
-	let public_nonce = calculate_final_nonce(aggregate_nonce, aggregate_public_key, message);
+pub(crate) fn sign<K: Borrow<PublicKey>>(secret_key: &SecretKey, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_keys: &[K], message: &[u8]) -> Musig2PartialSignature {
+	let aggregate_public_key = self::aggregate_keys(sorted_keys);
+	let public_nonce = calculate_final_nonce(aggregate_nonce, &aggregate_public_key, message);
 
 	let final_secret_nonce = if has_even_y(&public_nonce) {
 		secret_nonce.clone()
@@ -107,7 +109,7 @@ pub(crate) fn sign<K: Borrow<PublicKey>>(secret_key: SecretKey, secret_nonce: &M
 
 	// determine whether the aggregate public key has an even y coordinate
 	let final_secret_key = if let Parity::Even = aggregate_public_key.1 {
-		secret_key
+		secret_key.clone()
 	} else {
 		secret_key.negate()
 	};

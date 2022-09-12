@@ -4427,7 +4427,7 @@ impl<Signer: Sign, M: Deref, T: Deref, K: Deref, F: Deref, L: Deref> ChannelMana
 
 				channel_state.pending_msg_events.push(events::MessageSendEvent::SendAcceptChannel {
 					node_id: channel.get().get_counterparty_node_id(),
-					msg: channel.get_mut().accept_inbound_channel(user_channel_id),
+					msg: channel.get_mut().accept_inbound_channel(&self.keys_manager, user_channel_id),
 				});
 			}
 			hash_map::Entry::Vacant(_) => {
@@ -4469,9 +4469,10 @@ impl<Signer: Sign, M: Deref, T: Deref, K: Deref, F: Deref, L: Deref> ChannelMana
 					if channel.get_channel_type().requires_zero_conf() {
 						return Err(MsgHandleErrInternal::send_err_msg_no_close("No zero confirmation channels accepted".to_owned(), msg.temporary_channel_id.clone()));
 					}
+					let accept_channel_message = channel.accept_inbound_channel(&self.keys_manager, 0);
 					channel_state.pending_msg_events.push(events::MessageSendEvent::SendAcceptChannel {
 						node_id: counterparty_node_id.clone(),
-						msg: channel.accept_inbound_channel(0),
+						msg: accept_channel_message,
 					});
 				} else {
 					let mut pending_events = self.pending_events.lock().unwrap();

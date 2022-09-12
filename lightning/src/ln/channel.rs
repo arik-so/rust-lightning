@@ -25,7 +25,7 @@ use bitcoin::secp256k1;
 use ln::{PaymentPreimage, PaymentHash};
 use ln::features::{ChannelTypeFeatures, InitFeatures};
 use ln::msgs;
-use ln::msgs::{DecodeError, OptionalField, DataLossProtect, Musig2SecretNonces};
+use ln::msgs::{DecodeError, OptionalField, DataLossProtect, Musig2SecretNonces, Musig2PublicNonces};
 use ln::script::{self, ShutdownScript};
 use ln::channelmanager::{self, CounterpartyForwardingInfo, PendingHTLCStatus, HTLCSource, HTLCFailReason, HTLCFailureMsg, PendingHTLCInfo, RAACommitmentOrder, BREAKDOWN_TIMEOUT, MIN_CLTV_EXPIRY_DELTA, MAX_LOCAL_BREAKDOWN_TIMEOUT};
 use ln::chan_utils::{CounterpartyCommitmentSecrets, TxCreationKeys, HTLCOutputInCommitment, htlc_success_tx_weight, htlc_timeout_tx_weight, make_funding_redeemscript, ChannelPublicKeys, CommitmentTransaction, HolderCommitmentTransaction, ChannelTransactionParameters, CounterpartyChannelTransactionParameters, MAX_HTLCS, get_commitment_transaction_number_obscure_factor, ClosingTransaction, make_taproot_funding_outputscript};
@@ -49,7 +49,7 @@ use core::ops::Deref;
 #[cfg(any(test, fuzzing, debug_assertions))]
 use sync::Mutex;
 use bitcoin::hashes::hex::ToHex;
-use util::musig2::Musig2SecretNonce;
+use util::musig2;
 
 #[cfg(test)]
 pub struct ChannelValueStat {
@@ -738,11 +738,9 @@ pub(super) struct Channel<Signer: Sign> {
 	// blinded paths instead of simple scid+node_id aliases.
 	outbound_scid_alias: u64,
 
-	/// Indicates whether a channel should use Taproot-style funding and commitment transactions
-	is_simple_taproot: bool,
-
 	// TODO: determine whether storing nonces here is wise
-	musig2_nonces: Option<Musig2SecretNonces>
+	our_musig2_partial_nonces: Option<Musig2SecretNonces>,
+	their_musig2_partial_nonces: Option<Musig2PublicNonces>,
 }
 
 #[cfg(any(test, fuzzing))]
@@ -887,6 +885,11 @@ impl<Signer: Sign> Channel<Signer> {
 		if !config.channel_handshake_config.announced_channel && config.channel_handshake_config.negotiate_scid_privacy {
 			ret.set_scid_privacy_required();
 		}
+
+		if config.channel_handshake_config.negotiate_simple_taproot {
+			ret.set_simple_taproot_required()
+		}
+
 		ret
 	}
 
@@ -961,15 +964,9 @@ impl<Signer: Sign> Channel<Signer> {
 
 		let is_simple_taproot = their_features.supports_simple_taproot();
 		let musig2_nonces = if is_simple_taproot {
-			let sk_1 = SecretKey::from_slice(&keys_provider.get_secure_random_bytes()).unwrap();
-			let sk_2 = SecretKey::from_slice(&keys_provider.get_secure_random_bytes()).unwrap();
-			let sk_3 = SecretKey::from_slice(&keys_provider.get_secure_random_bytes()).unwrap();
-			let sk_4 = SecretKey::from_slice(&keys_provider.get_secure_random_bytes()).unwrap();
-			let local_musig2_nonce = Musig2SecretNonce(sk_1, sk_2);
-			let remote_musig2_nonce = Musig2SecretNonce(sk_3, sk_4);
 			Some(Musig2SecretNonces {
-				local_musig2_nonce,
-				remote_musig2_nonce
+				local_musig2_nonce: keys_provider.generate_secure_musig2_nonce(),
+				remote_musig2_nonce: keys_provider.generate_secure_musig2_nonce()
 			})
 		} else {
 			None
@@ -1091,8 +1088,8 @@ impl<Signer: Sign> Channel<Signer> {
 
 			channel_type: Self::get_initial_channel_type(&config),
 
-			is_simple_taproot,
-			musig2_nonces
+			our_musig2_partial_nonces: musig2_nonces,
+			their_musig2_partial_nonces: None
 		})
 	}
 
@@ -1150,7 +1147,7 @@ impl<Signer: Sign> Channel<Signer> {
 			// `static_remote_key | scid_privacy | zero_conf`, if the channel is not
 			// publicly announced.
 			if *channel_type != ChannelTypeFeatures::only_static_remote_key() {
-				if !channel_type.requires_scid_privacy() && !channel_type.requires_zero_conf() {
+				if !channel_type.requires_scid_privacy() && !channel_type.requires_zero_conf() && !channel_type.requires_simple_taproot() {
 					return Err(ChannelError::Close("Channel Type was not understood".to_owned()));
 				}
 
@@ -1165,6 +1162,8 @@ impl<Signer: Sign> Channel<Signer> {
 		if !channel_type.supports_static_remote_key() {
 			return Err(ChannelError::Close("Channel Type was not understood - we require static remote key".to_owned()));
 		}
+
+		let is_simple_taproot = channel_type.supports_simple_taproot();
 
 		let holder_signer = keys_provider.get_channel_signer(true, msg.funding_satoshis);
 		let pubkeys = holder_signer.pubkeys().clone();
@@ -1306,12 +1305,10 @@ impl<Signer: Sign> Channel<Signer> {
 			}
 		}
 
-		let mut is_simple_taproot = false;
-		if their_features.supports_simple_taproot() {
-			if msg.musig2_nonces.is_none() {
-				return Err(ChannelError::Close("Peer is signaling simple_taproot support without providing values for local_musig2_pubnonce and remote_musig2_pubnonce".to_string()))
-			}
-			is_simple_taproot = true;
+		if is_simple_taproot && msg.musig2_partial_nonces.is_none() {
+			return Err(ChannelError::Close("Peer is signaling simple_taproot support without providing values for local_musig2_pubnonce and remote_musig2_pubnonce".to_string()))
+		} else if !is_simple_taproot && msg.musig2_partial_nonces.is_some() {
+			return Err(ChannelError::Close("Peer is providing values for local_musig2_pubnonce and remote_musig2_pubnonce without signaling simple_taproot support".to_string()))
 		}
 
 		let mut secp_ctx = Secp256k1::new();
@@ -1436,8 +1433,8 @@ impl<Signer: Sign> Channel<Signer> {
 
 			channel_type,
 
-			is_simple_taproot,
-			musig2_nonces: None
+			our_musig2_partial_nonces: None,
+			their_musig2_partial_nonces: None,
 		};
 
 		Ok(chan)
@@ -1793,6 +1790,12 @@ impl<Signer: Sign> Channel<Signer> {
 		Ok(secp_check!(TxCreationKeys::derive_new(&self.secp_ctx, &self.counterparty_cur_commitment_point.unwrap(), &counterparty_pubkeys.delayed_payment_basepoint, &counterparty_pubkeys.htlc_basepoint, revocation_basepoint, htlc_basepoint), "Remote tx keys generation got bogus keys".to_owned()))
 	}
 
+	fn supports_taproot(&self) -> bool {
+		// TODO: determine whether taproot support is indicative of the channel actually
+		// *being* a taproot channel
+		self.channel_type.supports_simple_taproot()
+	}
+
 	/// Gets the redeemscript for the funding transaction output (ie the funding transaction output
 	/// pays to get_funding_redeemscript().to_v0_p2wsh()).
 	/// Panics if called before accept_channel/new_from_req
@@ -1801,10 +1804,15 @@ impl<Signer: Sign> Channel<Signer> {
 	}
 
 	pub fn get_funding_outputscript(&self) -> Script {
-		if self.is_simple_taproot {
+		if self.supports_taproot() {
 			return make_taproot_funding_outputscript(&self.get_holder_pubkeys().funding_pubkey, self.counterparty_funding_pubkey());
 		}
 		self.get_funding_redeemscript().to_v0_p2wsh()
+	}
+
+	pub(crate) fn get_taproot_keys(&self) -> Vec<PublicKey> {
+		let keys = vec![&self.get_holder_pubkeys().funding_pubkey, self.counterparty_funding_pubkey()];
+		musig2::sort_keys(keys.as_slice())
 	}
 
 	/// Claims an HTLC while we're disconnected from a peer, dropping the [`ChannelMonitorUpdate`]
@@ -2128,6 +2136,8 @@ impl<Signer: Sign> Channel<Signer> {
 			self.channel_type = ChannelTypeFeatures::from_counterparty_init(&their_features)
 		}
 
+		let is_simple_taproot = self.channel_type.supports_simple_taproot();
+
 		let counterparty_shutdown_scriptpubkey = if their_features.supports_upfront_shutdown_script() {
 			match &msg.shutdown_scriptpubkey {
 				&OptionalField::Present(ref script) => {
@@ -2147,6 +2157,16 @@ impl<Signer: Sign> Channel<Signer> {
 				}
 			}
 		} else { None };
+
+		if is_simple_taproot {
+			if is_simple_taproot && msg.musig2_partial_nonces.is_none() {
+				return Err(ChannelError::Close("Peer is signaling simple_taproot support without providing values for local_musig2_pubnonce and remote_musig2_pubnonce".to_string()))
+			} else if !is_simple_taproot && msg.musig2_partial_nonces.is_some() {
+				return Err(ChannelError::Close("Peer is providing values for local_musig2_pubnonce and remote_musig2_pubnonce without signaling simple_taproot support".to_string()))
+			}
+
+			self.their_musig2_partial_nonces = msg.musig2_partial_nonces.clone();
+		}
 
 		self.counterparty_dust_limit_satoshis = msg.dust_limit_satoshis;
 		self.counterparty_max_htlc_value_in_flight_msat = cmp::min(msg.max_htlc_value_in_flight_msat, self.channel_value_satoshis * 1000);
@@ -2292,7 +2312,9 @@ impl<Signer: Sign> Channel<Signer> {
 
 		Ok((msgs::FundingSigned {
 			channel_id: self.channel_id,
-			signature
+			signature,
+			musig2_nonce: None,
+			partial_signature_for_remote: None
 		}, channel_monitor, self.check_get_channel_ready(0)))
 	}
 
@@ -5128,8 +5150,8 @@ impl<Signer: Sign> Channel<Signer> {
 		let first_per_commitment_point = self.holder_signer.get_per_commitment_point(self.cur_holder_commitment_transaction_number, &self.secp_ctx);
 		let keys = self.get_holder_pubkeys();
 
-		let musig2_nonces = if self.is_simple_taproot {
-			self.musig2_nonces.as_ref().map(|nonce| {
+		let musig2_nonces = if self.supports_taproot() {
+			self.our_musig2_partial_nonces.as_ref().map(|nonce| {
 				nonce.to_public()
 			})
 		} else {
@@ -5160,7 +5182,7 @@ impl<Signer: Sign> Channel<Signer> {
 				None => Builder::new().into_script(),
 			}),
 			channel_type: Some(self.channel_type.clone()),
-			musig2_nonces
+			musig2_partial_nonces: musig2_nonces
 		}
 	}
 
@@ -5178,7 +5200,8 @@ impl<Signer: Sign> Channel<Signer> {
 	/// should be sent back to the counterparty node.
 	///
 	/// [`msgs::AcceptChannel`]: crate::ln::msgs::AcceptChannel
-	pub fn accept_inbound_channel(&mut self, user_id: u64) -> msgs::AcceptChannel {
+	pub fn accept_inbound_channel<K: Deref>(&mut self, keys_manager: &K, user_id: u64) -> msgs::AcceptChannel
+		where K::Target: KeysInterface<Signer = Signer> {
 		if self.is_outbound() {
 			panic!("Tried to send accept_channel for an outbound channel?");
 		}
@@ -5195,6 +5218,12 @@ impl<Signer: Sign> Channel<Signer> {
 		self.user_id = user_id;
 		self.inbound_awaiting_accept = false;
 
+		let secret_nonces = Musig2SecretNonces {
+			local_musig2_nonce: keys_manager.generate_secure_musig2_nonce(),
+			remote_musig2_nonce: keys_manager.generate_secure_musig2_nonce()
+		};
+		self.our_musig2_partial_nonces = Some(secret_nonces);
+
 		self.generate_accept_channel_message()
 	}
 
@@ -5207,9 +5236,9 @@ impl<Signer: Sign> Channel<Signer> {
 		let first_per_commitment_point = self.holder_signer.get_per_commitment_point(self.cur_holder_commitment_transaction_number, &self.secp_ctx);
 		let keys = self.get_holder_pubkeys();
 
-		let musig2_nonces = if self.is_simple_taproot {
+		let musig2_nonces = if self.supports_taproot() {
 			// TODO: access entropy source to generate musig2 nonces
-			None
+			self.our_musig2_partial_nonces.as_ref().map(|n| {n.to_public()})
 		} else {
 			None
 		};
@@ -5234,7 +5263,7 @@ impl<Signer: Sign> Channel<Signer> {
 				None => Builder::new().into_script(),
 			}),
 			channel_type: Some(self.channel_type.clone()),
-			musig2_nonces: None
+			musig2_partial_nonces: musig2_nonces
 		}
 	}
 
@@ -5278,13 +5307,37 @@ impl<Signer: Sign> Channel<Signer> {
 		self.channel_transaction_parameters.funding_outpoint = Some(funding_txo);
 		self.holder_signer.ready_channel(&self.channel_transaction_parameters);
 
-		let signature = match self.get_outbound_funding_created_signature(logger) {
-			Ok(res) => res,
-			Err(e) => {
-				log_error!(logger, "Got bad signatures: {:?}!", e);
-				self.channel_transaction_parameters.funding_outpoint = None;
-				return Err(e);
+		let (signature, musig2_nonce, partial_signature_for_remote) = if !self.supports_taproot() {
+			match self.get_outbound_funding_created_signature(logger) {
+				Ok(res) => (res, None, None),
+				Err(e) => {
+					log_error!(logger, "Got bad signatures: {:?}!", e);
+					self.channel_transaction_parameters.funding_outpoint = None;
+					return Err(e);
+				}
 			}
+		} else {
+			let their_nonces = self.their_musig2_partial_nonces.as_ref().unwrap();
+			let my_secret_nonces = self.our_musig2_partial_nonces.as_ref().unwrap();
+			let my_public_nonces = my_secret_nonces.to_public();
+			let musig2_aggregate_nonces = Musig2PublicNonces {
+				local_musig2_pubnonce: musig2::aggregate_nonces(&[&my_public_nonces.local_musig2_pubnonce, &their_nonces.remote_musig2_pubnonce]),
+				remote_musig2_pubnonce: musig2::aggregate_nonces(&[&my_public_nonces.remote_musig2_pubnonce, &their_nonces.local_musig2_pubnonce])
+			};
+			let legacy_signature = Signature::from_compact(&[0; 64]).unwrap();
+
+			// TODO: fix signature generation and tx construction
+			let counterparty_keys = self.build_remote_transaction_keys()?;
+			let counterparty_initial_commitment_tx = self.build_commitment_transaction(self.cur_counterparty_commitment_transaction_number, &counterparty_keys, false, false, logger).tx;
+			let sorted_keys = self.get_taproot_keys();
+			let signature = self.holder_signer.musig2_partially_sign_counterparty_taproot_commitment(&counterparty_initial_commitment_tx, Vec::new(), &my_secret_nonces.local_musig2_nonce, &musig2_aggregate_nonces.local_musig2_pubnonce, sorted_keys.as_slice(), &self.secp_ctx).unwrap();
+
+			// Ok(self.holder_signer.sign_counterparty_commitment(&counterparty_initial_commitment_tx, Vec::new(), &self.secp_ctx)
+			// 	.map_err(|_| ChannelError::Close("Failed to get signatures for new commitment_signed".to_owned()))?.0);
+
+			// implement signing flow on holder signer
+			// let partial_signature = musig2::sign(self.holder_signer.)
+			(legacy_signature, Some(musig2_aggregate_nonces.local_musig2_pubnonce), Some(signature))
 		};
 
 		let temporary_channel_id = self.channel_id;
@@ -5299,7 +5352,9 @@ impl<Signer: Sign> Channel<Signer> {
 			temporary_channel_id,
 			funding_txid: funding_txo.txid,
 			funding_output_index: funding_txo.index,
-			signature
+			signature,
+			musig2_nonce,
+			partial_signature_for_remote
 		})
 	}
 
@@ -6704,8 +6759,8 @@ impl<'a, Signer: Sign, K: Deref> ReadableArgs<(&'a K, u32)> for Channel<Signer>
 			channel_type: channel_type.unwrap(),
 
 			// TODO: find adequate backwards-compatible serialization approach
-			is_simple_taproot: false,
-			musig2_nonces: None
+			our_musig2_partial_nonces: None,
+			their_musig2_partial_nonces: None,
 		})
 	}
 }
@@ -6884,7 +6939,7 @@ mod tests {
 		let mut node_b_chan = Channel::<EnforcingSigner>::new_from_req(&feeest, &&keys_provider, node_b_node_id, &channelmanager::provided_init_features(), &open_channel_msg, 7, &config, 0, &&logger, 42).unwrap();
 
 		// Node B --> Node A: accept channel, explicitly setting B's dust limit.
-		let mut accept_channel_msg = node_b_chan.accept_inbound_channel(0);
+		let mut accept_channel_msg = node_b_chan.accept_inbound_channel(&&keys_provider, 0);
 		accept_channel_msg.dust_limit_satoshis = 546;
 		node_a_chan.accept_channel(&accept_channel_msg, &config.channel_handshake_limits, &channelmanager::provided_init_features()).unwrap();
 		node_a_chan.holder_dust_limit_satoshis = 1560;

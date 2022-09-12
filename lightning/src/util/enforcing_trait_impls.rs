@@ -24,6 +24,7 @@ use bitcoin::secp256k1::{SecretKey, PublicKey};
 use bitcoin::secp256k1::{Secp256k1, ecdsa::Signature};
 use util::ser::{Writeable, Writer};
 use io::Error;
+use util::musig2::{Musig2PartialSignature, Musig2PublicNonce, Musig2SecretNonce};
 
 /// Initial value for revoked commitment downward counter
 pub const INITIAL_REVOKED_COMMITMENT_NUMBER: u64 = 1 << 48;
@@ -130,6 +131,12 @@ impl BaseSign for EnforcingSigner {
 		}
 
 		Ok(self.inner.sign_counterparty_commitment(commitment_tx, preimages, secp_ctx).unwrap())
+	}
+
+	fn musig2_partially_sign_counterparty_taproot_commitment(&self, commitment_tx: &CommitmentTransaction, preimages: Vec<PaymentPreimage>, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[PublicKey], secp_ctx: &Secp256k1<secp256k1::All>)  -> Result<Musig2PartialSignature, ()> {
+		// unimplemented!("EnforcingSigner::musig2_partially_sign_counterparty_taproot_commitment");
+		// TODO: implement
+		self.inner.musig2_partially_sign_counterparty_taproot_commitment(commitment_tx, preimages, secret_nonce, aggregate_nonce, sorted_public_keys, secp_ctx)
 	}
 
 	fn validate_counterparty_revocation(&self, idx: u64, _secret: &SecretKey) -> Result<(), ()> {
