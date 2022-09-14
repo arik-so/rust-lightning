@@ -71,7 +71,6 @@ fn fake_aggregate<K: Borrow<PublicKey>>(array: &[K]) {
 }
 
 pub(crate) fn aggregate_nonces<N: Borrow<Musig2PublicNonce>>(nonces: &[N]) -> Musig2PublicNonce {
-
 	let mut first_nonce_summands = Vec::with_capacity(nonces.len());
 	let mut second_nonce_summands = Vec::with_capacity(nonces.len());
 
@@ -88,20 +87,20 @@ pub(crate) fn aggregate_nonces<N: Borrow<Musig2PublicNonce>>(nonces: &[N]) -> Mu
 	Musig2PublicNonce(first_nonce, second_nonce)
 }
 
-pub(crate) fn calculate_final_nonce(aggregate_nonce: &Musig2PublicNonce, aggregate_public_key: &Musig2AggregateKey, message: &[u8]) -> PublicKey {
+pub(crate) fn calculate_final_nonce(aggregate_nonce: &Musig2PublicNonce, aggregate_public_key: &Musig2AggregateKey, message: &[u8]) -> (PublicKey, Scalar) {
 	let secp = Secp256k1::new();
 
 	let nonce_coefficient = nonce_linear_combination_coefficient(&aggregate_public_key.0, &aggregate_nonce, message);
 	let nonce_summand = aggregate_nonce.1.mul_tweak(&secp, &nonce_coefficient).unwrap();
 	let public_nonce = PublicKey::combine_keys(vec![&aggregate_nonce.0, &nonce_summand].as_slice()).unwrap();
-	public_nonce
+	(public_nonce, nonce_coefficient)
 }
 
 pub(crate) fn sign<K: Borrow<PublicKey>>(secret_key: &SecretKey, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_keys: &[K], message: &[u8]) -> Musig2PartialSignature {
 	let aggregate_public_key = self::aggregate_keys(sorted_keys);
-	let public_nonce = calculate_final_nonce(aggregate_nonce, &aggregate_public_key, message);
+	let (effective_nonce, nonce_coefficient) = calculate_final_nonce(aggregate_nonce, &aggregate_public_key, message);
 
-	let final_secret_nonce = if has_even_y(&public_nonce) {
+	let final_secret_nonce = if has_even_y(&effective_nonce) {
 		secret_nonce.clone()
 	} else {
 		secret_nonce.negate()
@@ -114,17 +113,13 @@ pub(crate) fn sign<K: Borrow<PublicKey>>(secret_key: &SecretKey, secret_nonce: &
 		secret_key.negate()
 	};
 
-	// m = hash_BIP0340/challenge(public_nonce || aggregate_key || message)
-	let mut sha_engine = tagged_sha_engine("BIP0340/challenge");
-	sha_engine.input(&public_nonce.x_only_public_key().0.serialize());
-	sha_engine.input(&aggregate_public_key.0.serialize());
-	sha_engine.input(message);
-	let output_hash = Sha256::from_engine(sha_engine).into_inner();
-	let m = Scalar::from_be_bytes(output_hash)
-		.expect("SHA256 appears to be broken due to the heat death of the universe. If the user has a cat, please make sure to kill it.");
+	let m = tagged_hash_scalar("BIP0340/challenge", &[
+		&effective_nonce.x_only_public_key().0.serialize(),
+		&aggregate_public_key.0.serialize(),
+		message
+	]);
 
 	let secp = Secp256k1::new();
-	let nonce_coefficient = nonce_linear_combination_coefficient(&aggregate_public_key.0, &aggregate_nonce, message);
 
 	let a = key_aggregation_coefficient_internal(&sorted_keys, &secret_key.public_key(&secp));
 	// m*a*d
@@ -147,9 +142,64 @@ pub(crate) fn aggregate_partial_signatures<K: Borrow<SecretKey>>(partial_signatu
 	serialized_signature
 }
 
-fn verify_partial_signature_internal(partial_signature: &SecretKey, public_nonce: &PublicKey, partial_public_key: &PublicKey, aggregate_public_key: &Musig2AggregateKey, ) {
-	unimplemented!()
-	// let a = key_aggregation_coefficient_internal(&sorted_keys, &secret_key.public_key(&secp));
+fn verify_partial_signature_internal<K: Borrow<PublicKey>>(partial_signature: &SecretKey, partial_public_nonce: &Musig2PublicNonce, aggregate_public_nonce: &Musig2PublicNonce, partial_public_key: &PublicKey, sorted_keys: &[K], message: &[u8]) -> bool {
+	let secp = Secp256k1::new();
+
+	let aggregate_public_key = aggregate_keys(sorted_keys);
+
+	let (effective_nonce, nonce_coefficient) = calculate_final_nonce(aggregate_public_nonce, &aggregate_public_key, message);
+	let partial_nonce_summand = partial_public_nonce.1.mul_tweak(&secp, &nonce_coefficient).unwrap();
+	let mut effective_partial_nonce = PublicKey::combine_keys(&[&partial_public_nonce.0, &partial_nonce_summand]).unwrap();
+	if !has_even_y(&effective_nonce){
+		effective_partial_nonce = effective_partial_nonce.negate(&secp);
+	}
+
+	let m = tagged_hash_scalar("BIP0340/challenge", &[
+		&effective_nonce.x_only_public_key().0.serialize(),
+		&aggregate_public_key.0.serialize(),
+		message
+	]);
+
+	// determine whether the aggregate public key has an even y coordinate
+	let mut final_public_key = if let Parity::Even = aggregate_public_key.1 {
+		partial_public_key.clone()
+	} else {
+		partial_public_key.negate(&secp)
+	};
+
+	let mut a = key_aggregation_coefficient_internal(&sorted_keys, partial_public_key);
+	let summand = final_public_key.mul_tweak(&secp, &a).unwrap().mul_tweak(&secp, &m).unwrap();
+	let equality_check = PublicKey::combine_keys(&[&summand, &effective_partial_nonce]).unwrap();
+
+	let partial_signature_point = partial_signature.public_key(&secp);
+
+	equality_check.serialize() == partial_signature_point.serialize()
+}
+
+fn verify_schnorr_signature(signature: &[u8], public_key: &PublicKey, message: &[u8]) -> bool {
+	assert_eq!(signature.len(), 64);
+
+	let nonce_x = &signature[..32];
+	let s = &signature[32..];
+
+	let nonce = XOnlyPublicKey::from_slice(nonce_x).unwrap();
+	let nonce = PublicKey::from_x_only_public_key(nonce, Parity::Even);
+
+	let secp = Secp256k1::new();
+	let s = SecretKey::from_slice(s).unwrap();
+	let signature_point = s.public_key(&secp);
+	assert!(has_even_y(&signature_point));
+
+	let m = tagged_hash_scalar("BIP0340/challenge", &[
+		&nonce.x_only_public_key().0.serialize(),
+		&public_key.x_only_public_key().0.serialize(),
+		message
+	]);
+
+	let summand = public_key.mul_tweak(&secp, &m).unwrap();
+	let equality_check = PublicKey::combine_keys(&[&summand, &nonce]).unwrap();
+
+	equality_check.serialize() == signature_point.serialize()
 }
 
 fn has_even_y(public_key: &PublicKey) -> bool {
@@ -228,8 +278,8 @@ fn tagged_hash_scalar(tag: &str, inputs: &[&[u8]]) -> Scalar {
 #[cfg(test)]
 mod tests {
 	use std::io::Cursor;
-	use bitcoin::secp256k1::{PublicKey, SecretKey};
-	use util::musig2::{aggregate_keys, aggregate_nonces, aggregate_partial_signatures, calculate_final_nonce, fake_aggregate, key_aggregation_coefficient_internal, Musig2PublicNonce, sort_keys};
+	use bitcoin::secp256k1::{Parity, PublicKey, Secp256k1, SecretKey};
+	use util::musig2::{aggregate_keys, aggregate_nonces, aggregate_partial_signatures, calculate_final_nonce, fake_aggregate, key_aggregation_coefficient_internal, Musig2PublicNonce, Musig2SecretNonce, sign, sort_keys, verify_partial_signature_internal, verify_schnorr_signature};
 	use util::ser::{Readable, Writeable};
 
 	#[test]
@@ -406,11 +456,118 @@ mod tests {
 		let aggregate_public_key = aggregate_keys(public_keys.as_slice());
 		println!("aggregate pubkey (Q): {}", hex::encode(aggregate_public_key.0.serialize()));
 
-		let final_nonce = calculate_final_nonce(&aggregate_nonce, &aggregate_public_key, &message);
+		let (final_nonce, _) = calculate_final_nonce(&aggregate_nonce, &aggregate_public_key, &message);
 		println!("final nonce (R): {}", hex::encode(final_nonce.serialize()));
 
 		let signature = aggregate_partial_signatures(partial_signatures.as_slice(), &final_nonce);
 		let signature_hex = hex::encode(signature);
 		assert_eq!(signature_hex, "ca3c28729659e50f829f55dc5db1de88a05d1702b4165b85f95b627fc57733f8d2a89622bdc6ceca7ce3c2704b2b6f433658f66ddb0a788ded3b361248d3eb3e")
+	}
+
+	#[test]
+	fn test_signature_verification() {
+		let secp = Secp256k1::new();
+
+		let secret_keys = vec![
+			SecretKey::from_slice(&hex::decode("d2dc6f5df7c56acf38c7fa0ae7a759ae30e19b37359dfde015872324c7ef6e05").unwrap()).unwrap(),
+			SecretKey::from_slice(&hex::decode("935f972da013f80ae011890fa89b67a27b7be6ccb24d3274d18b2d4067f261a9").unwrap()).unwrap(),
+		];
+
+		let public_keys = vec![
+			PublicKey::from_secret_key(&secp, &secret_keys[0]),
+			PublicKey::from_secret_key(&secp, &secret_keys[1]),
+		];
+
+		let sorted_public_keys = sort_keys(public_keys.as_slice());
+		// let sorted_public_keys = public_keys.clone();
+
+
+		let secret_nonce_hexes = vec![
+			vec!["00a32f8548f59c533f55db9754e3c0ba3c2544f085649fdce42b8bd3f244c2ca", "0384449bed61004e8863452a38534e91875516c3cc543122ce2be1f318450255"],
+			vec!["f66b072a869bc2a57d776d487151d707e82b4f1b885066a589858c1bf3871db6", "03ed391c9658ab6031a96acbd5e2d9fec465efdc8c0d0b765c9b9f3579d520fb"],
+		];
+		let mut secret_nonces = Vec::with_capacity(secret_nonce_hexes.len());
+		for current_nonce_hex in secret_nonce_hexes {
+			let nonce_a = SecretKey::from_slice(&hex::decode(current_nonce_hex[0]).unwrap()).unwrap();
+			let nonce_b = SecretKey::from_slice(&hex::decode(current_nonce_hex[0]).unwrap()).unwrap();
+			secret_nonces.push(Musig2SecretNonce(nonce_a, nonce_b));
+		}
+
+		let public_nonces = vec![
+			secret_nonces[0].to_public(),
+			secret_nonces[1].to_public()
+		];
+
+		let aggregate_nonce = aggregate_nonces(public_nonces.as_slice());
+		let aggregate_pubkey = aggregate_keys(sorted_public_keys.as_slice());
+		let message = hex::decode("599c67ea410d005b9da90817cf03ed3b1c868e4da4edf00a5880b0082c237869").unwrap();
+		let (effective_nonce, _) = calculate_final_nonce(&aggregate_nonce, &aggregate_pubkey, &message);
+
+		let partial_signature_a = sign(&secret_keys[0], &secret_nonces[0], &aggregate_nonce, &sorted_public_keys, &message);
+		let partial_signature_b = sign(&secret_keys[1], &secret_nonces[1], &aggregate_nonce, &sorted_public_keys, &message);
+
+		let is_signature_a_valid = verify_partial_signature_internal(&partial_signature_a, &public_nonces[0], &aggregate_nonce, &public_keys[0], &sorted_public_keys, &message);
+		let is_signature_b_valid = verify_partial_signature_internal(&partial_signature_b, &public_nonces[1], &aggregate_nonce, &public_keys[1], &sorted_public_keys, &message);
+
+		assert!(is_signature_a_valid);
+		assert!(is_signature_b_valid);
+
+		let schnorr_signature = aggregate_partial_signatures(&[partial_signature_a, partial_signature_b], &effective_nonce);
+		let is_schnorr_signature_valid = verify_schnorr_signature(&schnorr_signature, &PublicKey::from_x_only_public_key(aggregate_pubkey.0, Parity::Even), &message);
+		assert!(is_schnorr_signature_valid)
+	}
+
+	#[test]
+	fn test_signature_verification_against_vectors() {
+		let secp = Secp256k1::new();
+
+		let secret_key_hex = "7fb9e0e687ada1eebf7ecfe2f21e73ebdb51a7d450948dfe8d76d7f2d1007671";
+		let pubkey_hexes = vec![
+			"03935f972da013f80ae011890fa89b67a27b7be6ccb24d3274d18b2d4067f261a9",
+			"02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+			"02dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba661"
+		];
+
+		let secret_nonce_hex = "508b81a611f100a6b2b6b29656590898af488bcf2e1f55cf22e5cfb84421fe61fa27fd49b1d50085b481285e1ca205d55c82cc1b31ff5cd54a489829355901f7";
+		let public_nonce_hexes = vec![
+			"0337c87821afd50a8644d820a8f3e02e499c931865c2360fb43d0a0d20dafe07ea0287bf891d2a6deaebadc909352aa9405d1428c15f4b75f04dae642a95c2548480",
+			"0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+			"032de2662628c90b03f5e720284eb52ff7d71f4284f627b68a853d78c78e1ffe9303e4c5524e83ffe1493b9077cf1ca6beb2090c93d930321071ad40b2f44e599046"
+		];
+		let aggregate_nonce_hex = "028465FCF0BBDBCF443AABCCE533D42B4B5A10966AC09A49655E8C42DAAB8FCD61037496A3CC86926D452CAFCFD55D25972CA1675D549310DE296BFF42F72EEEA8C9";
+		let message_hex = "f95466d086770e689964664219266fe5ed215c92ae20bab5c9d79addddf3c0cf";
+
+		let secret_key = SecretKey::from_slice(&hex::decode(secret_key_hex).unwrap()).unwrap();
+
+		let public_keys = vec![
+			PublicKey::from_slice(&hex::decode(&pubkey_hexes[0]).unwrap()).unwrap(),
+			PublicKey::from_slice(&hex::decode(&pubkey_hexes[1]).unwrap()).unwrap(),
+			PublicKey::from_slice(&hex::decode(&pubkey_hexes[2]).unwrap()).unwrap()
+		];
+
+		let secret_nonce_a = SecretKey::from_slice(&hex::decode(&secret_nonce_hex[..64]).unwrap()).unwrap();
+		let secret_nonce_b = SecretKey::from_slice(&hex::decode(&secret_nonce_hex[64..]).unwrap()).unwrap();
+		println!("nonce A pubkey: {}", hex::encode(secret_nonce_a.public_key(&secp).serialize()));
+		println!("nonce B pubkey: {}", hex::encode(secret_nonce_b.public_key(&secp).serialize()));
+		let secret_nonce = Musig2SecretNonce(secret_nonce_a, secret_nonce_b);
+
+		let mut public_nonces = Vec::with_capacity(public_nonce_hexes.len());
+		for current_nonce_hex in public_nonce_hexes {
+			let mut cursor = Cursor::new(hex::decode(current_nonce_hex).unwrap());
+			let current_nonce = Musig2PublicNonce::read(&mut cursor).unwrap();
+			public_nonces.push(current_nonce);
+		}
+
+		let mut cursor = Cursor::new(hex::decode(aggregate_nonce_hex).unwrap());
+		let aggregate_nonce = Musig2PublicNonce::read(&mut cursor).unwrap();
+
+		let message = hex::decode(message_hex).unwrap();
+
+		let partial_signature = sign(&secret_key, &secret_nonce, &aggregate_nonce, public_keys.as_slice(), &message);
+		assert_eq!(hex::encode(&partial_signature.secret_bytes()), "012abbcb52b3016ac03ad82395a1a415c48b93def78718e62a7a90052fe224fb");
+
+		// let is_signature_valid = verify_partial_signature_internal(&partial_signature, &public_nonces[0], &aggregate_nonce, &public_keys[0], public_keys.as_slice(), &message);
+		let is_signature_valid = verify_partial_signature_internal(&partial_signature, &secret_nonce.to_public(), &aggregate_nonce, &secret_key.public_key(&secp), public_keys.as_slice(), &message);
+		assert!(is_signature_valid);
 	}
 }
