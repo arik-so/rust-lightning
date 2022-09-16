@@ -37,13 +37,15 @@ use util::ser::{Writeable, Writer, Readable, ReadableArgs};
 
 use chain::transaction::OutPoint;
 use ln::{chan_utils, PaymentPreimage};
-use ln::chan_utils::{HTLCOutputInCommitment, make_funding_redeemscript, ChannelPublicKeys, HolderCommitmentTransaction, ChannelTransactionParameters, CommitmentTransaction, ClosingTransaction};
+use ln::chan_utils::{HTLCOutputInCommitment, make_funding_redeemscript, ChannelPublicKeys, HolderCommitmentTransaction, ChannelTransactionParameters, CommitmentTransaction, ClosingTransaction, make_taproot_funding_outputscript};
 use ln::msgs::UnsignedChannelAnnouncement;
 use ln::script::ShutdownScript;
 
 use prelude::*;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use io::{self, Error};
+use bitcoin::consensus::Encodable;
+use bitcoin::hashes::hex::ToHex;
 use ln::msgs::{DecodeError, MAX_VALUE_MSAT};
 use util::invoice::construct_invoice_preimage;
 use util::musig2::{Musig2PartialSignature, Musig2PublicNonce, Musig2SecretNonce};
@@ -266,7 +268,7 @@ pub trait BaseSign {
 	/// forward and it is safe to sign the next counterparty commitment.
 	fn validate_counterparty_revocation(&self, idx: u64, secret: &SecretKey) -> Result<(), ()>;
 
-	// TODO: implement
+	/// TODO: implement & write docs
 	fn musig2_partially_sign_counterparty_taproot_commitment(&self, commitment_tx: &CommitmentTransaction, preimages: Vec<PaymentPreimage>, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[PublicKey], secp_ctx: &Secp256k1<secp256k1::All>) -> Result<Musig2PartialSignature, ()>;
 
 	/// Create a signatures for a holder's commitment transaction and its claiming HTLC transactions.
@@ -700,15 +702,19 @@ impl BaseSign for InMemorySigner {
 	}
 
 	fn musig2_partially_sign_counterparty_taproot_commitment(&self, commitment_tx: &CommitmentTransaction, preimages: Vec<PaymentPreimage>, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[PublicKey], secp_ctx: &Secp256k1<secp256k1::All>) -> Result<Musig2PartialSignature, ()> {
+		println!("<DELETE ME> original commitment tx: {}", commitment_tx.encode().to_hex());
 		let trusted_tx = commitment_tx.trust();
-		let keys = trusted_tx.keys();
+		println!("<DELETE ME> trusted commitment tx: {}", trusted_tx.encode().to_hex());
 
 		let funding_pubkey = PublicKey::from_secret_key(secp_ctx, &self.funding_key);
-		let channel_funding_redeemscript = make_funding_redeemscript(&funding_pubkey, &self.counterparty_pubkeys().funding_pubkey);
+		let channel_funding_outputscript = make_taproot_funding_outputscript(&funding_pubkey, &self.counterparty_pubkeys().funding_pubkey);
+		println!("<DELETE ME> funding redeemscript: {}", channel_funding_outputscript.to_hex());
 
 		let built_tx = trusted_tx.built_transaction();
-		let commitment_sig = built_tx.musig2_partially_sign(&self.funding_key, &channel_funding_redeemscript, self.channel_value_satoshis, secret_nonce, aggregate_nonce, sorted_public_keys);
-		let commitment_txid = built_tx.txid;
+		println!("<DELETE ME> built commitment tx: {}", built_tx.encode().to_hex());
+		println!("<DELETE ME> built commitment tx transaction: {}", built_tx.transaction.encode().to_hex());
+		let commitment_sig = built_tx.musig2_partially_sign(&self.funding_key, &channel_funding_outputscript, self.channel_value_satoshis, secret_nonce, aggregate_nonce, sorted_public_keys);
+		// let commitment_txid = built_tx.txid;
 		// unimplemented!("InMemorySigner::musig2_partially_sign_counterparty_taproot_commitment")
 		Ok(commitment_sig)
 	}

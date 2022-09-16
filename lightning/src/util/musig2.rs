@@ -128,6 +128,8 @@ pub(crate) fn sign<K: Borrow<PublicKey>>(secret_key: &SecretKey, secret_nonce: &
 	let summand_b = final_secret_nonce.1.mul_tweak(&nonce_coefficient).unwrap();
 	// s = m*a*d + k1 + b*k2
 	let s = summand_a.add_tweak(&Scalar::from(summand_b)).unwrap().add_tweak(&Scalar::from(final_secret_nonce.0)).unwrap();
+	let is_valid = verify_partial_signature(&s, &secret_nonce.to_public(), aggregate_nonce, &secret_key.public_key(&secp), sorted_keys, message);
+	assert!(is_valid);
 	s
 }
 
@@ -142,7 +144,7 @@ pub(crate) fn aggregate_partial_signatures<K: Borrow<SecretKey>>(partial_signatu
 	serialized_signature
 }
 
-fn verify_partial_signature_internal<K: Borrow<PublicKey>>(partial_signature: &SecretKey, partial_public_nonce: &Musig2PublicNonce, aggregate_public_nonce: &Musig2PublicNonce, partial_public_key: &PublicKey, sorted_keys: &[K], message: &[u8]) -> bool {
+pub(crate) fn verify_partial_signature<K: Borrow<PublicKey>>(partial_signature: &SecretKey, partial_public_nonce: &Musig2PublicNonce, aggregate_public_nonce: &Musig2PublicNonce, partial_public_key: &PublicKey, sorted_keys: &[K], message: &[u8]) -> bool {
 	let secp = Secp256k1::new();
 
 	let aggregate_public_key = aggregate_keys(sorted_keys);
@@ -279,7 +281,7 @@ fn tagged_hash_scalar(tag: &str, inputs: &[&[u8]]) -> Scalar {
 mod tests {
 	use std::io::Cursor;
 	use bitcoin::secp256k1::{Parity, PublicKey, Secp256k1, SecretKey};
-	use util::musig2::{aggregate_keys, aggregate_nonces, aggregate_partial_signatures, calculate_final_nonce, fake_aggregate, key_aggregation_coefficient_internal, Musig2PublicNonce, Musig2SecretNonce, sign, sort_keys, verify_partial_signature_internal, verify_schnorr_signature};
+	use util::musig2::{aggregate_keys, aggregate_nonces, aggregate_partial_signatures, calculate_final_nonce, fake_aggregate, key_aggregation_coefficient_internal, Musig2PublicNonce, Musig2SecretNonce, sign, sort_keys, verify_partial_signature, verify_schnorr_signature};
 	use util::ser::{Readable, Writeable};
 
 	#[test]
@@ -506,8 +508,8 @@ mod tests {
 		let partial_signature_a = sign(&secret_keys[0], &secret_nonces[0], &aggregate_nonce, &sorted_public_keys, &message);
 		let partial_signature_b = sign(&secret_keys[1], &secret_nonces[1], &aggregate_nonce, &sorted_public_keys, &message);
 
-		let is_signature_a_valid = verify_partial_signature_internal(&partial_signature_a, &public_nonces[0], &aggregate_nonce, &public_keys[0], &sorted_public_keys, &message);
-		let is_signature_b_valid = verify_partial_signature_internal(&partial_signature_b, &public_nonces[1], &aggregate_nonce, &public_keys[1], &sorted_public_keys, &message);
+		let is_signature_a_valid = verify_partial_signature(&partial_signature_a, &public_nonces[0], &aggregate_nonce, &public_keys[0], &sorted_public_keys, &message);
+		let is_signature_b_valid = verify_partial_signature(&partial_signature_b, &public_nonces[1], &aggregate_nonce, &public_keys[1], &sorted_public_keys, &message);
 
 		assert!(is_signature_a_valid);
 		assert!(is_signature_b_valid);
@@ -567,7 +569,7 @@ mod tests {
 		assert_eq!(hex::encode(&partial_signature.secret_bytes()), "012abbcb52b3016ac03ad82395a1a415c48b93def78718e62a7a90052fe224fb");
 
 		// let is_signature_valid = verify_partial_signature_internal(&partial_signature, &public_nonces[0], &aggregate_nonce, &public_keys[0], public_keys.as_slice(), &message);
-		let is_signature_valid = verify_partial_signature_internal(&partial_signature, &secret_nonce.to_public(), &aggregate_nonce, &secret_key.public_key(&secp), public_keys.as_slice(), &message);
+		let is_signature_valid = verify_partial_signature(&partial_signature, &secret_nonce.to_public(), &aggregate_nonce, &secret_key.public_key(&secp), public_keys.as_slice(), &message);
 		assert!(is_signature_valid);
 	}
 }

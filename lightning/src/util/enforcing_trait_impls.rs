@@ -134,8 +134,8 @@ impl BaseSign for EnforcingSigner {
 	}
 
 	fn musig2_partially_sign_counterparty_taproot_commitment(&self, commitment_tx: &CommitmentTransaction, preimages: Vec<PaymentPreimage>, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[PublicKey], secp_ctx: &Secp256k1<secp256k1::All>)  -> Result<Musig2PartialSignature, ()> {
-		// unimplemented!("EnforcingSigner::musig2_partially_sign_counterparty_taproot_commitment");
 		// TODO: implement
+		// unimplemented!("EnforcingSigner::musig2_partially_sign_counterparty_taproot_commitment");
 		self.inner.musig2_partially_sign_counterparty_taproot_commitment(commitment_tx, preimages, secret_nonce, aggregate_nonce, sorted_public_keys, secp_ctx)
 	}
 

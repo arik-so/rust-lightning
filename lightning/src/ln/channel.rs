@@ -25,7 +25,7 @@ use bitcoin::secp256k1;
 use ln::{PaymentPreimage, PaymentHash};
 use ln::features::{ChannelTypeFeatures, InitFeatures};
 use ln::msgs;
-use ln::msgs::{DecodeError, OptionalField, DataLossProtect, Musig2SecretNonces, Musig2PublicNonces};
+use ln::msgs::{DecodeError, OptionalField, DataLossProtect, Musig2SecretNonces, Musig2PublicNonces, FundingSigned};
 use ln::script::{self, ShutdownScript};
 use ln::channelmanager::{self, CounterpartyForwardingInfo, PendingHTLCStatus, HTLCSource, HTLCFailReason, HTLCFailureMsg, PendingHTLCInfo, RAACommitmentOrder, BREAKDOWN_TIMEOUT, MIN_CLTV_EXPIRY_DELTA, MAX_LOCAL_BREAKDOWN_TIMEOUT};
 use ln::chan_utils::{CounterpartyCommitmentSecrets, TxCreationKeys, HTLCOutputInCommitment, htlc_success_tx_weight, htlc_timeout_tx_weight, make_funding_redeemscript, ChannelPublicKeys, CommitmentTransaction, HolderCommitmentTransaction, ChannelTransactionParameters, CounterpartyChannelTransactionParameters, MAX_HTLCS, get_commitment_transaction_number_obscure_factor, ClosingTransaction, make_taproot_funding_outputscript};
@@ -50,6 +50,7 @@ use core::ops::Deref;
 use sync::Mutex;
 use bitcoin::hashes::hex::ToHex;
 use util::musig2;
+use util::musig2::{Musig2PublicNonce, Musig2SecretNonce};
 
 #[cfg(test)]
 pub struct ChannelValueStat {
@@ -444,6 +445,13 @@ pub(super) struct ReestablishResponses {
 	pub holding_cell_failed_htlcs: Vec<(HTLCSource, PaymentHash)>,
 	pub announcement_sigs: Option<msgs::AnnouncementSignatures>,
 	pub shutdown_msg: Option<msgs::Shutdown>,
+}
+
+/// Nonces used for signing and verifying partial signatures
+pub(crate) struct TaprootNonces {
+	local: Musig2SecretNonce,
+	remote: Musig2PublicNonce,
+	aggregate: Musig2PublicNonce
 }
 
 /// If the majority of the channels funds are to the fundee and the initiator holds only just
@@ -965,8 +973,8 @@ impl<Signer: Sign> Channel<Signer> {
 		let is_simple_taproot = their_features.supports_simple_taproot();
 		let musig2_nonces = if is_simple_taproot {
 			Some(Musig2SecretNonces {
-				local_musig2_nonce: keys_provider.generate_secure_musig2_nonce(),
-				remote_musig2_nonce: keys_provider.generate_secure_musig2_nonce()
+				verification_musig2_nonce: keys_provider.generate_secure_musig2_nonce(),
+				signing_musig2_nonce: keys_provider.generate_secure_musig2_nonce()
 			})
 		} else {
 			None
@@ -1305,8 +1313,17 @@ impl<Signer: Sign> Channel<Signer> {
 			}
 		}
 
-		if is_simple_taproot && msg.musig2_partial_nonces.is_none() {
-			return Err(ChannelError::Close("Peer is signaling simple_taproot support without providing values for local_musig2_pubnonce and remote_musig2_pubnonce".to_string()))
+		let mut our_musig2_partial_nonces = None;
+		let their_musig2_partial_nonces = msg.musig2_partial_nonces.clone();
+
+		if is_simple_taproot {
+			if their_musig2_partial_nonces.is_none() {
+				return Err(ChannelError::Close("Peer is signaling simple_taproot support without providing values for local_musig2_pubnonce and remote_musig2_pubnonce".to_string()))
+			}
+			our_musig2_partial_nonces = Some(Musig2SecretNonces {
+				verification_musig2_nonce: keys_provider.generate_secure_musig2_nonce(),
+				signing_musig2_nonce: keys_provider.generate_secure_musig2_nonce()
+			});
 		} else if !is_simple_taproot && msg.musig2_partial_nonces.is_some() {
 			return Err(ChannelError::Close("Peer is providing values for local_musig2_pubnonce and remote_musig2_pubnonce without signaling simple_taproot support".to_string()))
 		}
@@ -1433,8 +1450,8 @@ impl<Signer: Sign> Channel<Signer> {
 
 			channel_type,
 
-			our_musig2_partial_nonces: None,
-			their_musig2_partial_nonces: None,
+			our_musig2_partial_nonces,
+			their_musig2_partial_nonces,
 		};
 
 		Ok(chan)
@@ -1800,7 +1817,11 @@ impl<Signer: Sign> Channel<Signer> {
 	/// pays to get_funding_redeemscript().to_v0_p2wsh()).
 	/// Panics if called before accept_channel/new_from_req
 	pub fn get_funding_redeemscript(&self) -> Script {
-		make_funding_redeemscript(&self.get_holder_pubkeys().funding_pubkey, self.counterparty_funding_pubkey())
+		if self.supports_taproot() {
+			make_taproot_funding_outputscript(&self.get_holder_pubkeys().funding_pubkey, self.counterparty_funding_pubkey())
+		} else {
+			make_funding_redeemscript(&self.get_holder_pubkeys().funding_pubkey, self.counterparty_funding_pubkey())
+		}
 	}
 
 	pub fn get_funding_outputscript(&self) -> Script {
@@ -1813,6 +1834,32 @@ impl<Signer: Sign> Channel<Signer> {
 	pub(crate) fn get_taproot_keys(&self) -> Vec<PublicKey> {
 		let keys = vec![&self.get_holder_pubkeys().funding_pubkey, self.counterparty_funding_pubkey()];
 		musig2::sort_keys(keys.as_slice())
+	}
+
+	fn taproot_verification_nonces(&self) -> TaprootNonces {
+		assert!(self.supports_taproot());
+		let their_nonces = self.their_musig2_partial_nonces.as_ref().unwrap();
+		let my_secret_nonces = self.our_musig2_partial_nonces.as_ref().unwrap();
+		let my_public_nonces = my_secret_nonces.to_public();
+		let aggregate_nonce = musig2::aggregate_nonces(&[&my_public_nonces.verification_musig2_pubnonce, &their_nonces.signing_musig2_pubnonce]);
+		TaprootNonces {
+			local: my_secret_nonces.verification_musig2_nonce.clone(),
+			remote: their_nonces.signing_musig2_pubnonce.clone(),
+			aggregate: aggregate_nonce
+		}
+	}
+
+	fn taproot_signing_nonces(&self) -> TaprootNonces {
+		assert!(self.supports_taproot());
+		let their_nonces = self.their_musig2_partial_nonces.as_ref().unwrap();
+		let my_secret_nonces = self.our_musig2_partial_nonces.as_ref().unwrap();
+		let my_public_nonces = my_secret_nonces.to_public();
+		let aggregate_nonce = musig2::aggregate_nonces(&[&my_public_nonces.signing_musig2_pubnonce, &their_nonces.verification_musig2_pubnonce]);
+		TaprootNonces {
+			local: my_secret_nonces.signing_musig2_nonce.clone(),
+			remote: their_nonces.verification_musig2_pubnonce.clone(),
+			aggregate: aggregate_nonce
+		}
 	}
 
 	/// Claims an HTLC while we're disconnected from a peer, dropping the [`ChannelMonitorUpdate`]
@@ -2202,21 +2249,40 @@ impl<Signer: Sign> Channel<Signer> {
 		Ok(())
 	}
 
-	fn funding_created_signature<L: Deref>(&mut self, sig: &Signature, logger: &L) -> Result<(Txid, CommitmentTransaction, Signature), ChannelError> where L::Target: Logger {
-		let funding_script = self.get_funding_redeemscript();
-
+	fn funding_created_signature<L: Deref>(&mut self, msg: &msgs::FundingCreated, logger: &L) -> Result<(Txid, CommitmentTransaction, msgs::FundingSigned), ChannelError> where L::Target: Logger {
 		let keys = self.build_holder_transaction_keys(self.cur_holder_commitment_transaction_number)?;
 		let initial_commitment_tx = self.build_commitment_transaction(self.cur_holder_commitment_transaction_number, &keys, true, false, logger).tx;
 		{
 			let trusted_tx = initial_commitment_tx.trust();
 			let initial_commitment_bitcoin_tx = trusted_tx.built_transaction();
-			let sighash = initial_commitment_bitcoin_tx.get_sighash_all(&funding_script, self.channel_value_satoshis);
-			// They sign the holder commitment transaction...
-			log_trace!(logger, "Checking funding_created tx signature {} by key {} against tx {} (sighash {}) with redeemscript {} for channel {}.",
+			if self.supports_taproot() {
+				let partial_signature = if let Some(partial_signature) = msg.partial_signature_for_remote {
+					partial_signature
+				} else {
+					return Err(ChannelError::Close("Missing partial signature in funding_created message for Taproot channel from peer".to_string()))
+				};
+
+				let funding_outputscript = self.get_funding_outputscript();
+				let nonces = self.taproot_verification_nonces();
+				let sorted_keys = self.get_taproot_keys();
+
+				let sighash = initial_commitment_bitcoin_tx.taproot_sighash_default(&funding_outputscript, self.channel_value_satoshis);
+				let is_partial_signature_valid = musig2::verify_partial_signature(&partial_signature, &nonces.remote, &nonces.aggregate, self.counterparty_funding_pubkey(), sorted_keys.as_slice(), &sighash[..]);
+				println!("<DELETE ME> is partial funding_created sig valid: {}", is_partial_signature_valid);
+				if !is_partial_signature_valid {
+					return Err(ChannelError::Close("Invalid funding_created partial MuSig2 signature from peer".to_string()))
+				}
+			} else {
+				let sig = msg.signature;
+				let funding_script = self.get_funding_redeemscript();
+				let sighash = initial_commitment_bitcoin_tx.get_sighash_all(&funding_script, self.channel_value_satoshis);
+				// They sign the holder commitment transaction...
+				log_trace!(logger, "Checking funding_created tx signature {} by key {} against tx {} (sighash {}) with redeemscript {} for channel {}.",
 				log_bytes!(sig.serialize_compact()[..]), log_bytes!(self.counterparty_funding_pubkey().serialize()),
 				encode::serialize_hex(&initial_commitment_bitcoin_tx.transaction), log_bytes!(sighash[..]),
 				encode::serialize_hex(&funding_script), log_bytes!(self.channel_id()));
-			secp_check!(self.secp_ctx.verify_ecdsa(&sighash, &sig, self.counterparty_funding_pubkey()), "Invalid funding_created signature from peer".to_owned());
+				secp_check!(self.secp_ctx.verify_ecdsa(&sighash, &sig, self.counterparty_funding_pubkey()), "Invalid funding_created signature from peer".to_owned());
+			}
 		}
 
 		let counterparty_keys = self.build_remote_transaction_keys()?;
@@ -2227,11 +2293,28 @@ impl<Signer: Sign> Channel<Signer> {
 		log_trace!(logger, "Initial counterparty tx for channel {} is: txid {} tx {}",
 			log_bytes!(self.channel_id()), counterparty_initial_bitcoin_tx.txid, encode::serialize_hex(&counterparty_initial_bitcoin_tx.transaction));
 
-		let counterparty_signature = self.holder_signer.sign_counterparty_commitment(&counterparty_initial_commitment_tx, Vec::new(), &self.secp_ctx)
+		let (counterparty_signature, partial_signature_for_remote) = if self.supports_taproot() {
+			let nonces = self.taproot_signing_nonces();
+			let sorted_keys = self.get_taproot_keys();
+			let signature = self.holder_signer.musig2_partially_sign_counterparty_taproot_commitment(&counterparty_initial_commitment_tx, Vec::new(), &nonces.local, &nonces.aggregate, sorted_keys.as_slice(), &self.secp_ctx).unwrap();
+
+			let legacy_signature = Signature::from_compact(&[0; 64]).unwrap();
+			(legacy_signature, Some(signature))
+		} else {
+			let counterparty_signature = self.holder_signer.sign_counterparty_commitment(&counterparty_initial_commitment_tx, Vec::new(), &self.secp_ctx)
 				.map_err(|_| ChannelError::Close("Failed to get signatures for new commitment_signed".to_owned()))?.0;
+			(counterparty_signature, None)
+		};
 
 		// We sign "counterparty" commitment transaction, allowing them to broadcast the tx if they wish.
-		Ok((counterparty_initial_bitcoin_tx.txid, initial_commitment_tx, counterparty_signature))
+		let funding_txo = self.channel_transaction_parameters.funding_outpoint.expect("funding_outpoint must already have been set on channel.channel_transaction_parameters");
+		let funding_signed = FundingSigned {
+			channel_id: funding_txo.to_channel_id(),
+			signature: counterparty_signature,
+			partial_signature_for_remote,
+			musig2_nonce: None
+		};
+		Ok((counterparty_initial_bitcoin_tx.txid, initial_commitment_tx, funding_signed))
 	}
 
 	fn counterparty_funding_pubkey(&self) -> &PublicKey {
@@ -2257,13 +2340,15 @@ impl<Signer: Sign> Channel<Signer> {
 			panic!("Should not have advanced channel commitment tx numbers prior to funding_created");
 		}
 
+		let is_simple_taproot = self.channel_type.supports_simple_taproot();
+
 		let funding_txo = OutPoint { txid: msg.funding_txid, index: msg.funding_output_index };
 		self.channel_transaction_parameters.funding_outpoint = Some(funding_txo);
 		// This is an externally observable change before we finish all our checks.  In particular
 		// funding_created_signature may fail.
 		self.holder_signer.ready_channel(&self.channel_transaction_parameters);
 
-		let (counterparty_initial_commitment_txid, initial_commitment_tx, signature) = match self.funding_created_signature(&msg.signature, logger) {
+		let (counterparty_initial_commitment_txid, initial_commitment_tx, funding_signed) = match self.funding_created_signature(msg, logger) {
 			Ok(res) => res,
 			Err(ChannelError::Close(e)) => {
 				self.channel_transaction_parameters.funding_outpoint = None;
@@ -2310,12 +2395,7 @@ impl<Signer: Sign> Channel<Signer> {
 
 		log_info!(logger, "Generated funding_signed for peer for channel {}", log_bytes!(self.channel_id()));
 
-		Ok((msgs::FundingSigned {
-			channel_id: self.channel_id,
-			signature,
-			musig2_nonce: None,
-			partial_signature_for_remote: None
-		}, channel_monitor, self.check_get_channel_ready(0)))
+		Ok((funding_signed, channel_monitor, self.check_get_channel_ready(0)))
 	}
 
 	/// Handles a funding_signed message from the remote end.
@@ -2333,8 +2413,6 @@ impl<Signer: Sign> Channel<Signer> {
 			panic!("Should not have advanced channel commitment tx numbers prior to funding_created");
 		}
 
-		let funding_script = self.get_funding_redeemscript();
-
 		let counterparty_keys = self.build_remote_transaction_keys()?;
 		let counterparty_initial_commitment_tx = self.build_commitment_transaction(self.cur_counterparty_commitment_transaction_number, &counterparty_keys, false, false, logger).tx;
 		let counterparty_trusted_tx = counterparty_initial_commitment_tx.trust();
@@ -2343,16 +2421,38 @@ impl<Signer: Sign> Channel<Signer> {
 		log_trace!(logger, "Initial counterparty tx for channel {} is: txid {} tx {}",
 			log_bytes!(self.channel_id()), counterparty_initial_bitcoin_tx.txid, encode::serialize_hex(&counterparty_initial_bitcoin_tx.transaction));
 
+		let is_taproot = self.supports_taproot();
+
 		let holder_signer = self.build_holder_transaction_keys(self.cur_holder_commitment_transaction_number)?;
 		let initial_commitment_tx = self.build_commitment_transaction(self.cur_holder_commitment_transaction_number, &holder_signer, true, false, logger).tx;
 		{
 			let trusted_tx = initial_commitment_tx.trust();
 			let initial_commitment_bitcoin_tx = trusted_tx.built_transaction();
-			let sighash = initial_commitment_bitcoin_tx.get_sighash_all(&funding_script, self.channel_value_satoshis);
-			// They sign our commitment transaction, allowing us to broadcast the tx if we wish.
-			if let Err(_) = self.secp_ctx.verify_ecdsa(&sighash, &msg.signature, &self.get_counterparty_pubkeys().funding_pubkey) {
-				return Err(ChannelError::Close("Invalid funding_signed signature from peer".to_owned()));
+			if is_taproot {
+				let partial_signature = if let Some(partial_signature) = msg.partial_signature_for_remote {
+					partial_signature
+				} else {
+					return Err(ChannelError::Close("Missing partial signature in funding_signed message for Taproot channel from peer".to_string()))
+				};
+				let funding_outputscript = self.get_funding_outputscript();
+				let nonces = self.taproot_verification_nonces();
+				let sorted_keys = self.get_taproot_keys();
+
+				let sighash = initial_commitment_bitcoin_tx.taproot_sighash_default(&funding_outputscript, self.channel_value_satoshis);
+				let is_partial_signature_valid = musig2::verify_partial_signature(&partial_signature, &nonces.remote, &nonces.aggregate, self.counterparty_funding_pubkey(), sorted_keys.as_slice(), &sighash[..]);
+				println!("<DELETE ME> is partial funding_signed sig valid: {}", is_partial_signature_valid);
+				if !is_partial_signature_valid {
+					return Err(ChannelError::Close("Invalid funding_created partial MuSig2 signature from peer".to_string()))
+				}
+			} else {
+				let funding_script = self.get_funding_redeemscript();
+				let sighash = initial_commitment_bitcoin_tx.get_sighash_all(&funding_script, self.channel_value_satoshis);
+				// They sign our commitment transaction, allowing us to broadcast the tx if we wish.
+				if let Err(_) = self.secp_ctx.verify_ecdsa(&sighash, &msg.signature, &self.get_counterparty_pubkeys().funding_pubkey) {
+					return Err(ChannelError::Close("Invalid funding_signed signature from peer".to_owned()));
+				}
 			}
+
 		}
 
 		let holder_commitment_tx = HolderCommitmentTransaction::new(
@@ -3183,7 +3283,7 @@ impl<Signer: Sign> Channel<Signer> {
 			channel_id: self.channel_id,
 			per_commitment_secret,
 			next_per_commitment_point,
-			local_musig2_pubnonce: None,
+			verification_musig2_pubnonce: None,
 		}, commitment_signed, monitor_update))
 	}
 
@@ -3861,7 +3961,7 @@ impl<Signer: Sign> Channel<Signer> {
 			channel_id: self.channel_id,
 			per_commitment_secret,
 			next_per_commitment_point,
-			local_musig2_pubnonce: None,
+			verification_musig2_pubnonce: None,
 		}
 	}
 
@@ -5219,8 +5319,8 @@ impl<Signer: Sign> Channel<Signer> {
 		self.inbound_awaiting_accept = false;
 
 		let secret_nonces = Musig2SecretNonces {
-			local_musig2_nonce: keys_manager.generate_secure_musig2_nonce(),
-			remote_musig2_nonce: keys_manager.generate_secure_musig2_nonce()
+			verification_musig2_nonce: keys_manager.generate_secure_musig2_nonce(),
+			signing_musig2_nonce: keys_manager.generate_secure_musig2_nonce()
 		};
 		self.our_musig2_partial_nonces = Some(secret_nonces);
 
@@ -5317,27 +5417,19 @@ impl<Signer: Sign> Channel<Signer> {
 				}
 			}
 		} else {
-			let their_nonces = self.their_musig2_partial_nonces.as_ref().unwrap();
-			let my_secret_nonces = self.our_musig2_partial_nonces.as_ref().unwrap();
-			let my_public_nonces = my_secret_nonces.to_public();
-			let musig2_aggregate_nonces = Musig2PublicNonces {
-				local_musig2_pubnonce: musig2::aggregate_nonces(&[&my_public_nonces.local_musig2_pubnonce, &their_nonces.remote_musig2_pubnonce]),
-				remote_musig2_pubnonce: musig2::aggregate_nonces(&[&my_public_nonces.remote_musig2_pubnonce, &their_nonces.local_musig2_pubnonce])
-			};
-			let legacy_signature = Signature::from_compact(&[0; 64]).unwrap();
+
+			let nonces = self.taproot_signing_nonces();
 
 			// TODO: fix signature generation and tx construction
 			let counterparty_keys = self.build_remote_transaction_keys()?;
 			let counterparty_initial_commitment_tx = self.build_commitment_transaction(self.cur_counterparty_commitment_transaction_number, &counterparty_keys, false, false, logger).tx;
+			println!("<DELETE ME> commitment transaction: {}", counterparty_initial_commitment_tx.encode().to_hex());
 			let sorted_keys = self.get_taproot_keys();
-			let signature = self.holder_signer.musig2_partially_sign_counterparty_taproot_commitment(&counterparty_initial_commitment_tx, Vec::new(), &my_secret_nonces.local_musig2_nonce, &musig2_aggregate_nonces.local_musig2_pubnonce, sorted_keys.as_slice(), &self.secp_ctx).unwrap();
-
-			// Ok(self.holder_signer.sign_counterparty_commitment(&counterparty_initial_commitment_tx, Vec::new(), &self.secp_ctx)
-			// 	.map_err(|_| ChannelError::Close("Failed to get signatures for new commitment_signed".to_owned()))?.0);
+			let signature = self.holder_signer.musig2_partially_sign_counterparty_taproot_commitment(&counterparty_initial_commitment_tx, Vec::new(), &nonces.local, &nonces.aggregate, sorted_keys.as_slice(), &self.secp_ctx).unwrap();
 
 			// implement signing flow on holder signer
-			// let partial_signature = musig2::sign(self.holder_signer.)
-			(legacy_signature, Some(musig2_aggregate_nonces.local_musig2_pubnonce), Some(signature))
+			let legacy_signature = Signature::from_compact(&[0; 64]).unwrap();
+			(legacy_signature, Some(nonces.aggregate), Some(signature))
 		};
 
 		let temporary_channel_id = self.channel_id;
@@ -5353,7 +5445,7 @@ impl<Signer: Sign> Channel<Signer> {
 			funding_txid: funding_txo.txid,
 			funding_output_index: funding_txo.index,
 			signature,
-			musig2_nonce,
+			musig2_nonce, // this is technically not necessary as it will be recalculated
 			partial_signature_for_remote
 		})
 	}
@@ -5850,7 +5942,7 @@ impl<Signer: Sign> Channel<Signer> {
 			channel_id: self.channel_id,
 			signature,
 			htlc_signatures,
-			remote_musig2_pubnonce: None
+			signing_musig2_pubnonce: None
 		}, (counterparty_commitment_txid, commitment_stats.htlcs_included)))
 	}
 

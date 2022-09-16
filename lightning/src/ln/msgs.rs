@@ -136,25 +136,25 @@ pub struct Pong {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Musig2PublicNonces {
 	/// Musig2 nonce set for the to_local output
-	pub local_musig2_pubnonce: Musig2PublicNonce,
+	pub verification_musig2_pubnonce: Musig2PublicNonce,
 	/// Musig2 nonce set for the to_remote output
-	pub remote_musig2_pubnonce: Musig2PublicNonce
+	pub signing_musig2_pubnonce: Musig2PublicNonce
 }
 
 /// A set of Musig2 nonce secrets stored on the Channel object for Taproot
 #[derive(Clone, Debug, PartialEq)]
 pub struct Musig2SecretNonces {
 	/// TODO
-	pub local_musig2_nonce: Musig2SecretNonce,
+	pub verification_musig2_nonce: Musig2SecretNonce,
 	/// TODO
-	pub remote_musig2_nonce: Musig2SecretNonce
+	pub signing_musig2_nonce: Musig2SecretNonce
 }
 
 impl Musig2SecretNonces {
 	pub(crate) fn to_public(&self) -> Musig2PublicNonces {
 		Musig2PublicNonces {
-			local_musig2_pubnonce: self.local_musig2_nonce.to_public(),
-			remote_musig2_pubnonce: self.remote_musig2_nonce.to_public()
+			verification_musig2_pubnonce: self.verification_musig2_nonce.to_public(),
+			signing_musig2_pubnonce: self.signing_musig2_nonce.to_public()
 		}
 	}
 }
@@ -291,6 +291,7 @@ pub struct ChannelReady {
 	/// If set, provides a short_channel_id alias for this channel. The sender will accept payments
 	/// to be forwarded over this SCID and forward them to this messages' recipient.
 	pub short_channel_id_alias: Option<u64>,
+	/// TODO
 	pub musig2_nonces: Option<Musig2PublicNonces>
 }
 
@@ -329,6 +330,7 @@ pub struct ClosingSigned {
 	/// The minimum and maximum fees which the sender is willing to accept, provided only by new
 	/// nodes.
 	pub fee_range: Option<ClosingSignedFeeRange>,
+	/// TODO
 	pub musig2_pubnonce: Option<Musig2PublicNonce>
 }
 
@@ -399,7 +401,7 @@ pub struct CommitmentSigned {
 	/// Signatures on the HTLC transactions
 	pub htlc_signatures: Vec<Signature>,
 	/// Remote Musig2 nonce used for Taproot
-	pub remote_musig2_pubnonce: Option<Musig2PublicNonce>
+	pub signing_musig2_pubnonce: Option<Musig2PublicNonce>
 }
 
 /// A revoke_and_ack message to be sent or received from a peer
@@ -412,7 +414,7 @@ pub struct RevokeAndACK {
 	/// The next sender-broadcast commitment transaction's per-commitment point
 	pub next_per_commitment_point: PublicKey,
 	/// Local Musig2 nonce used for Taproot
-	pub local_musig2_pubnonce: Option<Musig2PublicNonce>
+	pub verification_musig2_pubnonce: Option<Musig2PublicNonce>
 }
 
 /// An update_fee message to be sent or received from a peer
@@ -1247,10 +1249,10 @@ impl Writeable for ChannelReestablish {
 		}
 		if let Some(ref nonces) = self.musig2_nonces {
 			encode_tlv_stream!(w, {
-				(2, nonces.local_musig2_pubnonce, required)
+				(2, nonces.verification_musig2_pubnonce, required)
 			});
 			encode_tlv_stream!(w, {
-				(4, nonces.remote_musig2_pubnonce, required)
+				(4, nonces.signing_musig2_pubnonce, required)
 			});
 		}
 		Ok(())
@@ -1281,8 +1283,8 @@ impl Readable for ChannelReestablish{
 		});
 		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (local_musig2_nonce, remote_musig2_nonce) {
 			Some(Musig2PublicNonces {
-				local_musig2_pubnonce,
-				remote_musig2_pubnonce
+				verification_musig2_pubnonce: local_musig2_pubnonce,
+				signing_musig2_pubnonce: remote_musig2_pubnonce
 			})
 		} else { None };
 		Ok(Self {
@@ -1313,7 +1315,7 @@ impl_writeable_msg!(CommitmentSigned, {
 	signature,
 	htlc_signatures
 }, {
-	(2, remote_musig2_pubnonce, option)
+	(2, signing_musig2_pubnonce, option)
 });
 
 impl_writeable!(DecodedOnionErrorPacket, {
@@ -1410,10 +1412,10 @@ impl Writeable for OpenChannel {
 		});
 		if let Some(ref nonces) = self.musig2_partial_nonces {
 			encode_tlv_stream!(w, {
-				(2, nonces.local_musig2_pubnonce, required)
+				(2, nonces.verification_musig2_pubnonce, required)
 			});
 			encode_tlv_stream!(w, {
-				(4, nonces.remote_musig2_pubnonce, required)
+				(4, nonces.signing_musig2_pubnonce, required)
 			});
 		}
 		Ok(())
@@ -1442,17 +1444,17 @@ impl Readable for OpenChannel {
 		let channel_flags = Readable::read(r)?;
 		let shutdown_scriptpubkey = Readable::read(r)?;
 		let mut channel_type = None;
-		let mut local_musig2_nonce: Option<Musig2PublicNonce> = None;
-		let mut remote_musig2_nonce: Option<Musig2PublicNonce> = None;
+		let mut verification_musig2_nonce: Option<Musig2PublicNonce> = None;
+		let mut signing_musig2_nonce: Option<Musig2PublicNonce> = None;
 		decode_tlv_stream!(r, {
 			(1, channel_type, option),
-			(2, local_musig2_nonce, option),
-			(4, remote_musig2_nonce, option)
+			(2, verification_musig2_nonce, option),
+			(4, signing_musig2_nonce, option)
 		});
-		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (local_musig2_nonce, remote_musig2_nonce) {
+		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (verification_musig2_nonce, signing_musig2_nonce) {
 			Some(Musig2PublicNonces {
-				local_musig2_pubnonce,
-				remote_musig2_pubnonce
+				verification_musig2_pubnonce: local_musig2_pubnonce,
+				signing_musig2_pubnonce: remote_musig2_pubnonce
 			})
 		} else { None };
 		Ok(OpenChannel {
@@ -1503,10 +1505,10 @@ impl Writeable for AcceptChannel {
 		});
 		if let Some(ref nonces) = self.musig2_partial_nonces {
 			encode_tlv_stream!(w, {
-				(2, nonces.local_musig2_pubnonce, required)
+				(2, nonces.verification_musig2_pubnonce, required)
 			});
 			encode_tlv_stream!(w, {
-				(4, nonces.remote_musig2_pubnonce, required)
+				(4, nonces.signing_musig2_pubnonce, required)
 			});
 		}
 		Ok(())
@@ -1531,17 +1533,17 @@ impl Readable for AcceptChannel {
 		let first_per_commitment_point = Readable::read(r)?;
 		let shutdown_scriptpubkey = Readable::read(r)?;
 		let mut channel_type = None;
-		let mut local_musig2_nonce: Option<Musig2PublicNonce> = None;
-		let mut remote_musig2_nonce: Option<Musig2PublicNonce> = None;
+		let mut verification_musig2_nonce: Option<Musig2PublicNonce> = None;
+		let mut signing_musig2_nonce: Option<Musig2PublicNonce> = None;
 		decode_tlv_stream!(r, {
 			(1, channel_type, option),
-			(2, local_musig2_nonce, option),
-			(4, remote_musig2_nonce, option)
+			(2, verification_musig2_nonce, option),
+			(4, signing_musig2_nonce, option)
 		});
-		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (local_musig2_nonce, remote_musig2_nonce) {
+		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (verification_musig2_nonce, signing_musig2_nonce) {
 			Some(Musig2PublicNonces {
-				local_musig2_pubnonce,
-				remote_musig2_pubnonce
+				verification_musig2_pubnonce: local_musig2_pubnonce,
+				signing_musig2_pubnonce: remote_musig2_pubnonce
 			})
 		} else { None };
 		Ok(AcceptChannel {
@@ -1603,7 +1605,7 @@ impl Writeable for ChannelReady {
 		self.next_per_commitment_point.write(w)?;
 		if let Some(ref nonces) = self.musig2_nonces {
 			encode_tlv_stream!(w, {
-				(0, nonces.local_musig2_pubnonce, required)
+				(0, nonces.verification_musig2_pubnonce, required)
 			});
 		}
 		encode_tlv_stream!(w, {
@@ -1611,7 +1613,7 @@ impl Writeable for ChannelReady {
 		});
 		if let Some(ref nonces) = self.musig2_nonces {
 			encode_tlv_stream!(w, {
-				(2, nonces.remote_musig2_pubnonce, required)
+				(2, nonces.signing_musig2_pubnonce, required)
 			});
 		}
 		Ok(())
@@ -1624,17 +1626,17 @@ impl Readable for ChannelReady {
 		let channel_id = Readable::read(r)?;
 		let next_per_commitment_point = Readable::read(r)?;
 		let mut short_channel_id_alias = None;
-		let mut local_musig2_nonce: Option<Musig2PublicNonce> = None;
-		let mut remote_musig2_nonce: Option<Musig2PublicNonce> = None;
+		let mut verification_musig2_nonce: Option<Musig2PublicNonce> = None;
+		let mut signing_musig2_nonce: Option<Musig2PublicNonce> = None;
 		decode_tlv_stream!(r, {
-			(0, local_musig2_nonce, option),
+			(0, verification_musig2_nonce, option),
 			(1, short_channel_id_alias, option),
-			(2, remote_musig2_nonce, option)
+			(2, signing_musig2_nonce, option)
 		});
-		let musig2_nonces = if let (Some(local_musig2_pubnonce), Some(remote_musig2_pubnonce)) = (local_musig2_nonce, remote_musig2_nonce) {
+		let musig2_nonces = if let (Some(verification_musig2_pubnonce), Some(signing_musig2_pubnonce)) = (verification_musig2_nonce, signing_musig2_nonce) {
 			Some(Musig2PublicNonces {
-				local_musig2_pubnonce,
-				remote_musig2_pubnonce
+				verification_musig2_pubnonce,
+				signing_musig2_pubnonce
 			})
 		} else { None };
 		Ok(ChannelReady {
@@ -1651,7 +1653,7 @@ impl_writeable_msg!(RevokeAndACK, {
 	per_commitment_secret,
 	next_per_commitment_point
 }, {
-	(2, local_musig2_pubnonce, option)
+	(2, verification_musig2_pubnonce, option)
 });
 
 impl_writeable_msg!(Shutdown, {
@@ -2880,7 +2882,7 @@ mod tests {
 			channel_id: [2; 32],
 			signature: sig_1,
 			htlc_signatures: if htlcs { vec![sig_2, sig_3, sig_4] } else { Vec::new() },
-			remote_musig2_pubnonce: None,
+			signing_musig2_pubnonce: None,
 		};
 		let encoded_value = commitment_signed.encode();
 		let mut target_value = hex::decode("0202020202020202020202020202020202020202020202020202020202020202d977cb9b53d93a6ff64bb5f1e158b4094b66e798fb12911168a3ccdf80a83096340a6a95da0ae8d9f776528eecdbb747eb6b545495a4319ed5378e35b21e073a").unwrap();
@@ -2906,7 +2908,7 @@ mod tests {
 			channel_id: [2; 32],
 			per_commitment_secret: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 			next_per_commitment_point: pubkey_1,
-			local_musig2_pubnonce: None,
+			verification_musig2_pubnonce: None,
 		};
 		let encoded_value = raa.encode();
 		let target_value = hex::decode("02020202020202020202020202020202020202020202020202020202020202020101010101010101010101010101010101010101010101010101010101010101031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f").unwrap();

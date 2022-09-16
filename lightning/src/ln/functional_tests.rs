@@ -728,7 +728,7 @@ fn test_update_fee_that_funder_cannot_afford() {
 		channel_id: chan.2,
 		signature: res.0,
 		htlc_signatures: res.1,
-		remote_musig2_pubnonce: None
+		signing_musig2_pubnonce: None
 	};
 
 	let update_fee = msgs::UpdateFee {
@@ -1449,7 +1449,7 @@ fn test_fee_spike_violation_fails_htlc() {
 		channel_id: chan.2,
 		signature: res.0,
 		htlc_signatures: res.1,
-		remote_musig2_pubnonce: None
+		signing_musig2_pubnonce: None
 	};
 
 	// Send the commitment_signed message to the nodes[1].
@@ -1461,7 +1461,7 @@ fn test_fee_spike_violation_fails_htlc() {
 		channel_id: chan.2,
 		per_commitment_secret: local_secret,
 		next_per_commitment_point: next_local_point,
-		local_musig2_pubnonce: None,
+		verification_musig2_pubnonce: None,
 	};
 	nodes[1].node.handle_revoke_and_ack(&nodes[0].node.get_our_node_id(), &raa_msg);
 
@@ -8201,7 +8201,7 @@ fn test_counterparty_raa_skip_no_crash() {
 			channel_id,
 			per_commitment_secret,
 			next_per_commitment_point,
-			local_musig2_pubnonce: None
+			verification_musig2_pubnonce: None
 		});
 	assert_eq!(check_closed_broadcast!(nodes[1], true).unwrap().data, "Received an unexpected revoke_and_ack");
 	check_added_monitors!(nodes[1], 1);

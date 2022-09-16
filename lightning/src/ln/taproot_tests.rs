@@ -58,18 +58,22 @@ fn test_taproot_open_channel() {
 	let node_chanmgrs = create_node_chanmgrs(2, &node_cfgs, &[Some(node_config), Some(node_config)]);
 	let nodes = create_network(2, &node_cfgs, &node_chanmgrs);
 
-	// assert!(node_cfgs[0].features.supports_simple_taproot(), "Taproot must be supported!");
-	// assert!(node_cfgs[0].features.requires_simple_taproot(), "Taproot must be required!");
-
 	let channel_value_satoshis = 1000000;
 	let push_msat = 10001;
-	nodes[0].node.create_channel(nodes[1].node.get_our_node_id(), channel_value_satoshis, push_msat, 42, None).unwrap();
+
+	let alice = nodes[0].node;
+	let bob = nodes[1].node;
+	let alice_node_id = alice.get_our_node_id();
+	let bob_node_id = bob.get_our_node_id();
+
+	alice.create_channel(bob_node_id, channel_value_satoshis, push_msat, 42, None).unwrap();
 	let mut node0_to_1_send_open_channel = get_event_msg!(nodes[0], MessageSendEvent::SendOpenChannel, nodes[1].node.get_our_node_id());
 
 	assert!(node0_to_1_send_open_channel.musig2_partial_nonces.is_some());
 
-	nodes[1].node.handle_open_channel(&nodes[0].node.get_our_node_id(), InitFeatures::known(), &node0_to_1_send_open_channel);
-	let bob_message_events = nodes[1].node.get_and_clear_pending_msg_events();
+
+	bob.handle_open_channel(&alice_node_id, InitFeatures::known(), &node0_to_1_send_open_channel);
+	let bob_message_events = bob.get_and_clear_pending_msg_events();
 	let accept_channel = match bob_message_events[0] {
 		MessageSendEvent::SendAcceptChannel { ref msg, node_id } => {
 			msg.clone()
@@ -78,41 +82,27 @@ fn test_taproot_open_channel() {
 	};
 
 	assert!(accept_channel.musig2_partial_nonces.is_some());
-	nodes[0].node.handle_accept_channel(&nodes[1].node.get_our_node_id(), InitFeatures::known(), &accept_channel);
+	alice.handle_accept_channel(&bob_node_id, InitFeatures::known(), &accept_channel);
 
-	let alice_events = nodes[0].node.get_and_clear_pending_events();
-	let funding_generation_output_script = match alice_events[0] {
-		Event::FundingGenerationReady { ref output_script, .. } => {
-			output_script.clone()
-		}
-		_ => { panic!("Unexpected event") }
+	let (temporary_channel_id, tx, _) = create_funding_transaction(&nodes[0], &bob_node_id, channel_value_satoshis, 42); // Get and check the FundingGenerationReady event
+
+	alice.funding_transaction_generated(&temporary_channel_id, &bob_node_id, tx);
+	let alice_message_events = alice.get_and_clear_pending_msg_events();
+
+	let funding_created = match &alice_message_events[0] {
+		MessageSendEvent::SendFundingCreated { node_id, msg } => msg.clone(),
+		_ => panic!("Unexpected event")
 	};
-	println!("output script: {:?}", funding_generation_output_script);
 
-	// create_funding_transaction(&nodes[0], &nodes[1].node.get_our_node_id(), 100000, 42); // Get and check the FundingGenerationReady event
-
-
-	let chan_id = nodes[0].network_chan_count.borrow().clone();
-	let tx = Transaction { version: chan_id as i32, lock_time: PackedLockTime::ZERO, input: Vec::new(), output: vec![TxOut {
-		value: channel_value_satoshis, script_pubkey: funding_generation_output_script.clone(),
-	}]};
-	let funding_outpoint = OutPoint { txid: tx.txid(), index: 0 };
-
-	let funding_created = {
-		let mut a_channel_lock = nodes[0].node.channel_state.lock().unwrap();
-		// Once we call `get_outbound_funding_created` the channel has a duplicate channel_id as
-		// another channel in the ChannelManager - an invalid state. Thus, we'd panic later when we
-		// try to create another channel. Instead, we drop the channel entirely here (leaving the
-		// channelmanager in a possibly nonsense state instead).
-		let mut as_chan = a_channel_lock.by_id.remove(&node0_to_1_send_open_channel.temporary_channel_id).unwrap();
-		let logger = test_utils::TestLogger::new();
-		as_chan.get_outbound_funding_created(tx.clone(), funding_outpoint, &&logger).unwrap()
-	};
 	check_added_monitors!(nodes[0], 0);
-	nodes[1].node.handle_funding_created(&nodes[0].node.get_our_node_id(), &funding_created);
+	bob.handle_funding_created(&alice_node_id, &funding_created);
 
-	let bob_message_events = nodes[1].node.get_and_clear_pending_msg_events();
-	let bob_events = nodes[1].node.get_and_clear_pending_events();
-	println!("bob message events: {}", bob_message_events.len());
-	println!("bob events: {}", bob_events.len());
+	let bob_message_events = bob.get_and_clear_pending_msg_events();
+
+	let funding_signed = match &bob_message_events[0] {
+		MessageSendEvent::SendFundingSigned { node_id, msg } => msg.clone(),
+		_ => panic!("Unexpected event")
+	};
+
+	alice.handle_funding_signed(&bob_node_id, &funding_signed);
 }

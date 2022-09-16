@@ -39,7 +39,9 @@ use ln::chan_utils;
 use util::transaction_utils::sort_outputs;
 use ln::channel::{INITIAL_COMMITMENT_NUMBER, ANCHOR_OUTPUT_VALUE_SATOSHI};
 use core::ops::Deref;
+use bitcoin::hashes::hex::ToHex;
 use bitcoin::psbt::Prevouts;
+use bitcoin::util::taproot::TapSighashHash;
 use chain;
 use util::crypto::sign;
 use util::musig2::{Musig2PartialSignature, Musig2PublicNonce, Musig2SecretNonce};
@@ -661,6 +663,7 @@ pub fn make_taproot_funding_outputscript(broadcaster: &PublicKey, countersignato
 	let public_keys = vec![broadcaster, countersignatory];
 	let sorted_keys = musig2::sort_keys(&public_keys);
 	let aggregate_key = musig2::aggregate_keys(sorted_keys.as_slice());
+	println!("<DELETE ME> funding aggregate pubkey: {}", aggregate_key.0.to_hex());
 
 	let secp = Secp256k1::new();
 	Script::new_v1_p2tr(&secp, aggregate_key.0, None)
@@ -890,6 +893,12 @@ pub struct HolderCommitmentTransaction {
 	holder_sig_first: bool,
 }
 
+pub struct TaprootHolderCommitmentTransaction {
+	inner: CommitmentTransaction,
+	pub counterparty_partial_sig: Musig2PartialSignature,
+	pub counterparty_htlc_partial_sigs: Vec<Musig2PartialSignature>,
+}
+
 impl Deref for HolderCommitmentTransaction {
 	type Target = CommitmentTransaction;
 
@@ -1008,6 +1017,15 @@ impl BuiltCommitmentTransaction {
 		hash_to_message!(sighash)
 	}
 
+	pub fn taproot_sighash_default(&self, funding_outputscript: &Script, channel_value_satoshis: u64) -> TapSighashHash {
+		let previous_output_as_tx_out = TxOut {
+			value: channel_value_satoshis,
+			script_pubkey: funding_outputscript.clone(),
+		};
+		let prevouts = vec![previous_output_as_tx_out];
+		sighash::SighashCache::new(&self.transaction).taproot_key_spend_signature_hash(0, &Prevouts::All(&prevouts), SchnorrSighashType::Default).unwrap()
+	}
+
 	/// Sign a transaction, either because we are counter-signing the counterparty's transaction or
 	/// because we are about to broadcast a holder transaction.
 	pub fn sign<T: secp256k1::Signing>(&self, funding_key: &SecretKey, funding_redeemscript: &Script, channel_value_satoshis: u64, secp_ctx: &Secp256k1<T>) -> Signature {
@@ -1015,13 +1033,9 @@ impl BuiltCommitmentTransaction {
 		sign(secp_ctx, &sighash, funding_key)
 	}
 
-	pub fn musig2_partially_sign<K: Borrow<PublicKey>>(&self, funding_key: &SecretKey, funding_redeemscript: &Script, channel_value_satoshis: u64, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[K]) -> Musig2PartialSignature {
-		let previous_output_as_tx_out = TxOut {
-			value: channel_value_satoshis,
-			script_pubkey: funding_redeemscript.clone(),
-		};
-		let prevouts = vec![previous_output_as_tx_out];
-		let message = sighash::SighashCache::new(&self.transaction).taproot_key_spend_signature_hash(0, &Prevouts::All(&prevouts), SchnorrSighashType::Default).unwrap();
+	/// TODO:
+	pub fn musig2_partially_sign<K: Borrow<PublicKey>>(&self, funding_key: &SecretKey, funding_outputscript: &Script, channel_value_satoshis: u64, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[K]) -> Musig2PartialSignature {
+		let message = self.taproot_sighash_default(funding_outputscript, channel_value_satoshis);
 		musig2::sign(funding_key, secret_nonce, aggregate_nonce, sorted_public_keys, &message[..])
 	}
 }
