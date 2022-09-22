@@ -1,6 +1,7 @@
 use bitcoin::secp256k1::ecdsa::Signature;
 use bitcoin::{PackedLockTime, Transaction, TxOut};
 use chain::transaction::OutPoint;
+use ln::channelmanager;
 
 use ln::features::InitFeatures;
 use ln::functional_test_utils::*;
@@ -33,7 +34,7 @@ fn test_accept_channel_fails_if_open_channel_lacks_nonces() {
 	let mut node0_to_1_send_open_channel = get_event_msg!(nodes[0], MessageSendEvent::SendOpenChannel, nodes[1].node.get_our_node_id());
 	node0_to_1_send_open_channel.musig2_partial_nonces = None;
 
-	let known_features = InitFeatures::known();
+	let known_features = channelmanager::provided_init_features();
 	assert!(known_features.supports_simple_taproot());
 
 	nodes[1].node.handle_open_channel(&nodes[0].node.get_our_node_id(), known_features, &node0_to_1_send_open_channel);
@@ -72,7 +73,7 @@ fn test_taproot_open_channel() {
 	assert!(node0_to_1_send_open_channel.musig2_partial_nonces.is_some());
 
 
-	bob.handle_open_channel(&alice_node_id, InitFeatures::known(), &node0_to_1_send_open_channel);
+	bob.handle_open_channel(&alice_node_id, channelmanager::provided_init_features(), &node0_to_1_send_open_channel);
 	let bob_message_events = bob.get_and_clear_pending_msg_events();
 	let accept_channel = match bob_message_events[0] {
 		MessageSendEvent::SendAcceptChannel { ref msg, node_id } => {
@@ -82,7 +83,7 @@ fn test_taproot_open_channel() {
 	};
 
 	assert!(accept_channel.musig2_partial_nonces.is_some());
-	alice.handle_accept_channel(&bob_node_id, InitFeatures::known(), &accept_channel);
+	alice.handle_accept_channel(&bob_node_id, channelmanager::provided_init_features(), &accept_channel);
 
 	let (temporary_channel_id, tx, _) = create_funding_transaction(&nodes[0], &bob_node_id, channel_value_satoshis, 42); // Get and check the FundingGenerationReady event
 

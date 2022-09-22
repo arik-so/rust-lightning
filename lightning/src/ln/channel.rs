@@ -38,14 +38,7 @@ use chain::chaininterface::{ConfirmationTarget, FeeEstimator, LowerBoundedFeeEst
 use chain::channelmonitor::{ChannelMonitor, ChannelMonitorUpdate, ChannelMonitorUpdateStep, LATENCY_GRACE_PERIOD_BLOCKS};
 use chain::keysinterface::{KeysInterface, Sign};
 use chain::transaction::{OutPoint, TransactionData};
-use ln::{PaymentHash, PaymentPreimage};
-use ln::chan_utils::{ChannelPublicKeys, ChannelTransactionParameters, ClosingTransaction, CommitmentTransaction, CounterpartyChannelTransactionParameters, CounterpartyCommitmentSecrets, get_commitment_transaction_number_obscure_factor, HolderCommitmentTransaction, htlc_success_tx_weight, htlc_timeout_tx_weight, HTLCOutputInCommitment, make_funding_redeemscript, make_taproot_funding_outputscript, MAX_HTLCS, TxCreationKeys};
-use ln::chan_utils;
-use ln::channelmanager::{BREAKDOWN_TIMEOUT, CounterpartyForwardingInfo, HTLCFailReason, HTLCFailureMsg, HTLCSource, MAX_LOCAL_BREAKDOWN_TIMEOUT, MIN_CLTV_EXPIRY_DELTA, PendingHTLCInfo, PendingHTLCStatus, RAACommitmentOrder};
-use ln::features::{ChannelFeatures, ChannelTypeFeatures, InitFeatures};
-use ln::msgs;
-use ln::msgs::{DataLossProtect, DecodeError, FundingSigned, Musig2PublicNonces, Musig2SecretNonces, OptionalField};
-use ln::script::{self, ShutdownScript};
+use ln::features::{ChannelFeatures};
 use prelude::*;
 #[cfg(any(test, fuzzing, debug_assertions))]
 use sync::Mutex;
@@ -6917,15 +6910,7 @@ mod tests {
 	use chain::chaininterface::{ConfirmationTarget, FeeEstimator, LowerBoundedFeeEstimator};
 	use chain::keysinterface::{InMemorySigner, KeyMaterial, KeysInterface, Recipient};
 	use chain::transaction::OutPoint;
-	use ln::chan_utils;
-	use ln::chan_utils::{htlc_success_tx_weight, htlc_timeout_tx_weight};
-	use ln::channel::{Channel, HTLCCandidate, HTLCInitiator, InboundHTLCOutput, InboundHTLCState, OutboundHTLCOutput, OutboundHTLCState};
-	use ln::channel::{MAX_FUNDING_SATOSHIS_NO_WUMBO, MIN_THEIR_CHAN_RESERVE_SATOSHIS, TOTAL_BITCOIN_SUPPLY_SATOSHIS};
-	use ln::channelmanager::{HTLCSource, PaymentId};
-	use ln::features::{ChannelTypeFeatures, InitFeatures};
-	use ln::msgs::{ChannelUpdate, DataLossProtect, DecodeError, MAX_VALUE_MSAT, OptionalField, UnsignedChannelUpdate};
-	use ln::PaymentHash;
-	use ln::script::ShutdownScript;
+	use ln::features::{InitFeatures};
 	use prelude::*;
 	use util::config::UserConfig;
 	use util::enforcing_trait_impls::EnforcingSigner;
@@ -7185,7 +7170,7 @@ mod tests {
 		let mut node_b_chan = Channel::<EnforcingSigner>::new_from_req(&feeest, &&keys_provider, node_b_node_id, &channelmanager::provided_init_features(), &open_channel_msg, 7, &config, 0, &&logger, 42).unwrap();
 
 		// Node B --> Node A: accept channel
-		let accept_channel_msg = node_b_chan.accept_inbound_channel(0);
+		let accept_channel_msg = node_b_chan.accept_inbound_channel(&&keys_provider, 0);
 		node_a_chan.accept_channel(&accept_channel_msg, &config.channel_handshake_limits, &channelmanager::provided_init_features()).unwrap();
 
 		// Node A --> Node B: funding created
