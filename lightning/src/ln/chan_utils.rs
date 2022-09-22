@@ -41,10 +41,12 @@ use ln::channel::{INITIAL_COMMITMENT_NUMBER, ANCHOR_OUTPUT_VALUE_SATOSHI};
 use core::ops::Deref;
 use bitcoin::hashes::hex::ToHex;
 use bitcoin::psbt::Prevouts;
-use bitcoin::util::taproot::TapSighashHash;
+use bitcoin::schnorr::TweakedPublicKey;
+use bitcoin::util::taproot::{TaprootBuilder, TaprootSpendInfo, TapSighashHash};
 use chain;
+use routing::gossip::NetworkGraph;
 use util::crypto::sign;
-use util::musig2::{Musig2PartialSignature, Musig2PublicNonce, Musig2SecretNonce};
+use util::musig2::{Musig2AggregateKey, Musig2PartialSignature, Musig2PublicNonce, Musig2SecretNonce};
 
 pub(crate) const MAX_HTLCS: u16 = 483;
 pub(crate) const OFFERED_HTLC_SCRIPT_WEIGHT: usize = 133;
@@ -657,14 +659,19 @@ pub fn make_funding_redeemscript(broadcaster: &PublicKey, countersignatory: &Pub
 	}.push_opcode(opcodes::all::OP_PUSHNUM_2).push_opcode(opcodes::all::OP_CHECKMULTISIG).into_script()
 }
 
-/// Create a Musig2-aggregated Taproot internal key
-pub fn make_taproot_funding_outputscript(broadcaster: &PublicKey, countersignatory: &PublicKey) -> Script {
+fn calculate_taproot_combined_funding_key(broadcaster: &PublicKey, countersignatory: &PublicKey) -> Musig2AggregateKey {
 	// MuSig2 key aggregation:
 	let public_keys = vec![broadcaster, countersignatory];
 	let sorted_keys = musig2::sort_keys(&public_keys);
 	let aggregate_key = musig2::aggregate_keys(sorted_keys.as_slice());
 	println!("<DELETE ME> funding aggregate pubkey: {}", aggregate_key.0.to_hex());
 
+	aggregate_key
+}
+
+/// Create a Musig2-aggregated Taproot internal key
+pub fn make_taproot_funding_outputscript(broadcaster: &PublicKey, countersignatory: &PublicKey) -> Script {
+	let aggregate_key = calculate_taproot_combined_funding_key(broadcaster, countersignatory);
 	let secp = Secp256k1::new();
 	Script::new_v1_p2tr(&secp, aggregate_key.0, None)
 }
@@ -723,6 +730,127 @@ pub(crate) fn get_to_countersignatory_with_anchors_redeemscript(payment_point: &
 		.push_int(1)
 		.push_opcode(opcodes::all::OP_CSV)
 		.into_script()
+}
+
+/// A script either spendable by the revocation
+/// key or the broadcaster_delayed_payment_key and satisfying the relative-locktime OP_CSV constrain.
+/// Encumbering a `to_holder` output on a commitment transaction or 2nd-stage HTLC transactions.
+pub fn to_holder_tap_tree<C: secp256k1::Verification>(secp: &Secp256k1<C>, revocation_key: &PublicKey, contest_delay: u16, broadcaster_delayed_payment_key: &PublicKey) -> TaprootSpendInfo {
+	let to_delay_script = Builder::new()
+		.push_slice(&broadcaster_delayed_payment_key.x_only_public_key().0.serialize())
+		.push_opcode(opcodes::all::OP_CHECKSIG)
+		.push_int(contest_delay as i64)
+		.push_opcode(opcodes::all::OP_CSV)
+		.push_opcode(opcodes::all::OP_DROP)
+		.into_script();
+
+	let builder = TaprootBuilder::new();
+	let builder = builder.add_leaf(0, to_delay_script).unwrap();
+
+	builder.finalize(&secp, revocation_key.x_only_public_key().0).expect("Couldn't finalize to_holder TapTree")
+}
+
+pub fn to_holder_taproot_outputscript<C: secp256k1::Verification>(secp: &Secp256k1<C>, revocation_key: &PublicKey, contest_delay: u16, broadcaster_delayed_payment_key: &PublicKey) -> Script {
+	let tap_tree = to_holder_tap_tree(secp, revocation_key, contest_delay, broadcaster_delayed_payment_key);
+	Script::new_v1_p2tr(&secp, revocation_key.x_only_public_key().0, tap_tree.merkle_root())
+}
+
+pub(crate) fn to_countersignatory_tap_tree<C: secp256k1::Verification>(secp: &Secp256k1<C>, payment_point: &PublicKey, combined_funding_pubkey: &Musig2AggregateKey) -> TaprootSpendInfo {
+	let to_remote_script = Builder::new()
+		.push_slice(&payment_point.x_only_public_key().0.serialize())
+		.push_opcode(opcodes::all::OP_CHECKSIG)
+		.push_opcode(opcodes::all::OP_CSV)
+		.into_script();
+
+	let builder = TaprootBuilder::new();
+	let builder = builder.add_leaf(0, to_remote_script).unwrap();
+
+	builder.finalize(&secp, combined_funding_pubkey.0).expect("Couldn't finalize to_countersignatory TapTree")
+}
+
+pub(crate) fn to_countersignatory_taproot_outputscript<C: secp256k1::Verification>(secp: &Secp256k1<C>, payment_point: &PublicKey, combined_funding_pubkey: &Musig2AggregateKey) -> Script {
+	let tap_tree = to_countersignatory_tap_tree(secp, payment_point, combined_funding_pubkey);
+	Script::new_v1_p2tr(&secp, combined_funding_pubkey.0, tap_tree.merkle_root())
+}
+
+pub(crate) fn anchor_tap_tree<C: secp256k1::Verification>(secp: &Secp256k1<C>, anchor_internal_key: &PublicKey) -> TaprootSpendInfo {
+	let anchor_script = Builder::new()
+		.push_int(16)
+		.push_opcode(opcodes::all::OP_CSV)
+		.into_script();
+
+	TaprootBuilder::new()
+		.add_leaf(0, anchor_script).unwrap()
+		.finalize(secp, anchor_internal_key.x_only_public_key().0).expect("Couldn't finalize anchor TapTree")
+}
+
+pub(crate) fn anchor_taproot_outputscript<C: secp256k1::Verification>(secp: &Secp256k1<C>, anchor_internal_key: &PublicKey) -> Script {
+	let tap_tree = anchor_tap_tree(secp, anchor_internal_key);
+	Script::new_v1_p2tr(secp, anchor_internal_key.x_only_public_key().0, tap_tree.merkle_root())
+}
+
+
+#[inline]
+pub(crate) fn htlc_taproot_outputscript_with_explicit_keys<C: secp256k1::Verification>(secp: &Secp256k1<C>, htlc: &HTLCOutputInCommitment, broadcaster_htlc_key: &PublicKey, countersignatory_htlc_key: &PublicKey, revocation_key: &PublicKey) -> TaprootSpendInfo {
+	let payment_hash_160 = Ripemd160::hash(&htlc.payment_hash.0[..]).into_inner();
+
+	let (htlc_timeout_script, htlc_success_script) = if htlc.offered {
+		let htlc_timeout_script = Builder::new()
+			.push_slice(&broadcaster_htlc_key.x_only_public_key().0.serialize())
+			.push_opcode(opcodes::all::OP_CHECKSIGVERIFY)
+			.push_slice(&countersignatory_htlc_key.x_only_public_key().0.serialize())
+			.push_opcode(opcodes::all::OP_CHECKSIG)
+			.into_script();
+		let htlc_success_script = Builder::new()
+			.push_opcode(opcodes::all::OP_SIZE)
+			.push_int(32)
+			.push_opcode(opcodes::all::OP_EQUALVERIFY)
+			.push_opcode(opcodes::all::OP_HASH160)
+			.push_slice(&payment_hash_160)
+			.push_opcode(opcodes::all::OP_EQUALVERIFY)
+			.push_slice(&countersignatory_htlc_key.x_only_public_key().0.serialize())
+			.push_opcode(opcodes::all::OP_CHECKSIG)
+			.push_opcode(opcodes::all::OP_CSV)
+			.into_script();
+		(htlc_timeout_script, htlc_success_script)
+	} else {
+		let htlc_timeout_script = Builder::new()
+			.push_slice(&countersignatory_htlc_key.x_only_public_key().0.serialize())
+			.push_opcode(opcodes::all::OP_CHECKSIG)
+			.push_opcode(opcodes::all::OP_CSV)
+			.push_int(htlc.cltv_expiry as i64)
+			.push_opcode(opcodes::all::OP_CLTV)
+			.push_opcode(opcodes::all::OP_DROP)
+			.into_script();
+		let htlc_success_script = Builder::new()
+			.push_opcode(opcodes::all::OP_SIZE)
+			.push_int(32)
+			.push_opcode(opcodes::all::OP_EQUALVERIFY)
+			.push_opcode(opcodes::all::OP_HASH160)
+			.push_slice(&payment_hash_160)
+			.push_opcode(opcodes::all::OP_EQUALVERIFY)
+			.push_slice(&broadcaster_htlc_key.x_only_public_key().0.serialize())
+			.push_opcode(opcodes::all::OP_CHECKSIGVERIFY)
+			.push_slice(&countersignatory_htlc_key.x_only_public_key().0.serialize())
+			.push_opcode(opcodes::all::OP_CHECKSIG)
+			.into_script();
+		(htlc_timeout_script, htlc_success_script)
+	};
+
+	TaprootBuilder::new()
+		.add_leaf(1, htlc_timeout_script).unwrap()
+		.add_leaf(1, htlc_success_script).unwrap()
+		.finalize(secp, revocation_key.x_only_public_key().0)
+		.expect("Couldn't finalize HTLC TapTree")
+
+}
+
+/// Gets the witness redeemscript for an HTLC output in a commitment transaction. Note that htlc
+/// does not need to have its previous_output_index filled.
+#[inline]
+pub fn htlc_taproot_outputscript<C: secp256k1::Verification>(secp: &Secp256k1<C>, htlc: &HTLCOutputInCommitment, keys: &TxCreationKeys) -> Script {
+	let tap_tree = htlc_taproot_outputscript_with_explicit_keys(secp, htlc, &keys.broadcaster_htlc_key, &keys.countersignatory_htlc_key, &keys.revocation_key);
+	Script::new_v1_p2tr(secp, keys.revocation_key.x_only_public_key().0, tap_tree.merkle_root())
 }
 
 /// Gets the witnessScript for an anchor output from the funding public key.
@@ -1179,6 +1307,7 @@ pub struct CommitmentTransaction {
 	htlcs: Vec<HTLCOutputInCommitment>,
 	// A boolean that is serialization backwards-compatible
 	opt_anchors: Option<()>,
+	opt_taproot: Option<()>,
 	// A cache of the parties' pubkeys required to construct the transaction, see doc for trust()
 	keys: TxCreationKeys,
 	// For access to the pre-built transaction, see doc for trust()
@@ -1193,6 +1322,7 @@ impl PartialEq for CommitmentTransaction {
 			self.feerate_per_kw == o.feerate_per_kw &&
 			self.htlcs == o.htlcs &&
 			self.opt_anchors == o.opt_anchors &&
+			self.opt_taproot == o.opt_taproot &&
 			self.keys == o.keys;
 		if eq {
 			debug_assert_eq!(self.built.transaction, o.built.transaction);
@@ -1211,9 +1341,43 @@ impl_writeable_tlv_based!(CommitmentTransaction, {
 	(10, built, required),
 	(12, htlcs, vec_type),
 	(14, opt_anchors, option),
+	(16, opt_taproot, option),
 });
 
 impl CommitmentTransaction {
+	/// Construct an object of the class while assigning transaction output indices to HTLCs.
+	///
+	/// Populates HTLCOutputInCommitment.transaction_output_index in htlcs_with_aux.
+	///
+	/// The generic T allows the caller to match the HTLC output index with auxiliary data.
+	/// This auxiliary data is not stored in this object.
+	///
+	/// Only include HTLCs that are above the dust limit for the channel.
+	///
+	/// (C-not exported) due to the generic though we likely should expose a version without
+	pub fn new_taproot_with_auxiliary_htlc_data<T, C: secp256k1::Verification>(secp: &Secp256k1<C>, commitment_number: u64, to_broadcaster_value_sat: u64, to_countersignatory_value_sat: u64, broadcaster_funding_key: PublicKey, countersignatory_funding_key: PublicKey, keys: TxCreationKeys, feerate_per_kw: u32, htlcs_with_aux: &mut Vec<(HTLCOutputInCommitment, T)>, channel_parameters: &DirectedChannelTransactionParameters) -> CommitmentTransaction {
+		// Sort outputs and populate output indices while keeping track of the auxiliary data
+		let (outputs, htlcs) = Self::build_taproot_outputs(&secp, &keys, to_broadcaster_value_sat, to_countersignatory_value_sat, htlcs_with_aux, channel_parameters, &broadcaster_funding_key, &countersignatory_funding_key).unwrap();
+
+		let (obscured_commitment_transaction_number, txins) = Self::internal_build_inputs(commitment_number, channel_parameters);
+		let transaction = Self::make_transaction(obscured_commitment_transaction_number, txins, outputs);
+		let txid = transaction.txid();
+		CommitmentTransaction {
+			commitment_number,
+			to_broadcaster_value_sat,
+			to_countersignatory_value_sat,
+			feerate_per_kw,
+			htlcs,
+			opt_anchors: Some(()),
+			opt_taproot: Some(()),
+			keys,
+			built: BuiltCommitmentTransaction {
+				transaction,
+				txid
+			},
+		}
+	}
+
 	/// Construct an object of the class while assigning transaction output indices to HTLCs.
 	///
 	/// Populates HTLCOutputInCommitment.transaction_output_index in htlcs_with_aux.
@@ -1238,6 +1402,7 @@ impl CommitmentTransaction {
 			feerate_per_kw,
 			htlcs,
 			opt_anchors: if opt_anchors { Some(()) } else { None },
+			opt_taproot: None,
 			keys,
 			built: BuiltCommitmentTransaction {
 				transaction,
@@ -1268,6 +1433,103 @@ impl CommitmentTransaction {
 			input: txins,
 			output: outputs,
 		}
+	}
+
+	// This is used in two cases:
+	// - initial sorting of outputs / HTLCs in the constructor, in which case T is auxiliary data the
+	//   caller needs to have sorted together with the HTLCs so it can keep track of the output index
+	// - building of a bitcoin transaction during a verify() call, in which case T is just ()
+	fn build_taproot_outputs<T, C: secp256k1::Verification>(secp: &Secp256k1<C>, keys: &TxCreationKeys, to_broadcaster_value_sat: u64, to_countersignatory_value_sat: u64, htlcs_with_aux: &mut Vec<(HTLCOutputInCommitment, T)>, channel_parameters: &DirectedChannelTransactionParameters, broadcaster_funding_key: &PublicKey, countersignatory_funding_key: &PublicKey) -> Result<(Vec<TxOut>, Vec<HTLCOutputInCommitment>), ()> {
+		let countersignatory_pubkeys = channel_parameters.countersignatory_pubkeys();
+		let combined_funding_pubkey = calculate_taproot_combined_funding_key(broadcaster_funding_key, countersignatory_funding_key);
+		let contest_delay = channel_parameters.contest_delay();
+
+		let mut txouts: Vec<(TxOut, Option<&mut HTLCOutputInCommitment>)> = Vec::new();
+
+		if to_countersignatory_value_sat > 0 {
+			let to_remote_script = to_countersignatory_taproot_outputscript(secp, &countersignatory_pubkeys.payment_point, &combined_funding_pubkey).to_v0_p2wsh();
+			txouts.push((
+				TxOut {
+					script_pubkey: to_remote_script,
+					value: to_countersignatory_value_sat,
+				},
+				None,
+			))
+		}
+
+		if to_broadcaster_value_sat > 0 {
+			let to_local_script = to_holder_taproot_outputscript(
+				&secp,
+				&keys.revocation_key,
+				contest_delay,
+				&keys.broadcaster_delayed_payment_key,
+			);
+			txouts.push((
+				TxOut {
+					script_pubkey: to_local_script,
+					value: to_broadcaster_value_sat,
+				},
+				None,
+			));
+		}
+
+		if to_broadcaster_value_sat > 0 || !htlcs_with_aux.is_empty() {
+			let to_broadcaster_anchor_script = anchor_taproot_outputscript(secp, &keys.broadcaster_delayed_payment_key);
+			txouts.push((
+				TxOut {
+					script_pubkey: to_broadcaster_anchor_script,
+					value: ANCHOR_OUTPUT_VALUE_SATOSHI,
+				},
+				None,
+			));
+		}
+
+		if to_countersignatory_value_sat > 0 || !htlcs_with_aux.is_empty() {
+			let to_countersignatory_anchor_script = anchor_taproot_outputscript(secp, &countersignatory_pubkeys.payment_point);
+			txouts.push((
+				TxOut {
+					script_pubkey: to_countersignatory_anchor_script,
+					value: ANCHOR_OUTPUT_VALUE_SATOSHI,
+				},
+				None,
+			));
+		}
+
+		let mut htlcs = Vec::with_capacity(htlcs_with_aux.len());
+		for (htlc, _) in htlcs_with_aux {
+			let htlc_script = htlc_taproot_outputscript(secp, &htlc, &keys);
+			let txout = TxOut {
+				script_pubkey: htlc_script,
+				value: htlc.amount_msat / 1000,
+			};
+			txouts.push((txout, Some(htlc)));
+		}
+
+		// Sort output in BIP-69 order (amount, scriptPubkey).  Tie-breaks based on HTLC
+		// CLTV expiration height.
+		sort_outputs(&mut txouts, |a, b| {
+			if let &Some(ref a_htlcout) = a {
+				if let &Some(ref b_htlcout) = b {
+					a_htlcout.cltv_expiry.cmp(&b_htlcout.cltv_expiry)
+						// Note that due to hash collisions, we have to have a fallback comparison
+						// here for fuzzing mode (otherwise at least chanmon_fail_consistency
+						// may fail)!
+						.then(a_htlcout.payment_hash.0.cmp(&b_htlcout.payment_hash.0))
+					// For non-HTLC outputs, if they're copying our SPK we don't really care if we
+					// close the channel due to mismatches - they're doing something dumb:
+				} else { cmp::Ordering::Equal }
+			} else { cmp::Ordering::Equal }
+		});
+
+		let mut outputs = Vec::with_capacity(txouts.len());
+		for (idx, out) in txouts.drain(..).enumerate() {
+			if let Some(htlc) = out.1 {
+				htlc.transaction_output_index = Some(idx as u32);
+				htlcs.push(htlc.clone());
+			}
+			outputs.push(out.0);
+		}
+		Ok((outputs, htlcs))
 	}
 
 	// This is used in two cases:

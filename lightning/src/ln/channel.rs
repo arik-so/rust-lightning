@@ -7,20 +7,23 @@
 // You may not use this file except in accordance with one or both of these
 // licenses.
 
-use bitcoin::blockdata::script::{Script,Builder};
-use bitcoin::blockdata::transaction::{Transaction, EcdsaSighashType};
-use bitcoin::util::sighash;
-use bitcoin::consensus::encode;
+use core::{cmp, fmt, mem};
+use core::ops::Deref;
+use io;
 
+use bitcoin::blockdata::script::{Builder, Script};
+use bitcoin::blockdata::transaction::{EcdsaSighashType, Transaction};
+use bitcoin::consensus::encode;
+use bitcoin::hash_types::{BlockHash, Txid};
 use bitcoin::hashes::Hash;
+use bitcoin::hashes::hex::ToHex;
 use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::sha256d::Hash as Sha256d;
-use bitcoin::hash_types::{Txid, BlockHash};
-
-use bitcoin::secp256k1::constants::PUBLIC_KEY_SIZE;
-use bitcoin::secp256k1::{PublicKey,SecretKey};
-use bitcoin::secp256k1::{Secp256k1,ecdsa::Signature};
+use bitcoin::secp256k1::{PublicKey, SecretKey};
+use bitcoin::secp256k1::{ecdsa::Signature, Secp256k1};
 use bitcoin::secp256k1;
+use bitcoin::secp256k1::constants::PUBLIC_KEY_SIZE;
+use bitcoin::util::sighash;
 
 use ln::{PaymentPreimage, PaymentHash};
 use ln::features::{ChannelTypeFeatures, InitFeatures};
@@ -31,26 +34,29 @@ use ln::channelmanager::{self, CounterpartyForwardingInfo, PendingHTLCStatus, HT
 use ln::chan_utils::{CounterpartyCommitmentSecrets, TxCreationKeys, HTLCOutputInCommitment, htlc_success_tx_weight, htlc_timeout_tx_weight, make_funding_redeemscript, ChannelPublicKeys, CommitmentTransaction, HolderCommitmentTransaction, ChannelTransactionParameters, CounterpartyChannelTransactionParameters, MAX_HTLCS, get_commitment_transaction_number_obscure_factor, ClosingTransaction, make_taproot_funding_outputscript};
 use ln::chan_utils;
 use chain::BestBlock;
-use chain::chaininterface::{FeeEstimator, ConfirmationTarget, LowerBoundedFeeEstimator};
+use chain::chaininterface::{ConfirmationTarget, FeeEstimator, LowerBoundedFeeEstimator};
 use chain::channelmonitor::{ChannelMonitor, ChannelMonitorUpdate, ChannelMonitorUpdateStep, LATENCY_GRACE_PERIOD_BLOCKS};
+use chain::keysinterface::{KeysInterface, Sign};
 use chain::transaction::{OutPoint, TransactionData};
-use chain::keysinterface::{Sign, KeysInterface};
-use util::events::ClosureReason;
-use util::ser::{Readable, ReadableArgs, Writeable, Writer, VecWriter};
-use util::logger::Logger;
-use util::errors::APIError;
-use util::config::{UserConfig, ChannelConfig, LegacyChannelConfig, ChannelHandshakeConfig, ChannelHandshakeLimits};
-use util::scid_utils::scid_from_parts;
-
-use io;
+use ln::{PaymentHash, PaymentPreimage};
+use ln::chan_utils::{ChannelPublicKeys, ChannelTransactionParameters, ClosingTransaction, CommitmentTransaction, CounterpartyChannelTransactionParameters, CounterpartyCommitmentSecrets, get_commitment_transaction_number_obscure_factor, HolderCommitmentTransaction, htlc_success_tx_weight, htlc_timeout_tx_weight, HTLCOutputInCommitment, make_funding_redeemscript, make_taproot_funding_outputscript, MAX_HTLCS, TxCreationKeys};
+use ln::chan_utils;
+use ln::channelmanager::{BREAKDOWN_TIMEOUT, CounterpartyForwardingInfo, HTLCFailReason, HTLCFailureMsg, HTLCSource, MAX_LOCAL_BREAKDOWN_TIMEOUT, MIN_CLTV_EXPIRY_DELTA, PendingHTLCInfo, PendingHTLCStatus, RAACommitmentOrder};
+use ln::features::{ChannelFeatures, ChannelTypeFeatures, InitFeatures};
+use ln::msgs;
+use ln::msgs::{DataLossProtect, DecodeError, FundingSigned, Musig2PublicNonces, Musig2SecretNonces, OptionalField};
+use ln::script::{self, ShutdownScript};
 use prelude::*;
-use core::{cmp,mem,fmt};
-use core::ops::Deref;
 #[cfg(any(test, fuzzing, debug_assertions))]
 use sync::Mutex;
-use bitcoin::hashes::hex::ToHex;
+use util::config::{ChannelConfig, ChannelHandshakeConfig, ChannelHandshakeLimits, LegacyChannelConfig, UserConfig};
+use util::errors::APIError;
+use util::events::ClosureReason;
+use util::logger::Logger;
 use util::musig2;
 use util::musig2::{Musig2PublicNonce, Musig2SecretNonce};
+use util::scid_utils::scid_from_parts;
+use util::ser::{Readable, ReadableArgs, VecWriter, Writeable, Writer};
 
 #[cfg(test)]
 pub struct ChannelValueStat {
@@ -1672,17 +1678,37 @@ impl<Signer: Sign> Channel<Signer> {
 		let channel_parameters =
 			if local { self.channel_transaction_parameters.as_holder_broadcastable() }
 			else { self.channel_transaction_parameters.as_counterparty_broadcastable() };
-		let tx = CommitmentTransaction::new_with_auxiliary_htlc_data(commitment_number,
-		                                                             value_to_a as u64,
-		                                                             value_to_b as u64,
-		                                                             self.channel_transaction_parameters.opt_anchors.is_some(),
-		                                                             funding_pubkey_a,
-		                                                             funding_pubkey_b,
-		                                                             keys.clone(),
-		                                                             feerate_per_kw,
-		                                                             &mut included_non_dust_htlcs,
-		                                                             &channel_parameters
-		);
+
+		let is_taproot = self.supports_taproot();
+
+		let tx = if is_taproot {
+			CommitmentTransaction::new_taproot_with_auxiliary_htlc_data(
+				&self.secp_ctx,
+				commitment_number,
+				value_to_a as u64,
+				value_to_b as u64,
+				funding_pubkey_a,
+				funding_pubkey_b,
+				keys.clone(),
+				feerate_per_kw,
+				&mut included_non_dust_htlcs,
+				&channel_parameters,
+			)
+		} else {
+			CommitmentTransaction::new_with_auxiliary_htlc_data(
+				commitment_number,
+				value_to_a as u64,
+				value_to_b as u64,
+				self.channel_transaction_parameters.opt_anchors.is_some(),
+				funding_pubkey_a,
+				funding_pubkey_b,
+				keys.clone(),
+				feerate_per_kw,
+				&mut included_non_dust_htlcs,
+				&channel_parameters,
+			)
+		};
+
 		let mut htlcs_included = included_non_dust_htlcs;
 		// The unwrap is safe, because all non-dust HTLCs have been assigned an output index
 		htlcs_included.sort_unstable_by_key(|h| h.0.transaction_output_index.unwrap());
@@ -6860,11 +6886,23 @@ impl<'a, Signer: Sign, K: Deref> ReadableArgs<(&'a K, u32)> for Channel<Signer>
 #[cfg(test)]
 mod tests {
 	use std::cmp;
-	use bitcoin::blockdata::script::{Script, Builder};
-	use bitcoin::blockdata::transaction::{Transaction, TxOut};
+
+	use bitcoin::bech32::u5;
 	use bitcoin::blockdata::constants::genesis_block;
 	use bitcoin::blockdata::opcodes;
+	use bitcoin::blockdata::script::{Builder, Script};
+	use bitcoin::blockdata::transaction::{Transaction, TxOut};
+	use bitcoin::hash_types::WPubkeyHash;
+	use bitcoin::hashes::Hash;
+	use bitcoin::hashes::sha256::Hash as Sha256;
 	use bitcoin::network::constants::Network;
+	use bitcoin::PackedLockTime;
+	use bitcoin::secp256k1::{ecdsa::Signature, Scalar, Secp256k1};
+	use bitcoin::secp256k1::{PublicKey, SecretKey};
+	use bitcoin::secp256k1::ecdh::SharedSecret;
+	use bitcoin::secp256k1::ecdsa::RecoverableSignature;
+	use bitcoin::secp256k1::ffi::Signature as FFISignature;
+	use bitcoin::util::address::WitnessVersion;
 	use hex;
 	use ln::PaymentHash;
 	use ln::channelmanager::{self, HTLCSource, PaymentId};
@@ -6876,26 +6914,24 @@ mod tests {
 	use ln::chan_utils;
 	use ln::chan_utils::{htlc_success_tx_weight, htlc_timeout_tx_weight};
 	use chain::BestBlock;
-	use chain::chaininterface::{FeeEstimator, LowerBoundedFeeEstimator, ConfirmationTarget};
-	use chain::keysinterface::{InMemorySigner, Recipient, KeyMaterial, KeysInterface};
+	use chain::chaininterface::{ConfirmationTarget, FeeEstimator, LowerBoundedFeeEstimator};
+	use chain::keysinterface::{InMemorySigner, KeyMaterial, KeysInterface, Recipient};
 	use chain::transaction::OutPoint;
+	use ln::chan_utils;
+	use ln::chan_utils::{htlc_success_tx_weight, htlc_timeout_tx_weight};
+	use ln::channel::{Channel, HTLCCandidate, HTLCInitiator, InboundHTLCOutput, InboundHTLCState, OutboundHTLCOutput, OutboundHTLCState};
+	use ln::channel::{MAX_FUNDING_SATOSHIS_NO_WUMBO, MIN_THEIR_CHAN_RESERVE_SATOSHIS, TOTAL_BITCOIN_SUPPLY_SATOSHIS};
+	use ln::channelmanager::{HTLCSource, PaymentId};
+	use ln::features::{ChannelTypeFeatures, InitFeatures};
+	use ln::msgs::{ChannelUpdate, DataLossProtect, DecodeError, MAX_VALUE_MSAT, OptionalField, UnsignedChannelUpdate};
+	use ln::PaymentHash;
+	use ln::script::ShutdownScript;
+	use prelude::*;
 	use util::config::UserConfig;
 	use util::enforcing_trait_impls::EnforcingSigner;
 	use util::errors::APIError;
 	use util::test_utils;
 	use util::test_utils::OnGetShutdownScriptpubkey;
-	use bitcoin::secp256k1::{Secp256k1, ecdsa::Signature, Scalar};
-	use bitcoin::secp256k1::ffi::Signature as FFISignature;
-	use bitcoin::secp256k1::{SecretKey,PublicKey};
-	use bitcoin::secp256k1::ecdh::SharedSecret;
-	use bitcoin::secp256k1::ecdsa::RecoverableSignature;
-	use bitcoin::hashes::sha256::Hash as Sha256;
-	use bitcoin::hashes::Hash;
-	use bitcoin::hash_types::WPubkeyHash;
-	use bitcoin::bech32::u5;
-	use bitcoin::PackedLockTime;
-	use bitcoin::util::address::WitnessVersion;
-	use prelude::*;
 
 	struct TestFeeEstimator {
 		fee_est: u32
