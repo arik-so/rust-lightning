@@ -19,7 +19,7 @@ use sync::{Mutex, Arc};
 use bitcoin::blockdata::transaction::{Transaction, EcdsaSighashType};
 use bitcoin::util::sighash;
 
-use bitcoin::secp256k1;
+use bitcoin::{SchnorrSig, secp256k1};
 use bitcoin::secp256k1::{SecretKey, PublicKey};
 use bitcoin::secp256k1::{Secp256k1, ecdsa::Signature};
 use util::ser::{Writeable, Writer};
@@ -133,10 +133,10 @@ impl BaseSign for EnforcingSigner {
 		Ok(self.inner.sign_counterparty_commitment(commitment_tx, preimages, secp_ctx).unwrap())
 	}
 
-	fn musig2_partially_sign_counterparty_taproot_commitment(&self, commitment_tx: &CommitmentTransaction, preimages: Vec<PaymentPreimage>, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[PublicKey], secp_ctx: &Secp256k1<secp256k1::All>)  -> Result<Musig2PartialSignature, ()> {
+	fn sign_counterparty_taproot_commitment(&self, commitment_tx: &CommitmentTransaction, preimages: Vec<PaymentPreimage>, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[PublicKey], secp_ctx: &Secp256k1<secp256k1::All>) -> Result<(Musig2PartialSignature, Vec<SchnorrSig>), ()> {
 		// TODO: implement
 		// unimplemented!("EnforcingSigner::musig2_partially_sign_counterparty_taproot_commitment");
-		self.inner.musig2_partially_sign_counterparty_taproot_commitment(commitment_tx, preimages, secret_nonce, aggregate_nonce, sorted_public_keys, secp_ctx)
+		self.inner.sign_counterparty_taproot_commitment(commitment_tx, preimages, secret_nonce, aggregate_nonce, sorted_public_keys, secp_ctx)
 	}
 
 	fn validate_counterparty_revocation(&self, idx: u64, _secret: &SecretKey) -> Result<(), ()> {
@@ -163,7 +163,7 @@ impl BaseSign for EnforcingSigner {
 		for (this_htlc, sig) in trusted_tx.htlcs().iter().zip(&commitment_tx.counterparty_htlc_sigs) {
 			assert!(this_htlc.transaction_output_index.is_some());
 			let keys = trusted_tx.keys();
-			let htlc_tx = chan_utils::build_htlc_transaction(&commitment_txid, trusted_tx.feerate_per_kw(), holder_csv, &this_htlc, self.opt_anchors(), &keys.broadcaster_delayed_payment_key, &keys.revocation_key);
+			let htlc_tx = chan_utils::build_htlc_transaction(secp_ctx, &commitment_txid, trusted_tx.feerate_per_kw(), holder_csv, &this_htlc, self.opt_anchors(), false, &keys.broadcaster_delayed_payment_key, &keys.revocation_key);
 
 			let htlc_redeemscript = chan_utils::get_htlc_redeemscript(&this_htlc, self.opt_anchors(), &keys);
 

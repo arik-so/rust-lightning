@@ -770,7 +770,7 @@ impl<ChannelSigner: Sign> OnchainTxHandler<ChannelSigner> {
 				let trusted_tx = self.holder_commitment.trust();
 				let counterparty_htlc_sig = self.holder_commitment.counterparty_htlc_sigs[*htlc_idx];
 				htlc_tx = Some(trusted_tx
-					.get_signed_htlc_tx(&self.channel_transaction_parameters.as_holder_broadcastable(), *htlc_idx, &counterparty_htlc_sig, htlc_sig, preimage));
+					.get_signed_htlc_tx(&self.secp_ctx, &self.channel_transaction_parameters.as_holder_broadcastable(), *htlc_idx, &counterparty_htlc_sig, htlc_sig, preimage));
 			}
 		}
 		// If the HTLC doesn't spend the current holder commitment, check if it spends the previous one
@@ -784,7 +784,7 @@ impl<ChannelSigner: Sign> OnchainTxHandler<ChannelSigner> {
 					let trusted_tx = holder_commitment.trust();
 					let counterparty_htlc_sig = holder_commitment.counterparty_htlc_sigs[*htlc_idx];
 					htlc_tx = Some(trusted_tx
-						.get_signed_htlc_tx(&self.channel_transaction_parameters.as_holder_broadcastable(), *htlc_idx, &counterparty_htlc_sig, htlc_sig, preimage));
+						.get_signed_htlc_tx(&self.secp_ctx, &self.channel_transaction_parameters.as_holder_broadcastable(), *htlc_idx, &counterparty_htlc_sig, htlc_sig, preimage));
 				}
 			}
 		}

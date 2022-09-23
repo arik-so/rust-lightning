@@ -29,7 +29,7 @@ use bitcoin::secp256k1::{SecretKey, PublicKey, Scalar};
 use bitcoin::secp256k1::{Secp256k1, ecdsa::Signature, Signing};
 use bitcoin::secp256k1::ecdh::SharedSecret;
 use bitcoin::secp256k1::ecdsa::RecoverableSignature;
-use bitcoin::{PackedLockTime, secp256k1, Sequence, Witness};
+use bitcoin::{PackedLockTime, SchnorrSig, secp256k1, Sequence, Witness};
 
 use util::{byte_utils, transaction_utils};
 use util::crypto::{hkdf_extract_expand_twice, sign};
@@ -269,7 +269,7 @@ pub trait BaseSign {
 	fn validate_counterparty_revocation(&self, idx: u64, secret: &SecretKey) -> Result<(), ()>;
 
 	/// TODO: implement & write docs
-	fn musig2_partially_sign_counterparty_taproot_commitment(&self, commitment_tx: &CommitmentTransaction, preimages: Vec<PaymentPreimage>, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[PublicKey], secp_ctx: &Secp256k1<secp256k1::All>) -> Result<Musig2PartialSignature, ()>;
+	fn sign_counterparty_taproot_commitment(&self, commitment_tx: &CommitmentTransaction, preimages: Vec<PaymentPreimage>, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[PublicKey], secp_ctx: &Secp256k1<secp256k1::All>) -> Result<(Musig2PartialSignature, Vec<SchnorrSig>), ()>;
 
 	/// Create a signatures for a holder's commitment transaction and its claiming HTLC transactions.
 	/// This will only ever be called with a non-revoked commitment_tx.  This will be called with the
@@ -690,7 +690,7 @@ impl BaseSign for InMemorySigner {
 
 		let mut htlc_sigs = Vec::with_capacity(commitment_tx.htlcs().len());
 		for htlc in commitment_tx.htlcs() {
-			let htlc_tx = chan_utils::build_htlc_transaction(&commitment_txid, commitment_tx.feerate_per_kw(), self.holder_selected_contest_delay(), htlc, self.opt_anchors(), &keys.broadcaster_delayed_payment_key, &keys.revocation_key);
+			let htlc_tx = chan_utils::build_htlc_transaction(secp_ctx, &commitment_txid, commitment_tx.feerate_per_kw(), self.holder_selected_contest_delay(), htlc, self.opt_anchors(), false, &keys.broadcaster_delayed_payment_key, &keys.revocation_key);
 			let htlc_redeemscript = chan_utils::get_htlc_redeemscript(&htlc, self.opt_anchors(), &keys);
 			let htlc_sighashtype = if self.opt_anchors() { EcdsaSighashType::SinglePlusAnyoneCanPay } else { EcdsaSighashType::All };
 			let htlc_sighash = hash_to_message!(&sighash::SighashCache::new(&htlc_tx).segwit_signature_hash(0, &htlc_redeemscript, htlc.amount_msat / 1000, htlc_sighashtype).unwrap()[..]);
@@ -701,7 +701,7 @@ impl BaseSign for InMemorySigner {
 		Ok((commitment_sig, htlc_sigs))
 	}
 
-	fn musig2_partially_sign_counterparty_taproot_commitment(&self, commitment_tx: &CommitmentTransaction, preimages: Vec<PaymentPreimage>, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[PublicKey], secp_ctx: &Secp256k1<secp256k1::All>) -> Result<Musig2PartialSignature, ()> {
+	fn sign_counterparty_taproot_commitment(&self, commitment_tx: &CommitmentTransaction, preimages: Vec<PaymentPreimage>, secret_nonce: &Musig2SecretNonce, aggregate_nonce: &Musig2PublicNonce, sorted_public_keys: &[PublicKey], secp_ctx: &Secp256k1<secp256k1::All>) -> Result<(Musig2PartialSignature, Vec<SchnorrSig>), ()> {
 		println!("<DELETE ME> original commitment tx: {}", commitment_tx.encode().to_hex());
 		let trusted_tx = commitment_tx.trust();
 		println!("<DELETE ME> trusted commitment tx: {}", trusted_tx.encode().to_hex());
@@ -716,7 +716,18 @@ impl BaseSign for InMemorySigner {
 		let commitment_sig = built_tx.musig2_partially_sign(&self.funding_key, &channel_funding_outputscript, self.channel_value_satoshis, secret_nonce, aggregate_nonce, sorted_public_keys);
 		// let commitment_txid = built_tx.txid;
 		// unimplemented!("InMemorySigner::musig2_partially_sign_counterparty_taproot_commitment")
-		Ok(commitment_sig)
+
+		let keys = trusted_tx.keys();
+		let commitment_txid = built_tx.txid;
+		let commitment_htlcs = commitment_tx.htlcs();
+		let mut htlc_signatures = Vec::with_capacity(commitment_htlcs.len());
+		for current_htlc_output in commitment_htlcs {
+			let htlc_spend_transaction = chan_utils::build_htlc_transaction(secp_ctx, &commitment_txid, commitment_tx.feerate_per_kw(), self.holder_selected_contest_delay(), current_htlc_output, true, true, &keys.broadcaster_delayed_payment_key, &keys.revocation_key);
+			let htlc_output_tap_tree = chan_utils::htlc_output_tap_tree(&secp_ctx, &current_htlc_output, &keys.broadcaster_htlc_key, &keys.countersignatory_htlc_key, &keys.revocation_key);
+
+		}
+
+		Ok((commitment_sig, htlc_signatures))
 	}
 
 	fn validate_counterparty_revocation(&self, _idx: u64, _secret: &SecretKey) -> Result<(), ()> {

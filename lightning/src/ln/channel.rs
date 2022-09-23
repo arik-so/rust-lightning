@@ -2315,7 +2315,7 @@ impl<Signer: Sign> Channel<Signer> {
 		let (counterparty_signature, partial_signature_for_remote) = if self.supports_taproot() {
 			let nonces = self.taproot_signing_nonces();
 			let sorted_keys = self.get_taproot_keys();
-			let signature = self.holder_signer.musig2_partially_sign_counterparty_taproot_commitment(&counterparty_initial_commitment_tx, Vec::new(), &nonces.local, &nonces.aggregate, sorted_keys.as_slice(), &self.secp_ctx).unwrap();
+			let signature = self.holder_signer.sign_counterparty_taproot_commitment(&counterparty_initial_commitment_tx, Vec::new(), &nonces.local, &nonces.aggregate, sorted_keys.as_slice(), &self.secp_ctx).unwrap().0;
 
 			let legacy_signature = Signature::from_compact(&[0; 64]).unwrap();
 			(legacy_signature, Some(signature))
@@ -3185,9 +3185,9 @@ impl<Signer: Sign> Channel<Signer> {
 		let mut htlcs_and_sigs = Vec::with_capacity(htlcs_cloned.len());
 		for (idx, (htlc, source)) in htlcs_cloned.drain(..).enumerate() {
 			if let Some(_) = htlc.transaction_output_index {
-				let htlc_tx = chan_utils::build_htlc_transaction(&commitment_txid, commitment_stats.feerate_per_kw,
+				let htlc_tx = chan_utils::build_htlc_transaction(&self.secp_ctx, &commitment_txid, commitment_stats.feerate_per_kw,
 					self.get_counterparty_selected_contest_delay().unwrap(), &htlc, self.opt_anchors(),
-					&keys.broadcaster_delayed_payment_key, &keys.revocation_key);
+					false, &keys.broadcaster_delayed_payment_key, &keys.revocation_key);
 
 				let htlc_redeemscript = chan_utils::get_htlc_redeemscript(&htlc, self.opt_anchors(), &keys);
 				let htlc_sighashtype = if self.opt_anchors() { EcdsaSighashType::SinglePlusAnyoneCanPay } else { EcdsaSighashType::All };
@@ -5444,7 +5444,7 @@ impl<Signer: Sign> Channel<Signer> {
 			let counterparty_initial_commitment_tx = self.build_commitment_transaction(self.cur_counterparty_commitment_transaction_number, &counterparty_keys, false, false, logger).tx;
 			println!("<DELETE ME> commitment transaction: {}", counterparty_initial_commitment_tx.encode().to_hex());
 			let sorted_keys = self.get_taproot_keys();
-			let signature = self.holder_signer.musig2_partially_sign_counterparty_taproot_commitment(&counterparty_initial_commitment_tx, Vec::new(), &nonces.local, &nonces.aggregate, sorted_keys.as_slice(), &self.secp_ctx).unwrap();
+			let signature = self.holder_signer.sign_counterparty_taproot_commitment(&counterparty_initial_commitment_tx, Vec::new(), &nonces.local, &nonces.aggregate, sorted_keys.as_slice(), &self.secp_ctx).unwrap().0;
 
 			// implement signing flow on holder signer
 			let legacy_signature = Signature::from_compact(&[0; 64]).unwrap();
@@ -5950,7 +5950,7 @@ impl<Signer: Sign> Channel<Signer> {
 
 			for (ref htlc_sig, ref htlc) in htlc_signatures.iter().zip(htlcs) {
 				log_trace!(logger, "Signed remote HTLC tx {} with redeemscript {} with pubkey {} -> {} in channel {}",
-					encode::serialize_hex(&chan_utils::build_htlc_transaction(&counterparty_commitment_txid, commitment_stats.feerate_per_kw, self.get_holder_selected_contest_delay(), htlc, self.opt_anchors(), &counterparty_keys.broadcaster_delayed_payment_key, &counterparty_keys.revocation_key)),
+					encode::serialize_hex(&chan_utils::build_htlc_transaction(&self.secp_ctx, &counterparty_commitment_txid, commitment_stats.feerate_per_kw, self.get_holder_selected_contest_delay(), htlc, self.opt_anchors(), false, &counterparty_keys.broadcaster_delayed_payment_key, &counterparty_keys.revocation_key)),
 					encode::serialize_hex(&chan_utils::get_htlc_redeemscript(&htlc, self.opt_anchors(), &counterparty_keys)),
 					log_bytes!(counterparty_keys.broadcaster_htlc_key.serialize()),
 					log_bytes!(htlc_sig.serialize_compact()[..]), log_bytes!(self.channel_id()));

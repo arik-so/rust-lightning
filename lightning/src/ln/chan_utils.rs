@@ -683,9 +683,12 @@ pub fn make_taproot_funding_outputscript(broadcaster: &PublicKey, countersignato
 ///
 /// Panics if htlc.transaction_output_index.is_none() (as such HTLCs do not appear in the
 /// commitment transaction).
-pub fn build_htlc_transaction(commitment_txid: &Txid, feerate_per_kw: u32, contest_delay: u16, htlc: &HTLCOutputInCommitment, opt_anchors: bool, broadcaster_delayed_payment_key: &PublicKey, revocation_key: &PublicKey) -> Transaction {
-	let mut txins: Vec<TxIn> = Vec::new();
-	txins.push(TxIn {
+pub fn build_htlc_transaction<C: secp256k1::Verification>(secp: &Secp256k1<C>, commitment_txid: &Txid, feerate_per_kw: u32, contest_delay: u16, htlc: &HTLCOutputInCommitment, opt_anchors: bool, opt_taproot: bool, broadcaster_delayed_payment_key: &PublicKey, revocation_key: &PublicKey) -> Transaction {
+	if opt_taproot {
+		debug_assert!(opt_anchors);
+	}
+
+	let input = TxIn {
 		previous_output: OutPoint {
 			txid: commitment_txid.clone(),
 			vout: htlc.transaction_output_index.expect("Can't build an HTLC transaction for a dust output"),
@@ -693,31 +696,35 @@ pub fn build_htlc_transaction(commitment_txid: &Txid, feerate_per_kw: u32, conte
 		script_sig: Script::new(),
 		sequence: Sequence(if opt_anchors { 1 } else { 0 }),
 		witness: Witness::new(),
-	});
-
-	let weight = if htlc.offered {
-		htlc_timeout_tx_weight(opt_anchors)
-	} else {
-		htlc_success_tx_weight(opt_anchors)
 	};
+
 	let output_value = if opt_anchors {
 		htlc.amount_msat / 1000
 	} else {
+		let weight = if htlc.offered {
+			htlc_timeout_tx_weight(opt_anchors)
+		} else {
+			htlc_success_tx_weight(opt_anchors)
+		};
 		let total_fee = feerate_per_kw as u64 * weight / 1000;
 		htlc.amount_msat / 1000 - total_fee
 	};
 
-	let mut txouts: Vec<TxOut> = Vec::new();
-	txouts.push(TxOut {
-		script_pubkey: get_revokeable_redeemscript(revocation_key, contest_delay, broadcaster_delayed_payment_key).to_v0_p2wsh(),
+	let script_pubkey = if opt_taproot {
+		broadcaster_taproot_outputscript(&secp, revocation_key, contest_delay, broadcaster_delayed_payment_key)
+	} else {
+		get_revokeable_redeemscript(revocation_key, contest_delay, broadcaster_delayed_payment_key).to_v0_p2wsh()
+	};
+	let output = TxOut {
+		script_pubkey,
 		value: output_value,
-	});
+	};
 
 	Transaction {
 		version: 2,
 		lock_time: PackedLockTime(if htlc.offered { htlc.cltv_expiry } else { 0 }),
-		input: txins,
-		output: txouts,
+		input: vec![input],
+		output: vec![output],
 	}
 }
 
@@ -750,7 +757,7 @@ pub fn to_holder_tap_tree<C: secp256k1::Verification>(secp: &Secp256k1<C>, revoc
 	builder.finalize(&secp, revocation_key.x_only_public_key().0).expect("Couldn't finalize to_holder TapTree")
 }
 
-pub fn to_holder_taproot_outputscript<C: secp256k1::Verification>(secp: &Secp256k1<C>, revocation_key: &PublicKey, contest_delay: u16, broadcaster_delayed_payment_key: &PublicKey) -> Script {
+pub fn broadcaster_taproot_outputscript<C: secp256k1::Verification>(secp: &Secp256k1<C>, revocation_key: &PublicKey, contest_delay: u16, broadcaster_delayed_payment_key: &PublicKey) -> Script {
 	let tap_tree = to_holder_tap_tree(secp, revocation_key, contest_delay, broadcaster_delayed_payment_key);
 	Script::new_v1_p2tr(&secp, revocation_key.x_only_public_key().0, tap_tree.merkle_root())
 }
@@ -791,7 +798,7 @@ pub(crate) fn anchor_taproot_outputscript<C: secp256k1::Verification>(secp: &Sec
 
 
 #[inline]
-pub(crate) fn htlc_taproot_outputscript_with_explicit_keys<C: secp256k1::Verification>(secp: &Secp256k1<C>, htlc: &HTLCOutputInCommitment, broadcaster_htlc_key: &PublicKey, countersignatory_htlc_key: &PublicKey, revocation_key: &PublicKey) -> TaprootSpendInfo {
+pub(crate) fn htlc_output_tap_tree<C: secp256k1::Verification>(secp: &Secp256k1<C>, htlc: &HTLCOutputInCommitment, broadcaster_htlc_key: &PublicKey, countersignatory_htlc_key: &PublicKey, revocation_key: &PublicKey) -> TaprootSpendInfo {
 	let payment_hash_160 = Ripemd160::hash(&htlc.payment_hash.0[..]).into_inner();
 
 	let (htlc_timeout_script, htlc_success_script) = if htlc.offered {
@@ -849,7 +856,7 @@ pub(crate) fn htlc_taproot_outputscript_with_explicit_keys<C: secp256k1::Verific
 /// does not need to have its previous_output_index filled.
 #[inline]
 pub fn htlc_taproot_outputscript<C: secp256k1::Verification>(secp: &Secp256k1<C>, htlc: &HTLCOutputInCommitment, keys: &TxCreationKeys) -> Script {
-	let tap_tree = htlc_taproot_outputscript_with_explicit_keys(secp, htlc, &keys.broadcaster_htlc_key, &keys.countersignatory_htlc_key, &keys.revocation_key);
+	let tap_tree = htlc_output_tap_tree(secp, htlc, &keys.broadcaster_htlc_key, &keys.countersignatory_htlc_key, &keys.revocation_key);
 	Script::new_v1_p2tr(secp, keys.revocation_key.x_only_public_key().0, tap_tree.merkle_root())
 }
 
@@ -1458,7 +1465,7 @@ impl CommitmentTransaction {
 		}
 
 		if to_broadcaster_value_sat > 0 {
-			let to_local_script = to_holder_taproot_outputscript(
+			let to_local_script = broadcaster_taproot_outputscript(
 				&secp,
 				&keys.revocation_key,
 				contest_delay,
@@ -1763,7 +1770,7 @@ impl<'a> TrustedCommitmentTransaction<'a> {
 	/// The returned Vec has one entry for each HTLC, and in the same order.
 	///
 	/// This function is only valid in the holder commitment context, it always uses EcdsaSighashType::All.
-	pub fn get_htlc_sigs<T: secp256k1::Signing>(&self, htlc_base_key: &SecretKey, channel_parameters: &DirectedChannelTransactionParameters, secp_ctx: &Secp256k1<T>) -> Result<Vec<Signature>, ()> {
+	pub fn get_htlc_sigs<C: secp256k1::Signing + secp256k1::Verification>(&self, htlc_base_key: &SecretKey, channel_parameters: &DirectedChannelTransactionParameters, secp_ctx: &Secp256k1<C>) -> Result<Vec<Signature>, ()> {
 		let inner = self.inner;
 		let keys = &inner.keys;
 		let txid = inner.built.txid;
@@ -1772,7 +1779,7 @@ impl<'a> TrustedCommitmentTransaction<'a> {
 
 		for this_htlc in inner.htlcs.iter() {
 			assert!(this_htlc.transaction_output_index.is_some());
-			let htlc_tx = build_htlc_transaction(&txid, inner.feerate_per_kw, channel_parameters.contest_delay(), &this_htlc, self.opt_anchors(), &keys.broadcaster_delayed_payment_key, &keys.revocation_key);
+			let htlc_tx = build_htlc_transaction(secp_ctx, &txid, inner.feerate_per_kw, channel_parameters.contest_delay(), &this_htlc, self.opt_anchors(), false, &keys.broadcaster_delayed_payment_key, &keys.revocation_key);
 
 			let htlc_redeemscript = get_htlc_redeemscript_with_explicit_keys(&this_htlc, self.opt_anchors(), &keys.broadcaster_htlc_key, &keys.countersignatory_htlc_key, &keys.revocation_key);
 
@@ -1783,7 +1790,7 @@ impl<'a> TrustedCommitmentTransaction<'a> {
 	}
 
 	/// Gets a signed HTLC transaction given a preimage (for !htlc.offered) and the holder HTLC transaction signature.
-	pub(crate) fn get_signed_htlc_tx(&self, channel_parameters: &DirectedChannelTransactionParameters, htlc_index: usize, counterparty_signature: &Signature, signature: &Signature, preimage: &Option<PaymentPreimage>) -> Transaction {
+	pub(crate) fn get_signed_htlc_tx<C: secp256k1::Signing + secp256k1::Verification>(&self, secp: &Secp256k1<C>, channel_parameters: &DirectedChannelTransactionParameters, htlc_index: usize, counterparty_signature: &Signature, signature: &Signature, preimage: &Option<PaymentPreimage>) -> Transaction {
 		let inner = self.inner;
 		let keys = &inner.keys;
 		let txid = inner.built.txid;
@@ -1794,7 +1801,7 @@ impl<'a> TrustedCommitmentTransaction<'a> {
 		// Further, we should never be provided the preimage for an HTLC-Timeout transaction.
 		if  this_htlc.offered && preimage.is_some() { unreachable!(); }
 
-		let mut htlc_tx = build_htlc_transaction(&txid, inner.feerate_per_kw, channel_parameters.contest_delay(), &this_htlc, self.opt_anchors(), &keys.broadcaster_delayed_payment_key, &keys.revocation_key);
+		let mut htlc_tx = build_htlc_transaction(secp, &txid, inner.feerate_per_kw, channel_parameters.contest_delay(), &this_htlc, self.opt_anchors(), false, &keys.broadcaster_delayed_payment_key, &keys.revocation_key);
 
 		let htlc_redeemscript = get_htlc_redeemscript_with_explicit_keys(&this_htlc, self.opt_anchors(), &keys.broadcaster_htlc_key, &keys.countersignatory_htlc_key, &keys.revocation_key);
 
