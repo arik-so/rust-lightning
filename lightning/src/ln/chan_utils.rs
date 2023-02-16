@@ -1013,7 +1013,7 @@ impl HolderCommitmentTransaction {
 			opt_non_zero_fee_anchors: None,
 		};
 		let mut htlcs_with_aux: Vec<(_, ())> = Vec::new();
-		let inner = CommitmentTransaction::new_with_auxiliary_htlc_data(0, 0, 0, false, dummy_key.clone(), dummy_key.clone(), keys, 0, &mut htlcs_with_aux, &channel_parameters.as_counterparty_broadcastable());
+		let inner = CommitmentTransaction::new_with_auxiliary_htlc_data(0, 0, 0, dummy_key.clone(), dummy_key.clone(), keys, 0, &mut htlcs_with_aux, &channel_parameters.as_counterparty_broadcastable());
 		HolderCommitmentTransaction {
 			inner,
 			counterparty_sig: dummy_sig,
@@ -1273,9 +1273,9 @@ impl CommitmentTransaction {
 	/// Only include HTLCs that are above the dust limit for the channel.
 	///
 	/// (C-not exported) due to the generic though we likely should expose a version without
-	pub fn new_with_auxiliary_htlc_data<T>(commitment_number: u64, to_broadcaster_value_sat: u64, to_countersignatory_value_sat: u64, opt_anchors: bool, broadcaster_funding_key: PublicKey, countersignatory_funding_key: PublicKey, keys: TxCreationKeys, feerate_per_kw: u32, htlcs_with_aux: &mut Vec<(HTLCOutputInCommitment, T)>, channel_parameters: &DirectedChannelTransactionParameters) -> CommitmentTransaction {
+	pub fn new_with_auxiliary_htlc_data<T>(commitment_number: u64, to_broadcaster_value_sat: u64, to_countersignatory_value_sat: u64, broadcaster_funding_key: PublicKey, countersignatory_funding_key: PublicKey, keys: TxCreationKeys, feerate_per_kw: u32, htlcs_with_aux: &mut Vec<(HTLCOutputInCommitment, T)>, channel_parameters: &DirectedChannelTransactionParameters) -> CommitmentTransaction {
 		// Sort outputs and populate output indices while keeping track of the auxiliary data
-		let (outputs, htlcs) = Self::internal_build_outputs(&keys, to_broadcaster_value_sat, to_countersignatory_value_sat, htlcs_with_aux, channel_parameters, opt_anchors, &broadcaster_funding_key, &countersignatory_funding_key).unwrap();
+		let (outputs, htlcs) = Self::internal_build_outputs(&keys, to_broadcaster_value_sat, to_countersignatory_value_sat, htlcs_with_aux, channel_parameters, &broadcaster_funding_key, &countersignatory_funding_key).unwrap();
 
 		let (obscured_commitment_transaction_number, txins) = Self::internal_build_inputs(commitment_number, channel_parameters);
 		let transaction = Self::make_transaction(obscured_commitment_transaction_number, txins, outputs);
@@ -1286,7 +1286,7 @@ impl CommitmentTransaction {
 			to_countersignatory_value_sat,
 			feerate_per_kw,
 			htlcs,
-			opt_anchors: if opt_anchors { Some(()) } else { None },
+			opt_anchors: if channel_parameters.opt_anchors() { Some(()) } else { None },
 			keys,
 			built: BuiltCommitmentTransaction {
 				transaction,
@@ -1308,7 +1308,7 @@ impl CommitmentTransaction {
 		let (obscured_commitment_transaction_number, txins) = Self::internal_build_inputs(self.commitment_number, channel_parameters);
 
 		let mut htlcs_with_aux = self.htlcs.iter().map(|h| (h.clone(), ())).collect();
-		let (outputs, _) = Self::internal_build_outputs(keys, self.to_broadcaster_value_sat, self.to_countersignatory_value_sat, &mut htlcs_with_aux, channel_parameters, self.opt_anchors.is_some(), broadcaster_funding_key, countersignatory_funding_key)?;
+		let (outputs, _) = Self::internal_build_outputs(keys, self.to_broadcaster_value_sat, self.to_countersignatory_value_sat, &mut htlcs_with_aux, channel_parameters, broadcaster_funding_key, countersignatory_funding_key)?;
 
 		let transaction = Self::make_transaction(obscured_commitment_transaction_number, txins, outputs);
 		let txid = transaction.txid();
@@ -1332,9 +1332,10 @@ impl CommitmentTransaction {
 	// - initial sorting of outputs / HTLCs in the constructor, in which case T is auxiliary data the
 	//   caller needs to have sorted together with the HTLCs so it can keep track of the output index
 	// - building of a bitcoin transaction during a verify() call, in which case T is just ()
-	fn internal_build_outputs<T>(keys: &TxCreationKeys, to_broadcaster_value_sat: u64, to_countersignatory_value_sat: u64, htlcs_with_aux: &mut Vec<(HTLCOutputInCommitment, T)>, channel_parameters: &DirectedChannelTransactionParameters, opt_anchors: bool, broadcaster_funding_key: &PublicKey, countersignatory_funding_key: &PublicKey) -> Result<(Vec<TxOut>, Vec<HTLCOutputInCommitment>), ()> {
+	fn internal_build_outputs<T>(keys: &TxCreationKeys, to_broadcaster_value_sat: u64, to_countersignatory_value_sat: u64, htlcs_with_aux: &mut Vec<(HTLCOutputInCommitment, T)>, channel_parameters: &DirectedChannelTransactionParameters, broadcaster_funding_key: &PublicKey, countersignatory_funding_key: &PublicKey) -> Result<(Vec<TxOut>, Vec<HTLCOutputInCommitment>), ()> {
 		let countersignatory_pubkeys = channel_parameters.countersignatory_pubkeys();
 		let contest_delay = channel_parameters.contest_delay();
+		let opt_anchors = channel_parameters.opt_anchors();
 
 		let mut txouts: Vec<(TxOut, Option<&mut HTLCOutputInCommitment>)> = Vec::new();
 
@@ -1678,7 +1679,6 @@ mod tests {
 		// Generate broadcaster and counterparty outputs
 		let tx = CommitmentTransaction::new_with_auxiliary_htlc_data(
 			0, 1000, 2000,
-			false,
 			holder_pubkeys.funding_pubkey,
 			counterparty_pubkeys.funding_pubkey,
 			keys.clone(), 1,
@@ -1688,9 +1688,9 @@ mod tests {
 		assert_eq!(tx.built.transaction.output[1].script_pubkey, Payload::p2wpkh(&BitcoinPublicKey::new(counterparty_pubkeys.payment_point)).unwrap().script_pubkey());
 
 		// Generate broadcaster and counterparty outputs as well as two anchors
+		channel_parameters.opt_anchors = Some(());
 		let tx = CommitmentTransaction::new_with_auxiliary_htlc_data(
 			0, 1000, 2000,
-			true,
 			holder_pubkeys.funding_pubkey,
 			counterparty_pubkeys.funding_pubkey,
 			keys.clone(), 1,
@@ -1702,7 +1702,6 @@ mod tests {
 		// Generate broadcaster output and anchor
 		let tx = CommitmentTransaction::new_with_auxiliary_htlc_data(
 			0, 3000, 0,
-			true,
 			holder_pubkeys.funding_pubkey,
 			counterparty_pubkeys.funding_pubkey,
 			keys.clone(), 1,
@@ -1713,7 +1712,6 @@ mod tests {
 		// Generate counterparty output and anchor
 		let tx = CommitmentTransaction::new_with_auxiliary_htlc_data(
 			0, 0, 3000,
-			true,
 			holder_pubkeys.funding_pubkey,
 			counterparty_pubkeys.funding_pubkey,
 			keys.clone(), 1,
@@ -1738,9 +1736,9 @@ mod tests {
 		};
 
 		// Generate broadcaster output and received and offered HTLC outputs,  w/o anchors
+		channel_parameters.opt_anchors = None;
 		let tx = CommitmentTransaction::new_with_auxiliary_htlc_data(
 			0, 3000, 0,
-			false,
 			holder_pubkeys.funding_pubkey,
 			counterparty_pubkeys.funding_pubkey,
 			keys.clone(), 1,
@@ -1759,7 +1757,6 @@ mod tests {
 		channel_parameters.opt_anchors = Some(());
 		let tx = CommitmentTransaction::new_with_auxiliary_htlc_data(
 			0, 3000, 0,
-			true,
 			holder_pubkeys.funding_pubkey,
 			counterparty_pubkeys.funding_pubkey,
 			keys.clone(), 1,
