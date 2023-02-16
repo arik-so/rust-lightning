@@ -1507,22 +1507,16 @@ impl<Signer: WriteableEcdsaChannelSigner> Channel<Signer> {
 			get_commitment_transaction_number_obscure_factor(&self.get_holder_pubkeys().payment_point, &self.get_counterparty_pubkeys().payment_point, self.is_outbound()),
 			log_bytes!(self.channel_id), if local { "us" } else { "remote" }, if generated_by_local { "us" } else { "remote" }, feerate_per_kw);
 
-		macro_rules! get_htlc_in_commitment {
-			($htlc: expr, $offered: expr) => {
-				HTLCOutputInCommitment {
-					offered: $offered,
-					amount_msat: $htlc.amount_msat,
-					cltv_expiry: $htlc.cltv_expiry,
-					payment_hash: $htlc.payment_hash,
-					transaction_output_index: None
-				}
-			}
-		}
-
 		macro_rules! add_htlc_output {
 			($htlc: expr, $outbound: expr, $source: expr, $state_name: expr) => {
 				if $outbound == local { // "offered HTLC output"
-					let htlc_in_tx = get_htlc_in_commitment!($htlc, true);
+					let htlc_in_tx = HTLCOutputInCommitment {
+						offered: true,
+						amount_msat: $htlc.amount_msat,
+						cltv_expiry: $htlc.cltv_expiry,
+						payment_hash: $htlc.payment_hash,
+						transaction_output_index: None
+					};
 					let htlc_tx_fee = if self.opt_anchors() {
 						0
 					} else {
@@ -1536,7 +1530,13 @@ impl<Signer: WriteableEcdsaChannelSigner> Channel<Signer> {
 						included_dust_htlcs.push((htlc_in_tx, $source));
 					}
 				} else {
-					let htlc_in_tx = get_htlc_in_commitment!($htlc, false);
+					let htlc_in_tx = HTLCOutputInCommitment {
+						offered: false,
+						amount_msat: $htlc.amount_msat,
+						cltv_expiry: $htlc.cltv_expiry,
+						payment_hash: $htlc.payment_hash,
+						transaction_output_index: None
+					};
 					let htlc_tx_fee = if self.opt_anchors() {
 						0
 					} else {
