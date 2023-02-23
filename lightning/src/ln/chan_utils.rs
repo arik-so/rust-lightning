@@ -564,6 +564,28 @@ pub struct HTLCOutputInCommitment {
 	pub transaction_output_index: Option<u32>,
 }
 
+pub(crate) enum HTLCStatus {
+	Announced,
+	AwaitingInitialRevoke,
+	AwaitingSecondaryRevoke,
+	Committed,
+	Removed
+}
+
+pub(crate) enum HTLCInCommitmentStatDirection {
+	InitiatorToAcceptor,
+	AcceptorToInitiator
+}
+
+pub(crate) struct HTLCInCommitmentStat {
+	pub(crate) amount_msat: u64,
+	pub(crate) cltv_expiry: u32,
+	pub(crate) payment_hash: PaymentHash,
+	pub(crate) transaction_output_index: Option<u32>,
+	pub(crate) direction: HTLCInCommitmentStatDirection,
+	pub(crate) status: HTLCStatus
+}
+
 impl_writeable_tlv_based!(HTLCOutputInCommitment, {
 	(0, offered, required),
 	(2, amount_msat, required),

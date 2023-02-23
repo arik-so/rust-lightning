@@ -7,8 +7,8 @@
 // You may not use this file except in accordance with one or both of these
 // licenses.
 
-use crate::ln::channel::{ANCHOR_OUTPUT_VALUE_SATOSHI, MIN_CHAN_DUST_LIMIT_SATOSHIS};
-use crate::ln::chan_utils::{HTLCOutputInCommitment, ChannelPublicKeys, HolderCommitmentTransaction, CommitmentTransaction, ChannelTransactionParameters, TrustedCommitmentTransaction, ClosingTransaction};
+use crate::ln::channel::{ANCHOR_OUTPUT_VALUE_SATOSHI, CommitmentStats, MIN_CHAN_DUST_LIMIT_SATOSHIS};
+use crate::ln::chan_utils::{HTLCOutputInCommitment, ChannelPublicKeys, HolderCommitmentTransaction, CommitmentTransaction, ChannelTransactionParameters, TrustedCommitmentTransaction, ClosingTransaction, TxCreationKeys};
 use crate::ln::{chan_utils, msgs, PaymentPreimage};
 use crate::chain::keysinterface::{WriteableEcdsaChannelSigner, InMemorySigner, ChannelSigner, EcdsaChannelSigner};
 
@@ -129,6 +129,10 @@ impl ChannelSigner for EnforcingSigner {
 }
 
 impl EcdsaChannelSigner for EnforcingSigner {
+	fn build_commitment_transaction(&self, commitment_number: u64, stats: &mut CommitmentStats, keys: TxCreationKeys, local: bool, generated_by_local: bool) -> CommitmentTransaction {
+		self.inner.build_commitment_transaction(commitment_number, stats, keys, local, generated_by_local)
+	}
+
 	fn sign_counterparty_commitment(&self, commitment_tx: &CommitmentTransaction, preimages: Vec<PaymentPreimage>, secp_ctx: &Secp256k1<secp256k1::All>) -> Result<(Signature, Vec<Signature>), ()> {
 		self.verify_counterparty_commitment_tx(commitment_tx, secp_ctx);
 
