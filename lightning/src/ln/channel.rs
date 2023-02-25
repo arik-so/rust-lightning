@@ -370,12 +370,16 @@ enum ChannelPerspective {
 
 pub trait CommitmentDescriptor {
 	// the output with the delay
-	fn to_self_output(&self, commitment_number: u64, perspective: ChannelPerspective) -> TxOut;
+
+	// commitment stats provider
+	fn compute_commitment_stats(&self, config: &CommitmentConfiguration, htlcs: Vec<HTLCOutputInCommitment>) -> CommitmentStats;
+
+	fn to_self_output(&self, config: &CommitmentConfiguration) -> TxOut;
 	// the output without the delay
-	fn to_remote_output(&self, commitment_number: u64, perspective: ChannelPerspective) -> TxOut;
+	fn to_remote_output(&self, config: &CommitmentConfiguration) -> TxOut;
 	///
-	fn htlc_outputs(&self, commitment_number: u64, perspective: ChannelPerspective, htlcs: Vec<HTLCOutputInCommitment>) -> Vec<(TxOut, Transaction)>;
-	fn additional_outputs(&self, commitment_number: u64, perspective: ChannelPerspective) -> Vec<TxOut>;
+	fn htlc_outputs(&self, config: &CommitmentConfiguration, htlcs: Vec<HTLCOutputInCommitment>) -> Vec<(TxOut, Transaction)>;
+	fn additional_outputs(&self, config: &CommitmentConfiguration) -> Vec<TxOut>;
 }
 
 /// An enum gathering stats on commitment transaction, either local or remote.
