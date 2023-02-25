@@ -20,7 +20,7 @@ use bitcoin::hash_types::{Txid, BlockHash};
 use bitcoin::secp256k1::constants::PUBLIC_KEY_SIZE;
 use bitcoin::secp256k1::{PublicKey,SecretKey};
 use bitcoin::secp256k1::{Secp256k1,ecdsa::Signature};
-use bitcoin::secp256k1;
+use bitcoin::{secp256k1, TxOut};
 
 use crate::ln::{PaymentPreimage, PaymentHash};
 use crate::ln::features::{ChannelTypeFeatures, InitFeatures};
@@ -344,6 +344,8 @@ enum HTLCInitiator {
 	RemoteOffered,
 }
 
+
+
 /// An enum gathering stats on pending HTLCs, either inbound or outbound side.
 struct HTLCStats {
 	pending_htlcs: u32,
@@ -354,12 +356,27 @@ struct HTLCStats {
 	on_holder_tx_holding_cell_htlcs_count: u32, // dust HTLCs *non*-included
 }
 
+enum ChannelPerspective {
+	Initiator,
+	Acceptor
+}
+
+pub trait CommitmentDescriptor {
+	// the output with the delay
+	fn to_self_output(&self, commitment_number: u64, perspective: ChannelPerspective) -> TxOut;
+	// the output without the delay
+	fn to_remote_output(&self, commitment_number: u64, perspective: ChannelPerspective) -> TxOut;
+	///
+	fn htlc_outputs(&self, commitment_number: u64, perspective: ChannelPerspective, htlcs: Vec<HTLCOutputInCommitment>) -> Vec<(TxOut, Transaction)>;
+	fn additional_outputs(&self, commitment_number: u64, perspective: ChannelPerspective) -> Vec<TxOut>;
+}
+
 /// An enum gathering stats on commitment transaction, either local or remote.
 pub struct CommitmentStats<'a> {
-	pub(crate) channel_id: [u8; 32],
+	// pub(crate) channel_id: [u8; 32],
 	pub(crate) feerate_per_kw: u32, // the feerate included to build the transaction
-	pub(crate) total_fee_sat: u64, // the total fee included in the transaction
-	pub(crate) non_dust_htlcs: Vec<(HTLCOutputInCommitment, Option<&'a HTLCSource>)>,
+	// pub(crate) total_fee_sat: u64, // the total fee included in the transaction
+	// pub(crate) non_dust_htlcs: Vec<(HTLCOutputInCommitment, Option<&'a HTLCSource>)>,
 	pub(crate) dust_htlcs: Vec<(HTLCOutputInCommitment, Option<&'a HTLCSource>)>,
 	/// balance of the entity that proposed the channel
 	pub(crate) balance_msat_initiator: u64,
