@@ -344,7 +344,12 @@ enum HTLCInitiator {
 	RemoteOffered,
 }
 
-
+struct CommitmentConfiguration {
+	commitment_number: u64,
+	fee_rate_per_sat: u64,
+	perspective: ChannelPerspective
+	// htlcs?
+}
 
 /// An enum gathering stats on pending HTLCs, either inbound or outbound side.
 struct HTLCStats {
@@ -357,8 +362,10 @@ struct HTLCStats {
 }
 
 enum ChannelPerspective {
-	Initiator,
-	Acceptor
+	/// initiator's local settled balance
+	Initiator(u64),
+	/// acceptor's local settled balance
+	Acceptor(u64)
 }
 
 pub trait CommitmentDescriptor {
