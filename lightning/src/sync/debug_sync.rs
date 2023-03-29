@@ -132,6 +132,9 @@ impl LockMetadata {
 	}
 
 	fn pre_lock(this: &Arc<LockMetadata>, _double_lock_self_allowed: bool) {
+		let stuff: RefCell<HashMap<u64, Arc<LockMetadata>>> = RefCell::new(HashMap::new());
+
+
 		LOCKS_HELD.with(|held| {
 			// For each lock that is currently held, check that no lock's `locked_before` set
 			// includes the lock we're about to hold, which would imply a lockorder inversion.
