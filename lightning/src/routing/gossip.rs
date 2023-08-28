@@ -1852,7 +1852,15 @@ impl<L: Deref> NetworkGraph<L> where L::Target: Logger {
 	/// If built with `no-std`, any updates with a timestamp more than two weeks in the past or
 	/// materially in the future will be rejected.
 	pub fn update_channel(&self, msg: &msgs::ChannelUpdate) -> Result<(), LightningError> {
-		self.update_channel_intern(&msg.contents, Some(&msg), Some(&msg.signature))
+		#[allow(unused_mut, unused_assignments)]
+		let mut current_time_unix = None;
+		#[cfg(all(feature = "std", not(test), not(feature = "_test_utils")))]
+		{
+			// Note that many tests rely on being able to set arbitrarily old timestamps, thus we
+			// disable this check during tests!
+			current_time_unix = Some(SystemTime::now().duration_since(UNIX_EPOCH).expect("Time must be > 1970").as_secs());
+		}
+		self.update_channel_intern(&msg.contents, Some(&msg), Some(&msg.signature), current_time_unix)
 	}
 
 	/// For an already known (from announcement) channel, update info about one of the directions
@@ -1862,10 +1870,25 @@ impl<L: Deref> NetworkGraph<L> where L::Target: Logger {
 	/// If built with `no-std`, any updates with a timestamp more than two weeks in the past or
 	/// materially in the future will be rejected.
 	pub fn update_channel_unsigned(&self, msg: &msgs::UnsignedChannelUpdate) -> Result<(), LightningError> {
-		self.update_channel_intern(msg, None, None)
+		#[allow(unused_mut, unused_assignments)]
+		let mut current_time_unix = None;
+		#[cfg(all(feature = "std", not(test), not(feature = "_test_utils")))]
+		{
+			// Note that many tests rely on being able to set arbitrarily old timestamps, thus we
+			// disable this check during tests!
+			current_time_unix = Some(SystemTime::now().duration_since(UNIX_EPOCH).expect("Time must be > 1970").as_secs());
+		}
+		self.update_channel_unsigned_no_std(msg, current_time_unix)
 	}
 
-	fn update_channel_intern(&self, msg: &msgs::UnsignedChannelUpdate, full_msg: Option<&msgs::ChannelUpdate>, sig: Option<&secp256k1::ecdsa::Signature>) -> Result<(), LightningError> {
+	/// For an already known (from announcement) channel, update info about one of the directions
+	/// of the channel without verifying the associated signatures. Because we aren't given the
+	/// associated signatures here we cannot relay the channel update to any of our peers.
+	pub fn update_channel_unsigned_no_std(&self, msg: &msgs::UnsignedChannelUpdate, current_time_unix: Option<u64>) -> Result<(), LightningError> {
+		self.update_channel_intern(msg, None, None, current_time_unix)
+	}
+
+	fn update_channel_intern(&self, msg: &msgs::UnsignedChannelUpdate, full_msg: Option<&msgs::ChannelUpdate>, sig: Option<&secp256k1::ecdsa::Signature>, current_time_unix: Option<u64>) -> Result<(), LightningError> {
 		let chan_enabled = msg.flags & (1 << 1) != (1 << 1);
 
 		if msg.chain_hash != self.genesis_hash {
@@ -1875,15 +1898,17 @@ impl<L: Deref> NetworkGraph<L> where L::Target: Logger {
 			});
 		}
 
-		#[cfg(all(feature = "std", not(test), not(feature = "_test_utils")))]
-		{
+		if let Some(time) = current_time_unix {
 			// Note that many tests rely on being able to set arbitrarily old timestamps, thus we
 			// disable this check during tests!
-			let time = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time must be > 1970").as_secs();
-			if (msg.timestamp as u64) < time - STALE_CHANNEL_UPDATE_AGE_LIMIT_SECS {
+			let min_threshold = time - STALE_CHANNEL_UPDATE_AGE_LIMIT_SECS;
+			if (msg.timestamp as u64) < min_threshold {
+				log_gossip!(self.logger, "Channel {} cannot be updated because its timestamp {} is older than {} (two weeks past)", msg.short_channel_id, msg.timestamp, min_threshold);
 				return Err(LightningError{err: "channel_update is older than two weeks old".to_owned(), action: ErrorAction::IgnoreAndLog(Level::Gossip)});
 			}
-			if msg.timestamp as u64 > time + 60 * 60 * 24 {
+			let max_threshold = time + 60 * 60 * 24;
+			if msg.timestamp as u64 > max_threshold {
+				log_gossip!(self.logger, "Channel {} cannot be updated because its timestamp {} is newer than {} (one day ahead)", msg.short_channel_id, msg.timestamp, max_threshold);
 				return Err(LightningError{err: "channel_update has a timestamp more than a day in the future".to_owned(), action: ErrorAction::IgnoreAndLog(Level::Gossip)});
 			}
 		}
