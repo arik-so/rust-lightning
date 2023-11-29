@@ -23,7 +23,7 @@ use bitcoin::secp256k1::{Secp256k1, ecdsa::Signature};
 use bitcoin::secp256k1;
 
 use crate::chain::chaininterface::compute_feerate_sat_per_1000_weight;
-use crate::sign::{ChannelDerivationParameters, HTLCDescriptor, ChannelSigner, EntropySource, SignerProvider, ecdsa::WriteableEcdsaChannelSigner};
+use crate::sign::{ChannelDerivationParameters, HTLCDescriptor, EntropySource, SignerProvider};
 use crate::ln::msgs::DecodeError;
 use crate::ln::PaymentPreimage;
 use crate::ln::chan_utils::{self, ChannelTransactionParameters, HTLCOutputInCommitment, HolderCommitmentTransaction};
@@ -42,6 +42,7 @@ use core::ops::Deref;
 use core::mem::replace;
 use core::mem::swap;
 use crate::ln::features::ChannelTypeFeatures;
+use crate::sign::type_resolver::ChannelSignerType;
 
 const MAX_ALLOC_SIZE: usize = 64*1024;
 
@@ -213,14 +214,14 @@ pub(crate) enum OnchainClaim {
 /// OnchainTxHandler receives claiming requests, aggregates them if it's sound, broadcast and
 /// do RBF bumping if possible.
 #[derive(Clone)]
-pub struct OnchainTxHandler<ChannelSigner: WriteableEcdsaChannelSigner> {
+pub struct OnchainTxHandler<SP: Deref> where SP::Target: SignerProvider {
 	channel_value_satoshis: u64,
 	channel_keys_id: [u8; 32],
 	destination_script: ScriptBuf,
 	holder_commitment: HolderCommitmentTransaction,
 	prev_holder_commitment: Option<HolderCommitmentTransaction>,
 
-	pub(super) signer: ChannelSigner,
+	pub(super) signer: ChannelSignerType<SP>,
 	pub(crate) channel_transaction_parameters: ChannelTransactionParameters,
 
 	// Used to track claiming requests. If claim tx doesn't confirm before height timer expiration we need to bump
@@ -269,7 +270,7 @@ pub struct OnchainTxHandler<ChannelSigner: WriteableEcdsaChannelSigner> {
 	pub(super) secp_ctx: Secp256k1<secp256k1::All>,
 }
 
-impl<ChannelSigner: WriteableEcdsaChannelSigner> PartialEq for OnchainTxHandler<ChannelSigner> {
+impl<SP: Deref> PartialEq for OnchainTxHandler<SP> where SP::Target: SignerProvider {
 	fn eq(&self, other: &Self) -> bool {
 		// `signer`, `secp_ctx`, and `pending_claim_events` are excluded on purpose.
 		self.channel_value_satoshis == other.channel_value_satoshis &&
@@ -288,7 +289,7 @@ impl<ChannelSigner: WriteableEcdsaChannelSigner> PartialEq for OnchainTxHandler<
 const SERIALIZATION_VERSION: u8 = 1;
 const MIN_SERIALIZATION_VERSION: u8 = 1;
 
-impl<ChannelSigner: WriteableEcdsaChannelSigner> OnchainTxHandler<ChannelSigner> {
+impl<SP: Deref> OnchainTxHandler<SP> where SP::Target: SignerProvider {
 	pub(crate) fn write<W: Writer>(&self, writer: &mut W) -> Result<(), io::Error> {
 		write_ver_prefix!(writer, SERIALIZATION_VERSION, MIN_SERIALIZATION_VERSION);
 
@@ -339,7 +340,7 @@ impl<ChannelSigner: WriteableEcdsaChannelSigner> OnchainTxHandler<ChannelSigner>
 	}
 }
 
-impl<'a, 'b, ES: EntropySource, SP: SignerProvider> ReadableArgs<(&'a ES, &'b SP, u64, [u8; 32])> for OnchainTxHandler<SP::EcdsaSigner> {
+impl<'a, 'b, ES: EntropySource, SP: SignerProvider> ReadableArgs<(&'a ES, &'b SP, u64, [u8; 32])> for OnchainTxHandler<&SP> {
 	fn read<R: io::Read>(reader: &mut R, args: (&'a ES, &'b SP, u64, [u8; 32])) -> Result<Self, DecodeError> {
 		let entropy_source = args.0;
 		let signer_provider = args.1;
@@ -431,10 +432,10 @@ impl<'a, 'b, ES: EntropySource, SP: SignerProvider> ReadableArgs<(&'a ES, &'b SP
 	}
 }
 
-impl<ChannelSigner: WriteableEcdsaChannelSigner> OnchainTxHandler<ChannelSigner> {
+impl<SP: Deref> OnchainTxHandler<SP> where SP::Target: SignerProvider {
 	pub(crate) fn new(
 		channel_value_satoshis: u64, channel_keys_id: [u8; 32], destination_script: ScriptBuf,
-		signer: ChannelSigner, channel_parameters: ChannelTransactionParameters,
+		signer: ChannelSignerType<SP>, channel_parameters: ChannelTransactionParameters,
 		holder_commitment: HolderCommitmentTransaction, secp_ctx: Secp256k1<secp256k1::All>
 	) -> Self {
 		OnchainTxHandler {

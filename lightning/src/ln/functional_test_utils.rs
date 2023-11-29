@@ -23,7 +23,7 @@ use crate::routing::router::{self, PaymentParameters, Route, RouteParameters};
 use crate::ln::features::InitFeatures;
 use crate::ln::msgs;
 use crate::ln::msgs::{ChannelMessageHandler,RoutingMessageHandler};
-use crate::util::test_channel_signer::TestChannelSigner;
+use crate::util::test_channel_signer::{TestChannelSigner, TestSignerProvider};
 use crate::util::scid_utils;
 use crate::util::test_utils;
 use crate::util::test_utils::{panicking, TestChainMonitor, TestScorer, TestKeysInterface};
@@ -2842,7 +2842,7 @@ pub fn create_node_cfgs<'a>(node_count: usize, chanmon_cfgs: &'a Vec<TestChanMon
 	create_node_cfgs_with_persisters(node_count, chanmon_cfgs, chanmon_cfgs.iter().map(|c| &c.persister).collect())
 }
 
-pub fn create_node_cfgs_with_persisters<'a>(node_count: usize, chanmon_cfgs: &'a Vec<TestChanMonCfg>, persisters: Vec<&'a impl Persist<TestChannelSigner>>) -> Vec<NodeCfg<'a>> {
+pub fn create_node_cfgs_with_persisters<'a>(node_count: usize, chanmon_cfgs: &'a Vec<TestChanMonCfg>, persisters: Vec<&'a impl Persist<&'a TestSignerProvider>>) -> Vec<NodeCfg<'a>> {
 	let mut nodes = Vec::new();
 
 	for i in 0..node_count {

@@ -9,6 +9,7 @@
 
 //! Structs and traits which allow other parts of rust-lightning to interact with the blockchain.
 
+use std::ops::Deref;
 use bitcoin::blockdata::block::{Block, Header};
 use bitcoin::blockdata::constants::genesis_block;
 use bitcoin::blockdata::script::{Script, ScriptBuf};
@@ -21,6 +22,7 @@ use crate::sign::ecdsa::WriteableEcdsaChannelSigner;
 use crate::chain::transaction::{OutPoint, TransactionData};
 
 use crate::prelude::*;
+use crate::sign::SignerProvider;
 
 pub mod chaininterface;
 pub mod chainmonitor;
@@ -253,7 +255,7 @@ pub enum ChannelMonitorUpdateStatus {
 /// application crashes.
 ///
 /// See method documentation and [`ChannelMonitorUpdateStatus`] for specific requirements.
-pub trait Watch<ChannelSigner: WriteableEcdsaChannelSigner> {
+pub trait Watch<SP: Deref> where SP::Target: SignerProvider {
 	/// Watches a channel identified by `funding_txo` using `monitor`.
 	///
 	/// Implementations are responsible for watching the chain for the funding transaction along
@@ -269,7 +271,7 @@ pub trait Watch<ChannelSigner: WriteableEcdsaChannelSigner> {
 	/// [`get_outputs_to_watch`]: channelmonitor::ChannelMonitor::get_outputs_to_watch
 	/// [`block_connected`]: channelmonitor::ChannelMonitor::block_connected
 	/// [`block_disconnected`]: channelmonitor::ChannelMonitor::block_disconnected
-	fn watch_channel(&self, funding_txo: OutPoint, monitor: ChannelMonitor<ChannelSigner>) -> Result<ChannelMonitorUpdateStatus, ()>;
+	fn watch_channel(&self, funding_txo: OutPoint, monitor: ChannelMonitor<SP>) -> Result<ChannelMonitorUpdateStatus, ()>;
 
 	/// Updates a channel identified by `funding_txo` by applying `update` to its monitor.
 	///

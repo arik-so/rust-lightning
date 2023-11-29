@@ -11,7 +11,7 @@ use crate::ln::channel::{ANCHOR_OUTPUT_VALUE_SATOSHI, MIN_CHAN_DUST_LIMIT_SATOSH
 use crate::ln::chan_utils::{HTLCOutputInCommitment, ChannelPublicKeys, HolderCommitmentTransaction, CommitmentTransaction, ChannelTransactionParameters, TrustedCommitmentTransaction, ClosingTransaction};
 use crate::ln::channel_keys::{HtlcKey};
 use crate::ln::{msgs, PaymentPreimage};
-use crate::sign::{InMemorySigner, ChannelSigner};
+use crate::sign::{InMemorySigner, ChannelSigner, SignerProvider};
 use crate::sign::ecdsa::{EcdsaChannelSigner, WriteableEcdsaChannelSigner};
 
 use crate::prelude::*;
@@ -21,7 +21,7 @@ use crate::sync::{Mutex, Arc};
 
 use bitcoin::blockdata::transaction::Transaction;
 use bitcoin::hashes::Hash;
-use bitcoin::sighash;
+use bitcoin::{ScriptBuf, sighash};
 use bitcoin::sighash::EcdsaSighashType;
 
 use bitcoin::secp256k1;
@@ -35,8 +35,10 @@ use crate::sign::HTLCDescriptor;
 use crate::util::ser::{Writeable, Writer};
 use crate::io::Error;
 use crate::ln::features::ChannelTypeFeatures;
+use crate::ln::msgs::DecodeError;
 #[cfg(taproot)]
 use crate::ln::msgs::PartialSignatureWithNonce;
+use crate::ln::script::ShutdownScript;
 #[cfg(taproot)]
 use crate::sign::taproot::TaprootChannelSigner;
 
@@ -345,6 +347,36 @@ impl TestChannelSigner {
 			&self.inner.get_channel_parameters().unwrap().as_holder_broadcastable(),
 			self.inner.pubkeys(), self.inner.counterparty_pubkeys().unwrap(), secp_ctx
 		).expect("derived different per-tx keys or built transaction")
+	}
+}
+
+pub struct TestSignerProvider {
+
+}
+
+impl SignerProvider for TestSignerProvider {
+	type EcdsaSigner = TestChannelSigner;
+	#[cfg(taproot)]
+	type TaprootSigner = TestChannelSigner;
+
+	fn generate_channel_keys_id(&self, inbound: bool, channel_value_satoshis: u64, user_channel_id: u128) -> [u8; 32] {
+		todo!()
+	}
+
+	fn derive_channel_signer(&self, channel_value_satoshis: u64, channel_keys_id: [u8; 32]) -> Self::EcdsaSigner {
+		todo!()
+	}
+
+	fn read_chan_signer(&self, reader: &[u8]) -> Result<Self::EcdsaSigner, DecodeError> {
+		todo!()
+	}
+
+	fn get_destination_script(&self, channel_keys_id: [u8; 32]) -> Result<ScriptBuf, ()> {
+		todo!()
+	}
+
+	fn get_shutdown_scriptpubkey(&self) -> Result<ShutdownScript, ()> {
+		todo!()
 	}
 }
 

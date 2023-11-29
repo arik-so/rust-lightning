@@ -2674,7 +2674,7 @@ impl<SP: Deref> Channel<SP> where
 	/// If this call is successful, broadcast the funding transaction (and not before!)
 	pub fn funding_signed<L: Deref>(
 		&mut self, msg: &msgs::FundingSigned, best_block: BestBlock, signer_provider: &SP, logger: &L
-	) -> Result<ChannelMonitor<<SP::Target as SignerProvider>::EcdsaSigner>, ChannelError>
+	) -> Result<ChannelMonitor<SP>, ChannelError>
 	where
 		L::Target: Logger
 	{
@@ -6839,7 +6839,7 @@ impl<SP: Deref> InboundV1Channel<SP> where SP::Target: SignerProvider {
 
 	pub fn funding_created<L: Deref>(
 		mut self, msg: &msgs::FundingCreated, best_block: BestBlock, signer_provider: &SP, logger: &L
-	) -> Result<(Channel<SP>, Option<msgs::FundingSigned>, ChannelMonitor<<SP::Target as SignerProvider>::EcdsaSigner>), (Self, ChannelError)>
+	) -> Result<(Channel<SP>, Option<msgs::FundingSigned>, ChannelMonitor<SP>), (Self, ChannelError)>
 	where
 		L::Target: Logger
 	{
@@ -9105,7 +9105,7 @@ use crate::ln::channelmanager::{self, HTLCSource, PaymentId};
 		assert_eq!(chan_utils::build_commitment_secret(&seed, 1),
 		           <Vec<u8>>::from_hex("915c75942a26bb3a433a8ce2cb0427c29ec6c1775cfc78328b57f6ba7bfeaa9c").unwrap()[..]);
 	}
-	
+
 	#[test]
 	fn test_key_derivation() {
 		// Test vectors from BOLT 3 Appendix E:

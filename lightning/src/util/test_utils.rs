@@ -35,7 +35,7 @@ use crate::routing::router::{find_route, InFlightHtlcs, Path, Route, RouteParame
 use crate::routing::scoring::{ChannelUsage, ScoreUpdate, ScoreLookUp};
 use crate::sync::RwLock;
 use crate::util::config::UserConfig;
-use crate::util::test_channel_signer::{TestChannelSigner, EnforcementState};
+use crate::util::test_channel_signer::{TestChannelSigner, EnforcementState, TestSignerProvider};
 use crate::util::logger::{Logger, Level, Record};
 use crate::util::ser::{Readable, ReadableArgs, Writer, Writeable};
 use crate::util::persist::KVStore;
@@ -65,6 +65,7 @@ use core::time::Duration;
 use crate::sync::{Mutex, Arc};
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use core::mem;
+use std::ops::Deref;
 use bitcoin::bech32::u5;
 use crate::sign::{InMemorySigner, Recipient, EntropySource, NodeSigner, SignerProvider};
 
@@ -199,10 +200,10 @@ impl SignerProvider for OnlyReadsKeysInterface {
 }
 
 pub struct TestChainMonitor<'a> {
-	pub added_monitors: Mutex<Vec<(OutPoint, channelmonitor::ChannelMonitor<TestChannelSigner>)>>,
+	pub added_monitors: Mutex<Vec<(OutPoint, channelmonitor::ChannelMonitor<&'a TestSignerProvider>)>>,
 	pub monitor_updates: Mutex<HashMap<ChannelId, Vec<channelmonitor::ChannelMonitorUpdate>>>,
 	pub latest_monitor_update_id: Mutex<HashMap<ChannelId, (OutPoint, u64, MonitorUpdateId)>>,
-	pub chain_monitor: chainmonitor::ChainMonitor<TestChannelSigner, &'a TestChainSource, &'a chaininterface::BroadcasterInterface, &'a TestFeeEstimator, &'a TestLogger, &'a chainmonitor::Persist<TestChannelSigner>>,
+	pub chain_monitor: chainmonitor::ChainMonitor<TestChannelSigner, &'a TestChainSource, &'a chaininterface::BroadcasterInterface, &'a TestFeeEstimator, &'a TestLogger, &'a chainmonitor::Persist<&'a TestSignerProvider>>,
 	pub keys_manager: &'a TestKeysInterface,
 	/// If this is set to Some(), the next update_channel call (not watch_channel) must be a
 	/// ChannelForceClosed event for the given channel_id with should_broadcast set to the given
@@ -213,7 +214,7 @@ pub struct TestChainMonitor<'a> {
 	pub expect_monitor_round_trip_fail: Mutex<Option<ChannelId>>,
 }
 impl<'a> TestChainMonitor<'a> {
-	pub fn new(chain_source: Option<&'a TestChainSource>, broadcaster: &'a chaininterface::BroadcasterInterface, logger: &'a TestLogger, fee_estimator: &'a TestFeeEstimator, persister: &'a chainmonitor::Persist<TestChannelSigner>, keys_manager: &'a TestKeysInterface) -> Self {
+	pub fn new(chain_source: Option<&'a TestChainSource>, broadcaster: &'a chaininterface::BroadcasterInterface, logger: &'a TestLogger, fee_estimator: &'a TestFeeEstimator, persister: &'a chainmonitor::Persist<&TestSignerProvider>, keys_manager: &'a TestKeysInterface) -> Self {
 		Self {
 			added_monitors: Mutex::new(Vec::new()),
 			monitor_updates: Mutex::new(HashMap::new()),
@@ -230,7 +231,7 @@ impl<'a> TestChainMonitor<'a> {
 		self.chain_monitor.channel_monitor_updated(outpoint, latest_update).unwrap();
 	}
 }
-impl<'a> chain::Watch<TestChannelSigner> for TestChainMonitor<'a> {
+impl<'a> chain::Watch<&TestSignerProvider> for TestChainMonitor<'a> {
 	fn watch_channel(&self, funding_txo: OutPoint, monitor: channelmonitor::ChannelMonitor<TestChannelSigner>) -> Result<chain::ChannelMonitorUpdateStatus, ()> {
 		// At every point where we get a monitor update, we should be able to send a useful monitor
 		// to a watchtower and disk...
@@ -336,9 +337,9 @@ impl WatchtowerPersister {
 	}
 }
 
-impl<Signer: sign::ecdsa::WriteableEcdsaChannelSigner> chainmonitor::Persist<Signer> for WatchtowerPersister {
+impl<SP: Deref> chainmonitor::Persist<SP> for WatchtowerPersister where SP::Target: SignerProvider {
 	fn persist_new_channel(&self, funding_txo: OutPoint,
-		data: &channelmonitor::ChannelMonitor<Signer>, id: MonitorUpdateId
+		data: &channelmonitor::ChannelMonitor<SP>, id: MonitorUpdateId
 	) -> chain::ChannelMonitorUpdateStatus {
 		let res = self.persister.persist_new_channel(funding_txo, data, id);
 
@@ -360,7 +361,7 @@ impl<Signer: sign::ecdsa::WriteableEcdsaChannelSigner> chainmonitor::Persist<Sig
 
 	fn update_persisted_channel(
 		&self, funding_txo: OutPoint, update: Option<&channelmonitor::ChannelMonitorUpdate>,
-		data: &channelmonitor::ChannelMonitor<Signer>, update_id: MonitorUpdateId
+		data: &channelmonitor::ChannelMonitor<SP>, update_id: MonitorUpdateId
 	) -> chain::ChannelMonitorUpdateStatus {
 		let res = self.persister.update_persisted_channel(funding_txo, update, data, update_id);
 
@@ -416,15 +417,15 @@ impl TestPersister {
 		self.update_rets.lock().unwrap().push_back(next_ret);
 	}
 }
-impl<Signer: sign::ecdsa::WriteableEcdsaChannelSigner> chainmonitor::Persist<Signer> for TestPersister {
-	fn persist_new_channel(&self, _funding_txo: OutPoint, _data: &channelmonitor::ChannelMonitor<Signer>, _id: MonitorUpdateId) -> chain::ChannelMonitorUpdateStatus {
+impl<SP: Deref> chainmonitor::Persist<SP> for TestPersister where SP::Target: SignerProvider {
+	fn persist_new_channel(&self, _funding_txo: OutPoint, _data: &channelmonitor::ChannelMonitor<SP>, _id: MonitorUpdateId) -> chain::ChannelMonitorUpdateStatus {
 		if let Some(update_ret) = self.update_rets.lock().unwrap().pop_front() {
 			return update_ret
 		}
 		chain::ChannelMonitorUpdateStatus::Completed
 	}
 
-	fn update_persisted_channel(&self, funding_txo: OutPoint, _update: Option<&channelmonitor::ChannelMonitorUpdate>, _data: &channelmonitor::ChannelMonitor<Signer>, update_id: MonitorUpdateId) -> chain::ChannelMonitorUpdateStatus {
+	fn update_persisted_channel(&self, funding_txo: OutPoint, _update: Option<&channelmonitor::ChannelMonitorUpdate>, _data: &channelmonitor::ChannelMonitor<SP>, update_id: MonitorUpdateId) -> chain::ChannelMonitorUpdateStatus {
 		let mut ret = chain::ChannelMonitorUpdateStatus::Completed;
 		if let Some(update_ret) = self.update_rets.lock().unwrap().pop_front() {
 			ret = update_ret;
