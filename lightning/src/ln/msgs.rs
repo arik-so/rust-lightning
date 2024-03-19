@@ -1698,11 +1698,12 @@ mod fuzzy_internal_msgs {
 			amt_to_forward: u64,
 			outgoing_cltv_value: u32,
 		},
+		#[allow(unused_allocation)]
 		TrampolineEntry {
 			amt_to_forward: u64,
 			outgoing_cltv_value: u32,
 			payment_data: Option<FinalOnionHopData>,
-			trampoline_packet: crate::onion_message::packet::Packet
+			trampoline_packet: crate::onion_message::packet::Packet,
 		},
 		Receive {
 			payment_data: Option<FinalOnionHopData>,
