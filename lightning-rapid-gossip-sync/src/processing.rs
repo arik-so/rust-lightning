@@ -10,7 +10,7 @@ use lightning::routing::gossip::{NetworkGraph, NodeAlias, NodeId};
 use lightning::util::logger::Logger;
 use lightning::{log_debug, log_warn, log_trace, log_given_level, log_gossip};
 use lightning::util::ser::{BigSize, FixedLengthReader, Readable};
-use lightning::{io, io::Read};
+use lightning::io;
 
 use crate::{GraphSyncError, RapidGossipSync};
 
@@ -121,7 +121,8 @@ impl<NG: Deref<Target=NetworkGraph<L>>, L: Deref> RapidGossipSync<NG, L> where L
 				/*
 				We encode additional information in the pubkey parity byte with the following mapping:
 
-				7-6: expect extra data after the pubkey (01 => u8, 10 => u16, 11 => u32)
+				7: expect extra data after the pubkey
+				6: use this as a reminder without altering anything
 				5-3: index of new features among default (1-6). If index is 7 (all 3 bits are set, it's
 				outside the present default range). 0 means no feature changes.
 				2: addresses have changed
@@ -133,7 +134,8 @@ impl<NG: Deref<Target=NetworkGraph<L>>, L: Deref> RapidGossipSync<NG, L> where L
 
 				let has_address_details = (node_detail_flag & (1 << 2)) > 0;
 				let feature_detail_marker = (node_detail_flag & (0b111 << 3)) >> 3;
-				let additional_data_marker = (node_detail_flag & (0b11 << 6)) >> 6;
+				let is_reminder = (node_detail_flag & (1 << 6)) > 0;
+				let has_additional_data = (node_detail_flag & (1 << 7)) > 0;
 
 				// extract the relevant bits for pubkey parity
 				let key_parity = node_detail_flag & 0b_0000_0011;
@@ -143,7 +145,7 @@ impl<NG: Deref<Target=NetworkGraph<L>>, L: Deref> RapidGossipSync<NG, L> where L
 				let current_node_id = NodeId::from_pubkey(&current_pubkey);
 				node_ids.push(current_pubkey);
 
-				if has_address_details || feature_detail_marker > 0 {
+				if is_reminder || has_address_details || feature_detail_marker > 0 {
 					let mut synthetic_node_announcement = UnsignedNodeAnnouncement {
 						features: NodeFeatures::empty(),
 						timestamp: backdated_timestamp,
@@ -205,25 +207,9 @@ impl<NG: Deref<Target=NetworkGraph<L>>, L: Deref> RapidGossipSync<NG, L> where L
 					node_modifications.push(synthetic_node_announcement);
 				}
 
-				if additional_data_marker > 0 {
-					let additional_byte_count: u64 = match additional_data_marker {
-						1 => {
-							u8::read(read_cursor)? as u64
-						}
-						2 => {
-							u16::read(read_cursor)? as u64
-						}
-						3 => {
-							u32::read(read_cursor)? as u64
-						}
-						_ => {
-							return Err(DecodeError::BadLengthDescriptor.into());
-						}
-					};
-
-					let mut additional_data_reader = FixedLengthReader::new(&mut read_cursor, additional_byte_count);
-					let mut additional_data = Vec::new();
-					additional_data_reader.read_to_end(&mut additional_data)?;
+				if has_additional_data {
+					let additional_data: Vec<u8> = Readable::read(read_cursor)?;
+					log_gossip!(self.logger, "Ignoring {} bytes of additional data in node announcement", additional_data.len());
 				}
 			}
 		} else {
@@ -277,7 +263,8 @@ impl<NG: Deref<Target=NetworkGraph<L>>, L: Deref> RapidGossipSync<NG, L> where L
 
 			if version >= 2 && has_additional_data {
 				// forwards compatibility
-				let _additional_data: Vec<u8> = Readable::read(read_cursor)?;
+				let additional_data: Vec<u8> = Readable::read(read_cursor)?;
+				log_gossip!(self.logger, "Ignoring {} bytes of additional data in channel announcement", additional_data.len());
 			}
 		}
 
@@ -329,7 +316,8 @@ impl<NG: Deref<Target=NetworkGraph<L>>, L: Deref> RapidGossipSync<NG, L> where L
 
 				if scid_delta.0 == 0 && is_same_direction_update {
 					// this is additional data for forwards compatibility
-					let _additional_data: Vec<u8> = Readable::read(read_cursor)?;
+					let additional_data: Vec<u8> = Readable::read(read_cursor)?;
+					log_gossip!(self.logger, "Ignoring {} bytes of additional data in channel update", additional_data.len());
 					continue;
 				}
 			}
@@ -561,19 +549,20 @@ mod tests {
 
 	#[test]
 	fn update_ignores_v2_additional_data() {
-		let logger = TestLogger::new();
+		let mut logger = TestLogger::new();
+		logger.enable(Level::Gossip);
 		let network_graph = NetworkGraph::new(Network::Bitcoin, &logger);
 		let rapid_sync = RapidGossipSync::new(&network_graph, &logger);
 
 		let example_input = vec![
 			76, 68, 75, 2, 111, 226, 140, 10, 182, 241, 179, 114, 193, 166, 162, 70, 174, 99, 247,
-			79, 147, 30, 131, 101, 225, 90, 8, 156, 104, 214, 25, 0, 0, 0, 0, 0, 102, 105, 15, 48,
-			0, 0, 0, 0, 2, 127, 27, 132, 197, 86, 123, 18, 100, 64, 153, 93, 62, 213, 170, 186, 5,
-			101, 215, 30, 24, 52, 96, 72, 25, 255, 156, 23, 245, 233, 213, 221, 7, 143, 5, 14, 5,
-			10, 103, 111, 111, 103, 108, 101, 46, 99, 111, 109, 1, 187, 38, 4, 1, 1, 1, 1, 1, 1, 1,
-			1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 3, 0,
-			4, 19, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 5, 57, 7, 1, 127, 0, 0, 1, 37,
-			163, 13, 3, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0, 2, 23, 48, 255, 0, 0, 0, 0, 0, 0,
+			79, 147, 30, 131, 101, 225, 90, 8, 156, 104, 214, 25, 0, 0, 0, 0, 0, 102, 106, 12, 80,
+			1, 0, 2, 23, 48, 0, 0, 0, 3, 143, 27, 132, 197, 86, 123, 18, 100, 64, 153, 93, 62, 213,
+			170, 186, 5, 101, 215, 30, 24, 52, 96, 72, 25, 255, 156, 23, 245, 233, 213, 221, 7, 143,
+			5, 38, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+			1, 1, 1, 1, 1, 1, 0, 2, 3, 0, 4, 19, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+			5, 57, 13, 3, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 7, 1, 127, 0, 0, 1, 37, 163, 14, 5,
+			10, 103, 111, 111, 103, 108, 101, 46, 99, 111, 109, 1, 187, 0, 255, 0, 0, 0, 0, 0, 0, 0,
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -582,9 +571,9 @@ mod tests {
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66, 77, 75, 108, 209, 54, 16, 50,
-			202, 155, 210, 174, 185, 217, 0, 170, 77, 69, 217, 234, 216, 10, 201, 66, 51, 116, 196,
-			81, 167, 37, 77, 7, 102, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 138, 77, 75, 108, 209, 54, 16, 50, 202,
+			155, 210, 174, 185, 217, 0, 170, 77, 69, 217, 234, 216, 10, 201, 66, 51, 116, 196, 81,
+			167, 37, 77, 7, 102, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -593,21 +582,36 @@ mod tests {
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-			0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 255, 128, 0, 0, 0, 0, 0, 0, 1, 0, 147, 23, 23, 23,
+			0, 0, 0, 186, 83, 31, 230, 6, 129, 52, 80, 61, 39, 35, 19, 50, 39, 200, 103, 172, 143,
+			166, 200, 60, 83, 126, 154, 68, 195, 197, 189, 189, 203, 31, 227, 55, 0, 2, 22, 49, 0,
+			255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+			0, 0, 1, 0, 255, 128, 0, 0, 0, 0, 0, 0, 1, 0, 147, 23, 23, 23, 23, 23, 23, 23, 23, 23,
 			23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23,
 			23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23,
 			23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23,
 			23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23,
 			23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23,
 			23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23,
-			23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-			0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 17, 42, 42, 42, 42,
-			42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 0, 1, 0, 1, 0, 17, 42, 42, 42, 42,
-			42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42
+			23, 23, 23, 23, 23, 23, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 17, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+			42, 42, 42, 42, 42, 42, 42, 0, 1, 0, 1, 0, 17, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+			42, 42, 42, 42, 42, 42, 42
 		];
 
 		let update_result = rapid_sync.update_network_graph_no_std(&example_input[..], None);
 		assert!(update_result.is_ok());
+
+		logger.assert_log_contains("lightning_rapid_gossip_sync::processing", "Ignoring 255 bytes of additional data in node announcement", 3);
+		logger.assert_log_contains("lightning_rapid_gossip_sync::processing", "Ignoring 147 bytes of additional data in channel announcement", 1);
+		logger.assert_log_contains("lightning_rapid_gossip_sync::processing", "Ignoring 17 bytes of additional data in channel update", 1);
 	}
 
 	#[test]
