@@ -509,7 +509,7 @@ macro_rules! _decode_tlv_stream_range {
 	 $(, $decode_custom_tlv: expr)?) => { {
 		use $crate::ln::msgs::DecodeError;
 		let mut last_seen_type: Option<u64> = None;
-		let mut stream_ref = $stream;
+		let stream_ref = $stream;
 		'tlv_read: loop {
 			use $crate::util::ser;
 
