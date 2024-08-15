@@ -14,11 +14,13 @@ use lightning_transaction_sync::EsploraSyncClient;
 use bdk_macros::maybe_await;
 use bitcoin::block::Header;
 use bitcoin::constants::genesis_block;
+use bitcoin::hashes::Hash as BitcoinHash;
 use bitcoin::network::Network;
-use bitcoin::{Amount, BlockHash, Txid};
+use bitcoin::{BlockHash, Txid};
 use bitcoind::bitcoincore_rpc::RpcApi;
 use electrsd::bitcoind::bitcoincore_rpc::bitcoincore_rpc_json::AddressType;
 use electrsd::{bitcoind, bitcoind::BitcoinD, ElectrsD};
+use electrum_client::bitcoin::hashes::Hash as ElectrumHash;
 
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -183,7 +185,7 @@ macro_rules! test_syncing {
 			.client
 			.send_to_address(
 				&new_address,
-				Amount::from_sat(5000),
+				electrum_client::bitcoin::Amount::from_sat(5000),
 				None,
 				None,
 				None,
@@ -196,7 +198,7 @@ macro_rules! test_syncing {
 			.client
 			.send_to_address(
 				&new_address,
-				Amount::from_sat(5000),
+				electrum_client::bitcoin::Amount::from_sat(5000),
 				None,
 				None,
 				None,
@@ -205,7 +207,10 @@ macro_rules! test_syncing {
 				None,
 			)
 			.unwrap();
-		$tx_sync.register_tx(&txid, &new_address.payload().script_pubkey());
+		$tx_sync.register_tx(
+			&bitcoin::Txid::from_slice(txid.as_ref()).unwrap(),
+			&bitcoin::Script::from_bytes(new_address.payload().script_pubkey().as_ref()),
+		);
 
 		maybe_await!($tx_sync.sync(vec![&$confirmable])).unwrap();
 
@@ -219,7 +224,11 @@ macro_rules! test_syncing {
 
 		let events = std::mem::take(&mut *$confirmable.events.lock().unwrap());
 		assert_eq!(events.len(), 2);
-		assert!($confirmable.confirmed_txs.lock().unwrap().contains_key(&txid));
+		assert!($confirmable
+			.confirmed_txs
+			.lock()
+			.unwrap()
+			.contains_key(&bitcoin::Txid::from_slice(txid.as_ref()).unwrap()));
 		assert!($confirmable.unconfirmed_txs.lock().unwrap().is_empty());
 
 		// Now take an arbitrary output of the second transaction and check we'll confirm its spend.
@@ -235,9 +244,12 @@ macro_rules! test_syncing {
 			.unwrap();
 		let prev_script_pubkey = prev_tx.output[prev_outpoint.vout as usize].script_pubkey.clone();
 		let output = WatchedOutput {
-			block_hash: Some(block_hash),
-			outpoint: OutPoint { txid: prev_outpoint.txid, index: prev_outpoint.vout as u16 },
-			script_pubkey: prev_script_pubkey,
+			block_hash: Some(bitcoin::BlockHash::from_slice(block_hash.as_ref()).unwrap()),
+			outpoint: OutPoint {
+				txid: bitcoin::Txid::from_slice(prev_outpoint.txid.as_ref()).unwrap(),
+				index: prev_outpoint.vout as u16,
+			},
+			script_pubkey: bitcoin::ScriptBuf::from_bytes(prev_script_pubkey.as_bytes().to_vec()),
 		};
 
 		$tx_sync.register_output(output);
@@ -245,7 +257,11 @@ macro_rules! test_syncing {
 
 		let events = std::mem::take(&mut *$confirmable.events.lock().unwrap());
 		assert_eq!(events.len(), 1);
-		assert!($confirmable.confirmed_txs.lock().unwrap().contains_key(&second_txid));
+		assert!($confirmable
+			.confirmed_txs
+			.lock()
+			.unwrap()
+			.contains_key(&bitcoin::Txid::from_slice(second_txid.as_ref()).unwrap()));
 		assert_eq!($confirmable.confirmed_txs.lock().unwrap().len(), 2);
 		assert!($confirmable.unconfirmed_txs.lock().unwrap().is_empty());
 
@@ -266,8 +282,16 @@ macro_rules! test_syncing {
 		maybe_await!($tx_sync.sync(vec![&$confirmable])).unwrap();
 
 		// Transactions still confirmed but under new tip.
-		assert!($confirmable.confirmed_txs.lock().unwrap().contains_key(&txid));
-		assert!($confirmable.confirmed_txs.lock().unwrap().contains_key(&second_txid));
+		assert!($confirmable
+			.confirmed_txs
+			.lock()
+			.unwrap()
+			.contains_key(&bitcoin::Txid::from_slice(txid.as_ref()).unwrap()));
+		assert!($confirmable
+			.confirmed_txs
+			.lock()
+			.unwrap()
+			.contains_key(&bitcoin::Txid::from_slice(second_txid.as_ref()).unwrap()));
 		assert!($confirmable.unconfirmed_txs.lock().unwrap().is_empty());
 
 		// Check we got unconfirmed, then reconfirmed in the meantime.
@@ -277,7 +301,8 @@ macro_rules! test_syncing {
 
 		match events[0] {
 			TestConfirmableEvent::Unconfirmed(t) => {
-				assert!(t == txid || t == second_txid);
+				let electrum_t = electrum_client::bitcoin::Txid::from_slice(t.as_ref()).unwrap();
+				assert!(electrum_t == txid || electrum_t == second_txid);
 				assert!(seen_txids.insert(t));
 			},
 			_ => panic!("Unexpected event"),
@@ -285,7 +310,8 @@ macro_rules! test_syncing {
 
 		match events[1] {
 			TestConfirmableEvent::Unconfirmed(t) => {
-				assert!(t == txid || t == second_txid);
+				let electrum_t = electrum_client::bitcoin::Txid::from_slice(t.as_ref()).unwrap();
+				assert!(electrum_t == txid || electrum_t == second_txid);
 				assert!(seen_txids.insert(t));
 			},
 			_ => panic!("Unexpected event"),
@@ -298,7 +324,8 @@ macro_rules! test_syncing {
 
 		match events[3] {
 			TestConfirmableEvent::Confirmed(t, _, _) => {
-				assert!(t == txid || t == second_txid);
+				let electrum_t = electrum_client::bitcoin::Txid::from_slice(t.as_ref()).unwrap();
+				assert!(electrum_t == txid || electrum_t == second_txid);
 				assert!(seen_txids.remove(&t));
 			},
 			_ => panic!("Unexpected event"),
@@ -306,7 +333,8 @@ macro_rules! test_syncing {
 
 		match events[4] {
 			TestConfirmableEvent::Confirmed(t, _, _) => {
-				assert!(t == txid || t == second_txid);
+				let electrum_t = electrum_client::bitcoin::Txid::from_slice(t.as_ref()).unwrap();
+				assert!(electrum_t == txid || electrum_t == second_txid);
 				assert!(seen_txids.remove(&t));
 			},
 			_ => panic!("Unexpected event"),

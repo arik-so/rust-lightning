@@ -13,6 +13,7 @@ use lightning::{log_debug, log_error, log_trace};
 use bitcoin::block::Header;
 use bitcoin::{BlockHash, Script, Transaction, Txid};
 
+use crate::util;
 use std::collections::HashSet;
 use std::ops::Deref;
 use std::sync::Mutex;
@@ -92,12 +93,13 @@ where
 		while let Some(_) = self.client.block_headers_pop()? {}
 
 		let tip_notification = self.client.block_headers_subscribe()?;
-		let mut tip_header = tip_notification.header;
+		let tip_header = tip_notification.header;
 		let mut tip_height = tip_notification.height as u32;
 
 		loop {
 			let pending_registrations = self.queue.lock().unwrap().process_queues(&mut sync_state);
-			let tip_is_new = Some(tip_header.block_hash()) != sync_state.last_sync_hash;
+			let tip_is_new = Some(tip_header.block_hash())
+				!= sync_state.last_sync_hash.map(|h| util::bitcoin_to_esplora_block_hash(&h));
 
 			// We loop until any registered transactions have been processed at least once, or the
 			// tip hasn't been updated during the last iteration.
@@ -112,7 +114,9 @@ where
 						Ok(unconfirmed_txs) => {
 							// Double-check the tip hash. If it changed, a reorg happened since
 							// we started syncing and we need to restart last-minute.
-							match self.check_update_tip(&mut tip_header, &mut tip_height) {
+							let mut bitcoin_header =
+								util::esplora_to_bitcoin_block_header(&tip_header);
+							match self.check_update_tip(&mut bitcoin_header, &mut tip_height) {
 								Ok(false) => {
 									num_unconfirmed += unconfirmed_txs.len();
 									sync_state.sync_unconfirmed_transactions(
@@ -150,9 +154,11 @@ where
 						},
 					}
 
+					let bitcoin_header = util::esplora_to_bitcoin_block_header(&tip_header);
+
 					// Update the best block.
 					for c in &confirmables {
-						c.best_block_updated(&tip_header, tip_height);
+						c.best_block_updated(&bitcoin_header, tip_height);
 					}
 
 					// Prune any sufficiently confirmed output spends
@@ -163,7 +169,8 @@ where
 					Ok(confirmed_txs) => {
 						// Double-check the tip hash. If it changed, a reorg happened since
 						// we started syncing and we need to restart last-minute.
-						match self.check_update_tip(&mut tip_header, &mut tip_height) {
+						let mut bitcoin_header = util::esplora_to_bitcoin_block_header(&tip_header);
+						match self.check_update_tip(&mut bitcoin_header, &mut tip_height) {
 							Ok(false) => {
 								num_confirmed += confirmed_txs.len();
 								sync_state
@@ -207,7 +214,8 @@ where
 						return Err(TxSyncError::from(err));
 					},
 				}
-				sync_state.last_sync_hash = Some(tip_header.block_hash());
+				sync_state.last_sync_hash =
+					Some(util::esplora_to_bitcoin_block_header(&tip_header).block_hash());
 				sync_state.pending_sync = false;
 			}
 		}
@@ -240,7 +248,8 @@ where
 		// Restart if either the tip changed or we got some divergent tip
 		// change notification since we started. In the latter case we
 		// make sure we clear the queue before continuing.
-		let mut restart_sync = check_tip_hash != cur_tip_header.block_hash();
+		let mut restart_sync =
+			check_tip_hash != util::bitcoin_to_esplora_block_header(&cur_tip_header).block_hash();
 		while let Some(queued_notif) = self.client.block_headers_pop()? {
 			if queued_notif.header.block_hash() != check_tip_hash {
 				restart_sync = true
@@ -248,7 +257,7 @@ where
 		}
 
 		if restart_sync {
-			*cur_tip_header = check_notification.header;
+			*cur_tip_header = util::esplora_to_bitcoin_block_header(&check_notification.header);
 			*cur_tip_height = check_notification.height as u32;
 			Ok(true)
 		} else {
@@ -268,7 +277,7 @@ where
 		let mut watched_txs = Vec::with_capacity(sync_state.watched_transactions.len());
 
 		for txid in &sync_state.watched_transactions {
-			match self.client.transaction_get(&txid) {
+			match self.client.transaction_get(&util::bitcoin_to_esplora_txid(txid)) {
 				Ok(tx) => {
 					// Bitcoin Core's Merkle tree implementation has no way to discern between
 					// internal and leaf node entries. As a consequence it is susceptible to an
@@ -308,7 +317,9 @@ where
 		debug_assert_eq!(num_tx_lookups, watched_txs.len());
 
 		for output in sync_state.watched_outputs.values() {
-			watched_script_pubkeys.push(output.script_pubkey.clone());
+			watched_script_pubkeys.push(electrum_client::bitcoin::ScriptBuf::from_bytes(
+				output.script_pubkey.to_bytes(),
+			));
 		}
 
 		let num_output_spend_lookups = watched_script_pubkeys.len() - num_tx_lookups;
@@ -325,11 +336,14 @@ where
 					if confirmed_txs.iter().any(|ctx| ctx.txid == **txid) {
 						continue;
 					}
-					let mut filtered_history =
-						script_history.iter().filter(|h| h.tx_hash == **txid);
+					let mut filtered_history = script_history
+						.iter()
+						.filter(|h| h.tx_hash == util::bitcoin_to_esplora_txid(txid));
 					if let Some(history) = filtered_history.next() {
+						let bitcoin_transaction = util::esplora_to_bitcoin_transaction(tx);
 						let prob_conf_height = history.height as u32;
-						let confirmed_tx = self.get_confirmed_tx(tx, prob_conf_height)?;
+						let confirmed_tx =
+							self.get_confirmed_tx(&bitcoin_transaction, prob_conf_height)?;
 						confirmed_txs.push(confirmed_tx);
 					}
 					debug_assert!(filtered_history.next().is_none());
@@ -344,7 +358,10 @@ where
 						}
 
 						let txid = possible_output_spend.tx_hash;
-						if confirmed_txs.iter().any(|ctx| ctx.txid == txid) {
+						if confirmed_txs
+							.iter()
+							.any(|ctx| ctx.txid == util::esplora_to_bitcoin_txid(&txid))
+						{
 							continue;
 						}
 
@@ -354,7 +371,10 @@ where
 								for txin in &tx.input {
 									let watched_outpoint =
 										watched_output.outpoint.into_bitcoin_outpoint();
-									if txin.previous_output == watched_outpoint {
+
+									let esplora_outpoint =
+										util::bitcoin_to_esplora_outpoint(&watched_outpoint);
+									if txin.previous_output == esplora_outpoint {
 										is_spend = true;
 										break;
 									}
@@ -365,7 +385,9 @@ where
 								}
 
 								let prob_conf_height = possible_output_spend.height as u32;
-								let confirmed_tx = self.get_confirmed_tx(&tx, prob_conf_height)?;
+								let bitcoin_transaction = util::esplora_to_bitcoin_transaction(&tx);
+								let confirmed_tx =
+									self.get_confirmed_tx(&bitcoin_transaction, prob_conf_height)?;
 								confirmed_txs.push(confirmed_tx);
 							},
 							Err(e) => {
@@ -414,7 +436,7 @@ where
 		for (txid, conf_height, block_hash_opt) in relevant_txids {
 			if let Some(block_hash) = block_hash_opt {
 				let block_header = self.client.block_header(conf_height as usize)?;
-				if block_header.block_hash() == block_hash {
+				if block_header.block_hash() == util::bitcoin_to_esplora_block_hash(&block_hash) {
 					// Skip if the tx is still confirmed in the block in question.
 					continue;
 				}
@@ -433,13 +455,20 @@ where
 		&self, tx: &Transaction, prob_conf_height: u32,
 	) -> Result<ConfirmedTx, InternalError> {
 		let txid = tx.txid();
-		match self.client.transaction_get_merkle(&txid, prob_conf_height as usize) {
+		match self.client.transaction_get_merkle(
+			&util::bitcoin_to_esplora_txid(&txid),
+			prob_conf_height as usize,
+		) {
 			Ok(merkle_res) => {
 				debug_assert_eq!(prob_conf_height, merkle_res.block_height as u32);
 				match self.client.block_header(prob_conf_height as usize) {
 					Ok(block_header) => {
 						let pos = merkle_res.pos;
-						if !validate_merkle_proof(&txid, &block_header.merkle_root, &merkle_res) {
+						if !validate_merkle_proof(
+							&util::bitcoin_to_esplora_txid(&txid),
+							&block_header.merkle_root,
+							&merkle_res,
+						) {
 							log_trace!(
 								self.logger,
 								"Inconsistency: Block {} was unconfirmed during syncing.",
@@ -447,10 +476,11 @@ where
 							);
 							return Err(InternalError::Inconsistency);
 						}
+
 						let confirmed_tx = ConfirmedTx {
 							tx: tx.clone(),
 							txid,
-							block_header,
+							block_header: util::esplora_to_bitcoin_block_header(&block_header),
 							block_height: prob_conf_height,
 							pos,
 						};

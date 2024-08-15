@@ -14,7 +14,7 @@
 //! [`ChannelMonitor`]: crate::chain::channelmonitor::ChannelMonitor
 
 use crate::prelude::*;
-use crate::io::{self, Read, Seek, Write};
+use crate::io::{self, BufRead, Read, Seek, Write};
 use crate::io_extras::{copy, sink};
 use core::hash::Hash;
 use crate::sync::{Mutex, RwLock};
@@ -61,6 +61,60 @@ impl<W: Write> Writer for W {
 	#[inline]
 	fn write_all(&mut self, buf: &[u8]) -> Result<(), io::Error> {
 		<Self as io::Write>::write_all(self, buf)
+	}
+}
+
+/// Wrap buffering support for implementations of Read.
+/// A [`Read`]er which keeps an internal buffer to avoid hitting the underlying stream directly for
+/// every read, implementing [`BufRead`].
+pub struct BufReader<'a, R: Read> {
+	inner: &'a mut R,
+	buf: [u8; 4096],
+	pos: usize,
+	limit: usize,
+}
+
+impl<'a, R: Read> BufReader<'a, R> {
+	/// Creates a [`BufReader`] which will read from the given `inner`.
+	pub fn new(inner: &'a mut R) -> Self {
+		BufReader {
+			inner,
+			buf: [0; 4096],
+			pos: 0,
+			limit: 0,
+		}
+	}
+}
+
+impl<'a, R: Read> Read for BufReader<'a, R> {
+	#[inline]
+	fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+		let input = self.fill_buf()?;
+		let count = cmp::min(input.len(), output.len());
+		output[..count].copy_from_slice(&input[..count]);
+		self.consume(count);
+		Ok(count)
+	}
+}
+
+impl<'a, R: Read> BufRead for BufReader<'a, R> {
+	#[inline]
+	fn fill_buf(&mut self) -> io::Result<&[u8]> {
+		if self.pos < self.limit {
+			Ok(&self.buf[self.pos..self.limit])
+		} else {
+			let count = self.inner.read(&mut self.buf[..])?;
+			debug_assert!(count <= self.buf.len(), "read gave us a garbage length");
+			self.pos = 0;
+			self.limit = cmp::min(count, self.buf.len());
+			Ok(&self.buf[..self.limit])
+		}
+	}
+
+	#[inline]
+	fn consume(&mut self, amount: usize) {
+		debug_assert!(self.pos.saturating_add(amount) <= self.limit, "Cannot consume more than was provided");
+		self.pos += amount;
 	}
 }
 
@@ -1247,10 +1301,11 @@ macro_rules! impl_consensus_ser {
 
 		impl Readable for $bitcoin_type {
 			fn read<R: Read>(r: &mut R) -> Result<Self, DecodeError> {
-				match consensus::encode::Decodable::consensus_decode(r) {
+				let mut reader = BufReader::<_>::new(r);
+				match consensus::encode::Decodable::consensus_decode(&mut reader) {
 					Ok(t) => Ok(t),
 					Err(consensus::encode::Error::Io(ref e)) if e.kind() == io::ErrorKind::UnexpectedEof => Err(DecodeError::ShortRead),
-					Err(consensus::encode::Error::Io(e)) => Err(DecodeError::Io(e.kind())),
+					Err(consensus::encode::Error::Io(e)) => Err(DecodeError::Io(e.kind().into())),
 					Err(_) => Err(DecodeError::InvalidValue),
 				}
 			}

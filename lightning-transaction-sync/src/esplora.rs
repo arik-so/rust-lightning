@@ -14,6 +14,7 @@ use esplora_client::blocking::BlockingClient;
 use esplora_client::r#async::AsyncClient;
 use esplora_client::Builder;
 
+use crate::util;
 use core::ops::Deref;
 use std::collections::HashSet;
 
@@ -99,7 +100,8 @@ where
 
 		loop {
 			let pending_registrations = self.queue.lock().unwrap().process_queues(&mut sync_state);
-			let tip_is_new = Some(tip_hash) != sync_state.last_sync_hash;
+			let tip_is_new = Some(tip_hash)
+				!= sync_state.last_sync_hash.map(|h| util::bitcoin_to_esplora_block_hash(&h));
 
 			// We loop until any registered transactions have been processed at least once, or the
 			// tip hasn't been updated during the last iteration.
@@ -156,7 +158,7 @@ where
 					match maybe_await!(self.sync_best_block_updated(
 						&confirmables,
 						&mut sync_state,
-						&tip_hash
+						&util::esplora_to_bitcoin_block_hash(&tip_hash)
 					)) {
 						Ok(()) => {},
 						Err(InternalError::Inconsistency) => {
@@ -231,7 +233,7 @@ where
 						return Err(TxSyncError::from(err));
 					},
 				}
-				sync_state.last_sync_hash = Some(tip_hash);
+				sync_state.last_sync_hash = Some(util::esplora_to_bitcoin_block_hash(&tip_hash));
 				sync_state.pending_sync = false;
 			}
 		}
@@ -263,12 +265,17 @@ where
 		C::Target: Confirm,
 	{
 		// Inform the interface of the new block.
-		let tip_header = maybe_await!(self.client.get_header_by_hash(tip_hash))?;
-		let tip_status = maybe_await!(self.client.get_block_status(&tip_hash))?;
+		let esplora_tip_hash = util::bitcoin_to_esplora_block_hash(tip_hash);
+		let tip_status = maybe_await!(self.client.get_block_status(&esplora_tip_hash))?;
+
+		let tip_header: electrum_client::bitcoin::block::Header =
+			maybe_await!(self.client.get_header_by_hash(&esplora_tip_hash))?;
+		let bitcoin_header = util::esplora_to_bitcoin_block_header(&tip_header);
+
 		if tip_status.in_best_chain {
 			if let Some(tip_height) = tip_status.height {
 				for c in confirmables {
-					c.best_block_updated(&tip_header, tip_height);
+					c.best_block_updated(&bitcoin_header, tip_height);
 				}
 
 				// Prune any sufficiently confirmed output spends
@@ -299,13 +306,14 @@ where
 		}
 
 		for (_, output) in &sync_state.watched_outputs {
-			if let Some(output_status) = maybe_await!(self
-				.client
-				.get_output_status(&output.outpoint.txid, output.outpoint.index as u64))?
-			{
+			if let Some(output_status) = maybe_await!(self.client.get_output_status(
+				&util::bitcoin_to_esplora_txid(&output.outpoint.txid),
+				output.outpoint.index as u64
+			))? {
 				if let Some(spending_txid) = output_status.txid {
+					let bitcoin_tx_id = util::esplora_to_bitcoin_txid(&spending_txid);
 					if let Some(spending_tx_status) = output_status.status {
-						if confirmed_txs.iter().any(|ctx| ctx.txid == spending_txid) {
+						if confirmed_txs.iter().any(|ctx| ctx.txid == bitcoin_tx_id) {
 							if spending_tx_status.confirmed {
 								// Skip inserting duplicate ConfirmedTx entry
 								continue;
@@ -316,8 +324,10 @@ where
 						}
 
 						if let Some(confirmed_tx) = maybe_await!(self.get_confirmed_tx(
-							spending_txid,
-							spending_tx_status.block_hash,
+							bitcoin_tx_id,
+							spending_tx_status
+								.block_hash
+								.map(|h| util::esplora_to_bitcoin_block_hash(&h)),
 							spending_tx_status.block_height,
 						))? {
 							confirmed_txs.push(confirmed_tx);
@@ -340,11 +350,13 @@ where
 	fn get_confirmed_tx(
 		&self, txid: Txid, expected_block_hash: Option<BlockHash>, known_block_height: Option<u32>,
 	) -> Result<Option<ConfirmedTx>, InternalError> {
-		if let Some(merkle_block) = maybe_await!(self.client.get_merkle_block(&txid))? {
+		if let Some(merkle_block) =
+			maybe_await!(self.client.get_merkle_block(&util::bitcoin_to_esplora_txid(&txid)))?
+		{
 			let block_header = merkle_block.header;
 			let block_hash = block_header.block_hash();
 			if let Some(expected_block_hash) = expected_block_hash {
-				if expected_block_hash != block_hash {
+				if expected_block_hash != util::esplora_to_bitcoin_block_hash(&block_hash) {
 					log_trace!(
 						self.logger,
 						"Inconsistency: Tx {} expected in block {}, but is confirmed in {}",
@@ -359,15 +371,20 @@ where
 			let mut matches = Vec::new();
 			let mut indexes = Vec::new();
 			let _ = merkle_block.txn.extract_matches(&mut matches, &mut indexes);
-			if indexes.len() != 1 || matches.len() != 1 || matches[0] != txid {
+			if indexes.len() != 1
+				|| matches.len() != 1
+				|| matches[0] != util::bitcoin_to_esplora_txid(&txid)
+			{
 				log_error!(self.logger, "Retrieved Merkle block for txid {} doesn't match expectations. This should not happen. Please verify server integrity.", txid);
 				return Err(InternalError::Failed);
 			}
 
 			// unwrap() safety: len() > 0 is checked above
 			let pos = *indexes.first().unwrap() as usize;
-			if let Some(tx) = maybe_await!(self.client.get_tx(&txid))? {
-				if tx.txid() != txid {
+			if let Some(tx) =
+				maybe_await!(self.client.get_tx(&util::bitcoin_to_esplora_txid(&txid)))?
+			{
+				if tx.txid() != util::bitcoin_to_esplora_txid(&txid) {
 					log_error!(self.logger, "Retrieved transaction for txid {} doesn't match expectations. This should not happen. Please verify server integrity.", txid);
 					return Err(InternalError::Failed);
 				}
@@ -390,12 +407,24 @@ where
 
 				if let Some(block_height) = known_block_height {
 					// We can take a shortcut here if a previous call already gave us the height.
-					return Ok(Some(ConfirmedTx { tx, txid, block_header, pos, block_height }));
+					return Ok(Some(ConfirmedTx {
+						tx: util::esplora_to_bitcoin_transaction(&tx),
+						txid,
+						block_header: util::esplora_to_bitcoin_block_header(&block_header),
+						pos,
+						block_height,
+					}));
 				}
 
 				let block_status = maybe_await!(self.client.get_block_status(&block_hash))?;
 				if let Some(block_height) = block_status.height {
-					return Ok(Some(ConfirmedTx { tx, txid, block_header, pos, block_height }));
+					return Ok(Some(ConfirmedTx {
+						tx: util::esplora_to_bitcoin_transaction(&tx),
+						txid,
+						block_header: util::esplora_to_bitcoin_block_header(&block_header),
+						pos,
+						block_height,
+					}));
 				} else {
 					// If any previously-confirmed block suddenly is no longer confirmed, we found
 					// an inconsistency and should start over.
@@ -429,7 +458,9 @@ where
 
 		for (txid, _conf_height, block_hash_opt) in relevant_txids {
 			if let Some(block_hash) = block_hash_opt {
-				let block_status = maybe_await!(self.client.get_block_status(&block_hash))?;
+				let block_status = maybe_await!(self
+					.client
+					.get_block_status(&util::bitcoin_to_esplora_block_hash(&block_hash)))?;
 				if block_status.in_best_chain {
 					// Skip if the block in question is still confirmed.
 					continue;

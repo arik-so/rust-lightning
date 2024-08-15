@@ -1,11 +1,10 @@
-#![allow(dead_code)]
-#![allow(unused_imports)]
-
 use bitcoin::hashes::Hash as BitcoinHash;
 use electrum_client::bitcoin::hashes::Hash as ElectrumHash;
 
 use bitcoin::consensus::Decodable as BitcoinDecodable;
+#[cfg(any(feature = "electrum", test))]
 use bitcoin::consensus::Encodable as BitcoinEncodable;
+#[cfg(any(feature = "electrum", test))]
 use electrum_client::bitcoin::consensus::Decodable as ElectrumDecodable;
 use electrum_client::bitcoin::consensus::Encodable as ElectrumEncodable;
 
@@ -15,12 +14,14 @@ pub(crate) fn bitcoin_to_esplora_block_hash(
 	electrum_client::bitcoin::BlockHash::from_slice(hash.as_ref()).unwrap()
 }
 
+#[cfg(any(feature = "esplora-blocking", feature = "esplora-async", test))]
 pub(crate) fn esplora_to_bitcoin_block_hash(
 	hash: &electrum_client::bitcoin::block::BlockHash,
 ) -> bitcoin::block::BlockHash {
 	bitcoin::BlockHash::from_slice(hash.as_byte_array()).unwrap()
 }
 
+#[cfg(any(feature = "electrum", test))]
 pub(crate) fn bitcoin_to_esplora_block_header(
 	header: &bitcoin::block::Header,
 ) -> electrum_client::bitcoin::block::Header {
@@ -39,6 +40,7 @@ pub(crate) fn esplora_to_bitcoin_block_header(
 	bitcoin::block::Header::consensus_decode(&mut &buffer[..]).unwrap()
 }
 
+#[cfg(any(feature = "electrum", test))]
 pub(crate) fn bitcoin_to_esplora_outpoint(
 	outpoint: &bitcoin::OutPoint,
 ) -> electrum_client::bitcoin::OutPoint {

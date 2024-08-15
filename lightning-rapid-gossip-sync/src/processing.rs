@@ -43,7 +43,7 @@ where
 	L::Target: Logger,
 {
 	#[cfg(feature = "std")]
-	pub(crate) fn update_network_graph_from_byte_stream<R: io::Read>(
+	pub(crate) fn update_network_graph_from_byte_stream<R: io::BufRead>(
 		&self, read_cursor: &mut R,
 	) -> Result<u32, GraphSyncError> {
 		#[allow(unused_mut, unused_assignments)]
