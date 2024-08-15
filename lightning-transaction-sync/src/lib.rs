@@ -80,6 +80,8 @@ mod common;
 mod error;
 #[cfg(any(feature = "esplora-blocking", feature = "esplora-async", feature = "electrum"))]
 pub use error::TxSyncError;
+#[cfg(any(feature = "esplora-blocking", feature = "esplora-async", feature = "electrum"))]
+mod util;
 
 #[cfg(feature = "electrum")]
 pub use electrum::ElectrumSyncClient;
