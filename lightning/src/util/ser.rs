@@ -14,7 +14,7 @@
 //! [`ChannelMonitor`]: crate::chain::channelmonitor::ChannelMonitor
 
 use crate::prelude::*;
-use crate::io::{self, BufRead, Read, Seek, Write};
+use crate::io::{self, BufRead, Read, Write};
 use crate::io_extras::{copy, sink};
 use core::hash::Hash;
 use crate::sync::{Mutex, RwLock};
@@ -302,9 +302,9 @@ pub trait Readable
 
 /// A trait that various LDK types implement allowing them to be read in from a
 /// [`Read`]` + `[`Seek`].
-pub(crate) trait SeekReadable where Self: Sized {
+pub(crate) trait CursorReadable where Self: Sized {
 	/// Reads a `Self` in from the given [`Read`].
-	fn read<R: Read + Seek>(reader: &mut R) -> Result<Self, DecodeError>;
+	fn read<R: Read>(reader: &mut io::Cursor<R>) -> Result<Self, DecodeError>;
 }
 
 /// A trait that various higher-level LDK types implement allowing them to be read in

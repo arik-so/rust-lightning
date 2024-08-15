@@ -12,7 +12,7 @@
 use bitcoin::secp256k1;
 use crate::io;
 use crate::ln::msgs::DecodeError;
-use crate::util::ser::SeekReadable;
+use crate::util::ser::CursorReadable;
 
 #[allow(unused_imports)]
 use crate::prelude::*;
@@ -91,24 +91,24 @@ mod sealed {
 
 /// A wrapper for reading a message as a TLV stream `T` from a byte sequence, while still
 /// maintaining ownership of the bytes for later use.
-pub(super) struct ParsedMessage<T: SeekReadable> {
+pub(super) struct ParsedMessage<T: CursorReadable> {
 	pub bytes: Vec<u8>,
 	pub tlv_stream: T,
 }
 
-impl<T: SeekReadable> TryFrom<Vec<u8>> for ParsedMessage<T> {
+impl<T: CursorReadable> TryFrom<Vec<u8>> for ParsedMessage<T> {
 	type Error = DecodeError;
 
 	fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-		let mut cursor = io::Cursor::new(bytes);
-		let tlv_stream: T = SeekReadable::read(&mut cursor)?;
+		let mut cursor = io::Cursor::new(&bytes[..]);
+		let tlv_stream: T = CursorReadable::read(&mut cursor)?;
 
 		// Ensure that there are no more TLV records left to parse.
 		if cursor.position() < cursor.get_ref().len() as u64 {
 			return Err(DecodeError::InvalidValue);
 		}
 
-		let bytes = cursor.into_inner();
+		let bytes = cursor.into_inner().to_vec();
 		Ok(Self { bytes, tlv_stream })
 	}
 }
