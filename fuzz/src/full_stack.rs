@@ -14,20 +14,20 @@
 //! This test has been very useful, though due to its complexity good starting inputs are critical.
 
 use bitcoin::amount::Amount;
-use bitcoin::blockdata::constants::genesis_block;
-use bitcoin::blockdata::locktime::absolute::LockTime;
-use bitcoin::blockdata::opcodes;
-use bitcoin::blockdata::script::{Builder, ScriptBuf};
-use bitcoin::blockdata::transaction::{Transaction, TxOut};
 use bitcoin::consensus::encode::deserialize;
+use bitcoin::constants::genesis_block;
+use bitcoin::locktime::absolute::LockTime;
 use bitcoin::network::Network;
+use bitcoin::opcodes;
+use bitcoin::script::{Builder, ScriptBuf};
 use bitcoin::transaction::Version;
+use bitcoin::transaction::{Transaction, TxOut};
 
 use bitcoin::hash_types::{BlockHash, Txid};
-use bitcoin::hashes::hex::FromHex;
 use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::sha256d::Hash as Sha256dHash;
 use bitcoin::hashes::Hash as _;
+use bitcoin::hex::FromHex;
 use bitcoin::WPubkeyHash;
 
 use lightning::blinded_path::message::MessageContext;
@@ -49,7 +49,7 @@ use lightning::ln::peer_handler::{
 	IgnoringMessageHandler, MessageHandler, PeerManager, SocketDescriptor,
 };
 use lightning::ln::script::ShutdownScript;
-use lightning::ln::{ChannelId, PaymentHash, PaymentPreimage, PaymentSecret};
+use lightning::ln::types::{ChannelId, PaymentHash, PaymentPreimage, PaymentSecret};
 use lightning::offers::invoice::{BlindedPayInfo, UnsignedBolt12Invoice};
 use lightning::offers::invoice_request::UnsignedInvoiceRequest;
 use lightning::onion_message::messenger::{Destination, MessageRouter, OnionMessagePath};
@@ -68,6 +68,8 @@ use lightning::util::logger::Logger;
 use lightning::util::ser::{Readable, ReadableArgs, Writeable};
 use lightning::util::test_channel_signer::{EnforcementState, TestChannelSigner};
 
+use lightning_invoice::RawBolt11Invoice;
+
 use crate::utils::test_logger;
 use crate::utils::test_persister::TestPersister;
 
@@ -76,7 +78,6 @@ use bitcoin::secp256k1::ecdsa::{RecoverableSignature, Signature};
 use bitcoin::secp256k1::schnorr;
 use bitcoin::secp256k1::{self, Message, PublicKey, Scalar, Secp256k1, SecretKey};
 
-use bech32::u5;
 use std::cell::RefCell;
 use std::cmp;
 use std::convert::TryInto;
@@ -120,8 +121,8 @@ impl InputData {
 		Some(&self.data[old_pos..old_pos + len])
 	}
 }
-impl std::io::Read for &InputData {
-	fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+impl lightning::io::Read for &InputData {
+	fn read(&mut self, buf: &mut [u8]) -> lightning::io::Result<usize> {
 		if let Some(sl) = self.get_slice(buf.len()) {
 			buf.copy_from_slice(sl);
 			Ok(buf.len())
@@ -305,7 +306,7 @@ impl<'a> MoneyLossDetector<'a> {
 	fn connect_block(&mut self, all_txn: &[Transaction]) {
 		let mut txdata = Vec::with_capacity(all_txn.len());
 		for (idx, tx) in all_txn.iter().enumerate() {
-			let txid = tx.txid();
+			let txid = tx.compute_txid();
 			self.txids_confirmed.entry(txid).or_insert_with(|| {
 				txdata.push((idx + 1, tx));
 				self.height
@@ -406,7 +407,7 @@ impl NodeSigner for KeyProvider {
 	}
 
 	fn sign_invoice(
-		&self, _hrp_bytes: &[u8], _invoice_data: &[u5], _recipient: Recipient,
+		&self, _invoice: &RawBolt11Invoice, _recipient: Recipient,
 	) -> Result<RecoverableSignature, ()> {
 		unreachable!()
 	}
@@ -897,7 +898,7 @@ pub fn do_test(mut data: &[u8], logger: &Arc<dyn Logger>) {
 					if tx.version.0 > 0xff {
 						break;
 					}
-					let funding_txid = tx.txid();
+					let funding_txid = tx.compute_txid();
 					if loss_detector.txids_confirmed.get(&funding_txid).is_none() {
 						let outpoint = OutPoint { txid: funding_txid, index: 0 };
 						for chan in channelmanager.list_channels() {
@@ -922,7 +923,7 @@ pub fn do_test(mut data: &[u8], logger: &Arc<dyn Logger>) {
 							panic!();
 						}
 					}
-					let funding_txid = tx.txid();
+					let funding_txid = tx.compute_txid();
 					for idx in 0..tx.output.len() {
 						let outpoint = OutPoint { txid: funding_txid, index: idx as u16 };
 						pending_funding_signatures.insert(outpoint, tx.clone());
@@ -1087,7 +1088,7 @@ pub extern "C" fn full_stack_run(data: *const u8, datalen: usize) {
 
 #[cfg(test)]
 mod tests {
-	use bitcoin::hashes::hex::FromHex;
+	use bitcoin::hex::FromHex;
 	use lightning::util::logger::{Logger, Record};
 	use std::collections::HashMap;
 	use std::sync::{Arc, Mutex};

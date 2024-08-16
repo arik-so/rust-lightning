@@ -18,6 +18,7 @@ pub mod bump_transaction;
 
 pub use bump_transaction::BumpTransactionEvent;
 
+use crate::blinded_path::message::OffersContext;
 use crate::blinded_path::payment::{Bolt12OfferContext, Bolt12RefundContext, PaymentContext, PaymentContextRef};
 use crate::chain::transaction;
 use crate::ln::channelmanager::{InterceptId, PaymentId, RecipientOnionFields};
@@ -35,8 +36,8 @@ use crate::util::ser::{BigSize, FixedLengthReader, Writeable, Writer, MaybeReada
 use crate::util::string::UntrustedString;
 
 use bitcoin::{Transaction, OutPoint};
-use bitcoin::blockdata::locktime::absolute::LockTime;
-use bitcoin::blockdata::script::ScriptBuf;
+use bitcoin::locktime::absolute::LockTime;
+use bitcoin::script::ScriptBuf;
 use bitcoin::hashes::Hash;
 use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::secp256k1::PublicKey;
@@ -551,6 +552,10 @@ pub enum Event {
 	/// Note that *all inputs* in the funding transaction must spend SegWit outputs or your
 	/// counterparty can steal your funds!
 	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`), but won't be persisted across restarts.
+	///
 	/// [`ChannelManager`]: crate::ln::channelmanager::ChannelManager
 	/// [`ChannelManager::funding_transaction_generated`]: crate::ln::channelmanager::ChannelManager::funding_transaction_generated
 	FundingGenerationReady {
@@ -578,6 +583,32 @@ pub enum Event {
 		/// [`ChannelManager::accept_inbound_channel`]: crate::ln::channelmanager::ChannelManager::accept_inbound_channel
 		/// [`UserConfig::manually_accept_inbound_channels`]: crate::util::config::UserConfig::manually_accept_inbound_channels
 		user_channel_id: u128,
+	},
+	/// Used to indicate that the counterparty node has provided the signature(s) required to
+	/// recover our funds in case they go offline.
+	///
+	/// It is safe (and your responsibility) to broadcast the funding transaction upon receiving this
+	/// event.
+	///
+	/// This event is only emitted if you called
+	/// [`ChannelManager::unsafe_manual_funding_transaction_generated`] instead of
+	/// [`ChannelManager::funding_transaction_generated`].
+	///
+	/// [`ChannelManager::unsafe_manual_funding_transaction_generated`]: crate::ln::channelmanager::ChannelManager::unsafe_manual_funding_transaction_generated
+	/// [`ChannelManager::funding_transaction_generated`]: crate::ln::channelmanager::ChannelManager::funding_transaction_generated
+	FundingTxBroadcastSafe {
+		/// The `channel_id` indicating which channel has reached this stage.
+		channel_id: ChannelId,
+		/// The `user_channel_id` value passed in to [`ChannelManager::create_channel`].
+		///
+		/// [`ChannelManager::create_channel`]: crate::ln::channelmanager::ChannelManager::create_channel
+		user_channel_id: u128,
+		/// The outpoint of the channel's funding transaction.
+		funding_txo: OutPoint,
+		/// The `node_id` of the channel counterparty.
+		counterparty_node_id: PublicKey,
+		/// The `temporary_channel_id` this channel used to be known by during channel establishment.
+		former_temporary_channel_id: ChannelId,
 	},
 	/// Indicates that we've been offered a payment and it needs to be claimed via calling
 	/// [`ChannelManager::claim_funds`] with the preimage given in [`PaymentPurpose`].
@@ -607,6 +638,10 @@ pub enum Event {
 	///
 	/// # Note
 	/// This event used to be called `PaymentReceived` in LDK versions 0.0.112 and earlier.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	///
 	/// [`ChannelManager::claim_funds`]: crate::ln::channelmanager::ChannelManager::claim_funds
 	/// [`ChannelManager::claim_funds_with_known_custom_tlvs`]: crate::ln::channelmanager::ChannelManager::claim_funds_with_known_custom_tlvs
@@ -677,6 +712,10 @@ pub enum Event {
 	/// [`ChannelManager::claim_funds`] twice for the same [`Event::PaymentClaimable`] you may get
 	/// multiple `PaymentClaimed` events.
 	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
+	///
 	/// [`ChannelManager::claim_funds`]: crate::ln::channelmanager::ChannelManager::claim_funds
 	PaymentClaimed {
 		/// The node that received the payment.
@@ -716,6 +755,10 @@ pub enum Event {
 	/// This event will not be generated for onion message forwards; only for sends including
 	/// replies. Handlers should connect to the node otherwise any buffered messages may be lost.
 	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`), but won't be persisted across restarts.
+	///
 	/// [`OnionMessage`]: msgs::OnionMessage
 	/// [`MessageRouter`]: crate::onion_message::messenger::MessageRouter
 	/// [`Destination`]: crate::onion_message::messenger::Destination
@@ -729,6 +772,10 @@ pub enum Event {
 	/// Indicates a request for an invoice failed to yield a response in a reasonable amount of time
 	/// or was explicitly abandoned by [`ChannelManager::abandon_payment`]. This may be for an
 	/// [`InvoiceRequest`] sent for an [`Offer`] or for a [`Refund`] that hasn't been redeemed.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	///
 	/// [`ChannelManager::abandon_payment`]: crate::ln::channelmanager::ChannelManager::abandon_payment
 	/// [`InvoiceRequest`]: crate::offers::invoice_request::InvoiceRequest
@@ -746,6 +793,10 @@ pub enum Event {
 	/// [`ChannelManager::abandon_payment`] to abandon the associated payment. See those docs for
 	/// further details.
 	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
+	///
 	/// [`InvoiceRequest`]: crate::offers::invoice_request::InvoiceRequest
 	/// [`Refund`]: crate::offers::refund::Refund
 	/// [`UserConfig::manually_handle_bolt12_invoices`]: crate::util::config::UserConfig::manually_handle_bolt12_invoices
@@ -756,6 +807,10 @@ pub enum Event {
 		payment_id: PaymentId,
 		/// The invoice to pay.
 		invoice: Bolt12Invoice,
+		/// The context of the [`BlindedPath`] used to send the invoice.
+		///
+		/// [`BlindedPath`]: crate::blinded_path::BlindedPath
+		context: Option<OffersContext>,
 		/// A responder for replying with an [`InvoiceError`] if needed.
 		///
 		/// `None` if the invoice wasn't sent with a reply path.
@@ -768,6 +823,10 @@ pub enum Event {
 	///
 	/// Note for MPP payments: in rare cases, this event may be preceded by a `PaymentPathFailed`
 	/// event. In this situation, you SHOULD treat this payment as having succeeded.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	PaymentSent {
 		/// The `payment_id` passed to [`ChannelManager::send_payment`].
 		///
@@ -806,6 +865,10 @@ pub enum Event {
 	/// received and processed. In this case, the [`Event::PaymentFailed`] event MUST be ignored,
 	/// and the payment MUST be treated as having succeeded.
 	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
+	///
 	/// [`Retry`]: crate::ln::channelmanager::Retry
 	/// [`ChannelManager::abandon_payment`]: crate::ln::channelmanager::ChannelManager::abandon_payment
 	PaymentFailed {
@@ -825,6 +888,10 @@ pub enum Event {
 	///
 	/// Always generated after [`Event::PaymentSent`] and thus useful for scoring channels. See
 	/// [`Event::PaymentSent`] for obtaining the payment preimage.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	PaymentPathSuccessful {
 		/// The `payment_id` passed to [`ChannelManager::send_payment`].
 		///
@@ -849,6 +916,10 @@ pub enum Event {
 	///
 	/// See [`ChannelManager::abandon_payment`] for giving up on this payment before its retries have
 	/// been exhausted.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	///
 	/// [`ChannelManager::abandon_payment`]: crate::ln::channelmanager::ChannelManager::abandon_payment
 	PaymentPathFailed {
@@ -889,6 +960,10 @@ pub enum Event {
 		error_data: Option<Vec<u8>>,
 	},
 	/// Indicates that a probe payment we sent returned successful, i.e., only failed at the destination.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	ProbeSuccessful {
 		/// The id returned by [`ChannelManager::send_probe`].
 		///
@@ -902,6 +977,10 @@ pub enum Event {
 		path: Path,
 	},
 	/// Indicates that a probe payment we sent failed at an intermediary node on the path.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	ProbeFailed {
 		/// The id returned by [`ChannelManager::send_probe`].
 		///
@@ -923,6 +1002,10 @@ pub enum Event {
 	/// Used to indicate that [`ChannelManager::process_pending_htlc_forwards`] should be called at
 	/// a time in the future.
 	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be regenerated after restarts.
+	///
 	/// [`ChannelManager::process_pending_htlc_forwards`]: crate::ln::channelmanager::ChannelManager::process_pending_htlc_forwards
 	PendingHTLCsForwardable {
 		/// The minimum amount of time that should be waited prior to calling
@@ -938,6 +1021,10 @@ pub enum Event {
 	/// [`ChannelManager::forward_intercepted_htlc`] or
 	/// [`ChannelManager::fail_intercepted_htlc`] MUST be called in response to this event. See
 	/// their docs for more information.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	///
 	/// [`ChannelManager::get_intercept_scid`]: crate::ln::channelmanager::ChannelManager::get_intercept_scid
 	/// [`UserConfig::accept_intercept_htlcs`]: crate::util::config::UserConfig::accept_intercept_htlcs
@@ -974,6 +1061,10 @@ pub enum Event {
 	/// You may hand them to the [`OutputSweeper`] utility which will store and (re-)generate spending
 	/// transactions for you.
 	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
+	///
 	/// [`OutputSweeper`]: crate::util::sweep::OutputSweeper
 	SpendableOutputs {
 		/// The outputs which you should store as spendable by you.
@@ -985,6 +1076,10 @@ pub enum Event {
 	},
 	/// This event is generated when a payment has been successfully forwarded through us and a
 	/// forwarding fee earned.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	PaymentForwarded {
 		/// The channel id of the incoming channel between the previous node and us.
 		///
@@ -1046,6 +1141,10 @@ pub enum Event {
 	/// This event is emitted when the funding transaction has been signed and is broadcast to the
 	/// network. For 0conf channels it will be immediately followed by the corresponding
 	/// [`Event::ChannelReady`] event.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	ChannelPending {
 		/// The `channel_id` of the channel that is pending confirmation.
 		channel_id: ChannelId,
@@ -1075,6 +1174,10 @@ pub enum Event {
 	/// be used. This event is emitted either when the funding transaction has been confirmed
 	/// on-chain, or, in case of a 0conf channel, when both parties have confirmed the channel
 	/// establishment.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	ChannelReady {
 		/// The `channel_id` of the channel that is ready.
 		channel_id: ChannelId,
@@ -1101,6 +1204,10 @@ pub enum Event {
 	///
 	/// [`ChannelManager::accept_inbound_channel`]: crate::ln::channelmanager::ChannelManager::accept_inbound_channel
 	/// [`UserConfig::manually_accept_inbound_channels`]: crate::util::config::UserConfig::manually_accept_inbound_channels
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	ChannelClosed {
 		/// The `channel_id` of the channel which has been closed. Note that on-chain transactions
 		/// resolving the channel are likely still awaiting confirmation.
@@ -1135,6 +1242,10 @@ pub enum Event {
 	/// inputs for another purpose.
 	///
 	/// This event is not guaranteed to be generated for channels that are closed due to a restart.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	DiscardFunding {
 		/// The channel_id of the channel which has been closed.
 		channel_id: ChannelId,
@@ -1149,6 +1260,10 @@ pub enum Event {
 	///
 	/// The event is only triggered when a new open channel request is received and the
 	/// [`UserConfig::manually_accept_inbound_channels`] config flag is set to true.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	///
 	/// [`ChannelManager::accept_inbound_channel`]: crate::ln::channelmanager::ChannelManager::accept_inbound_channel
 	/// [`ChannelManager::force_close_without_broadcasting_txn`]: crate::ln::channelmanager::ChannelManager::force_close_without_broadcasting_txn
@@ -1193,6 +1308,10 @@ pub enum Event {
 		///
 		/// [`ChannelManager`]: crate::ln::channelmanager::ChannelManager
 		channel_type: ChannelTypeFeatures,
+		/// True if this channel is (or will be) publicly-announced.
+		is_public: bool,
+		/// Channel parameters given by the counterparty.
+		params: msgs::ChannelParameters,
 	},
 	/// Indicates that the HTLC was accepted, but could not be processed when or after attempting to
 	/// forward it.
@@ -1206,6 +1325,10 @@ pub enum Event {
 	///
 	/// This event, however, does not get generated if an HTLC fails to meet the forwarding
 	/// requirements (i.e. insufficient fees paid, or a CLTV that is too soon).
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`) and will be persisted across restarts.
 	HTLCHandlingFailed {
 		/// The channel over which the HTLC was received.
 		prev_channel_id: ChannelId,
@@ -1219,12 +1342,20 @@ pub enum Event {
 	/// [`ChannelHandshakeConfig::negotiate_anchors_zero_fee_htlc_tx`] config flag is set to true.
 	/// It is limited to the scope of channels with anchor outputs.
 	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`), but will only be regenerated as needed after restarts.
+	///
 	/// [`ChannelHandshakeConfig::negotiate_anchors_zero_fee_htlc_tx`]: crate::util::config::ChannelHandshakeConfig::negotiate_anchors_zero_fee_htlc_tx
 	BumpTransaction(BumpTransactionEvent),
 	/// We received an onion message that is intended to be forwarded to a peer
 	/// that is currently offline. This event will only be generated if the
 	/// `OnionMessenger` was initialized with
 	/// [`OnionMessenger::new_with_offline_peer_interception`], see its docs.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`), but won't be persisted across restarts.
 	///
 	/// [`OnionMessenger::new_with_offline_peer_interception`]: crate::onion_message::messenger::OnionMessenger::new_with_offline_peer_interception
 	OnionMessageIntercepted {
@@ -1238,6 +1369,10 @@ pub enum Event {
 	/// them. This event will only be generated if the `OnionMessenger` was
 	/// initialized with
 	/// [`OnionMessenger::new_with_offline_peer_interception`], see its docs.
+	///
+	/// # Failure Behavior and Persistence
+	/// This event will eventually be replayed after failures-to-handle (i.e., the event handler
+	/// returning `Err(ReplayEvent ())`), but won't be persisted across restarts.
 	///
 	/// [`OnionMessenger::new_with_offline_peer_interception`]: crate::onion_message::messenger::OnionMessenger::new_with_offline_peer_interception
 	OnionMessagePeerConnected {
@@ -1522,13 +1657,24 @@ impl Writeable for Event {
 					(0, peer_node_id, required),
 				});
 			},
-			&Event::InvoiceReceived { ref payment_id, ref invoice, ref responder } => {
+			&Event::InvoiceReceived { ref payment_id, ref invoice, ref context, ref responder } => {
 				41u8.write(writer)?;
 				write_tlv_fields!(writer, {
 					(0, payment_id, required),
 					(2, invoice, required),
-					(4, responder, option),
-				})
+					(4, context, option),
+					(6, responder, option),
+				});
+			},
+			&Event::FundingTxBroadcastSafe { ref channel_id, ref user_channel_id, ref funding_txo, ref counterparty_node_id, ref former_temporary_channel_id} => {
+				43u8.write(writer)?;
+				write_tlv_fields!(writer, {
+					(0, channel_id, required),
+					(2, user_channel_id, required),
+					(4, funding_txo, required),
+					(6, counterparty_node_id, required),
+					(8, former_temporary_channel_id, required),
+				});
 			},
 			// Note that, going forward, all new events must only write data inside of
 			// `write_tlv_fields`. Versions 0.0.101+ will ignore odd-numbered events that write
@@ -1971,15 +2117,38 @@ impl MaybeReadable for Event {
 					_init_and_read_len_prefixed_tlv_fields!(reader, {
 						(0, payment_id, required),
 						(2, invoice, required),
-						(4, responder, option),
+						(4, context, option),
+						(6, responder, option),
 					});
 					Ok(Some(Event::InvoiceReceived {
 						payment_id: payment_id.0.unwrap(),
 						invoice: invoice.0.unwrap(),
+						context,
 						responder,
 					}))
 				};
 				f()
+			},
+			43u8 => {
+				let mut channel_id = RequiredWrapper(None);
+				let mut user_channel_id = RequiredWrapper(None);
+				let mut funding_txo = RequiredWrapper(None);
+				let mut counterparty_node_id = RequiredWrapper(None);
+				let mut former_temporary_channel_id = RequiredWrapper(None);
+				read_tlv_fields!(reader, {
+					(0, channel_id, required),
+					(2, user_channel_id, required),
+					(4, funding_txo, required),
+					(6, counterparty_node_id, required),
+					(8, former_temporary_channel_id, required)
+				});
+				Ok(Some(Event::FundingTxBroadcastSafe {
+					channel_id: channel_id.0.unwrap(),
+					user_channel_id: user_channel_id.0.unwrap(),
+					funding_txo: funding_txo.0.unwrap(),
+					counterparty_node_id: counterparty_node_id.0.unwrap(),
+					former_temporary_channel_id: former_temporary_channel_id.0.unwrap(),
+				}))
 			},
 			// Versions prior to 0.0.100 did not ignore odd types, instead returning InvalidValue.
 			// Version 0.0.100 failed to properly ignore odd types, possibly resulting in corrupt
@@ -2300,8 +2469,12 @@ pub trait MessageSendEventsProvider {
 ///
 /// In order to ensure no [`Event`]s are lost, implementors of this trait will persist [`Event`]s
 /// and replay any unhandled events on startup. An [`Event`] is considered handled when
-/// [`process_pending_events`] returns, thus handlers MUST fully handle [`Event`]s and persist any
-/// relevant changes to disk *before* returning.
+/// [`process_pending_events`] returns `Ok(())`, thus handlers MUST fully handle [`Event`]s and
+/// persist any relevant changes to disk *before* returning `Ok(())`. In case of an error (e.g.,
+/// persistence failure) implementors should return `Err(ReplayEvent())`, signalling to the
+/// [`EventsProvider`] to replay unhandled events on the next invocation (generally immediately).
+/// Note that some events might not be replayed, please refer to the documentation for
+/// the individual [`Event`] variants for more detail.
 ///
 /// Further, because an application may crash between an [`Event`] being handled and the
 /// implementor of this trait being re-serialized, [`Event`] handling must be idempotent - in
@@ -2328,26 +2501,34 @@ pub trait EventsProvider {
 	fn process_pending_events<H: Deref>(&self, handler: H) where H::Target: EventHandler;
 }
 
+/// An error type that may be returned to LDK in order to safely abort event handling if it can't
+/// currently succeed (e.g., due to a persistence failure).
+///
+/// Depending on the type, LDK may ensure the event is persisted and will eventually be replayed.
+/// Please refer to the documentation of each [`Event`] variant for more details.
+#[derive(Clone, Copy, Debug)]
+pub struct ReplayEvent();
+
 /// A trait implemented for objects handling events from [`EventsProvider`].
 ///
 /// An async variation also exists for implementations of [`EventsProvider`] that support async
 /// event handling. The async event handler should satisfy the generic bounds: `F:
-/// core::future::Future, H: Fn(Event) -> F`.
+/// core::future::Future<Output = Result<(), ReplayEvent>>, H: Fn(Event) -> F`.
 pub trait EventHandler {
 	/// Handles the given [`Event`].
 	///
 	/// See [`EventsProvider`] for details that must be considered when implementing this method.
-	fn handle_event(&self, event: Event);
+	fn handle_event(&self, event: Event) -> Result<(), ReplayEvent>;
 }
 
-impl<F> EventHandler for F where F: Fn(Event) {
-	fn handle_event(&self, event: Event) {
+impl<F> EventHandler for F where F: Fn(Event) -> Result<(), ReplayEvent> {
+	fn handle_event(&self, event: Event) -> Result<(), ReplayEvent> {
 		self(event)
 	}
 }
 
 impl<T: EventHandler> EventHandler for Arc<T> {
-	fn handle_event(&self, event: Event) {
+	fn handle_event(&self, event: Event) -> Result<(), ReplayEvent> {
 		self.deref().handle_event(event)
 	}
 }

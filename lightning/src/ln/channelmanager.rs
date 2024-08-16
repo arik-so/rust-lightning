@@ -17,9 +17,9 @@
 //! on-chain transactions (it only monitors the chain to watch for any force-closes that might
 //! imply it needs to fail HTLCs/payments/channels it manages).
 
-use bitcoin::blockdata::block::Header;
-use bitcoin::blockdata::transaction::Transaction;
-use bitcoin::blockdata::constants::ChainHash;
+use bitcoin::block::Header;
+use bitcoin::transaction::Transaction;
+use bitcoin::constants::ChainHash;
 use bitcoin::key::constants::SECRET_KEY_SIZE;
 use bitcoin::network::Network;
 
@@ -41,7 +41,7 @@ use crate::chain::chaininterface::{BroadcasterInterface, ConfirmationTarget, Fee
 use crate::chain::channelmonitor::{ChannelMonitor, ChannelMonitorUpdate, WithChannelMonitor, ChannelMonitorUpdateStep, HTLC_FAIL_BACK_BUFFER, CLTV_CLAIM_BUFFER, LATENCY_GRACE_PERIOD_BLOCKS, ANTI_REORG_DELAY, MonitorEvent, CLOSED_CHANNEL_UPDATE_ID};
 use crate::chain::transaction::{OutPoint, TransactionData};
 use crate::events;
-use crate::events::{Event, EventHandler, EventsProvider, MessageSendEvent, MessageSendEventsProvider, ClosureReason, HTLCDestination, PaymentFailureReason};
+use crate::events::{Event, EventHandler, EventsProvider, MessageSendEvent, MessageSendEventsProvider, ClosureReason, HTLCDestination, PaymentFailureReason, ReplayEvent};
 // Since this struct is returned in `list_channels` methods, expose it here in case users want to
 // construct one themselves.
 use crate::ln::inbound_payment;
@@ -64,6 +64,7 @@ use crate::ln::wire::Encode;
 use crate::offers::invoice::{BlindedPayInfo, Bolt12Invoice, DEFAULT_RELATIVE_EXPIRY, DerivedSigningPubkey, ExplicitSigningPubkey, InvoiceBuilder, UnsignedBolt12Invoice};
 use crate::offers::invoice_error::InvoiceError;
 use crate::offers::invoice_request::{DerivedPayerId, InvoiceRequestBuilder};
+use crate::offers::nonce::Nonce;
 use crate::offers::offer::{Offer, OfferBuilder};
 use crate::offers::parse::Bolt12SemanticError;
 use crate::offers::refund::{Refund, RefundBuilder};
@@ -700,6 +701,51 @@ struct ClaimablePayment {
 	purpose: events::PaymentPurpose,
 	onion_fields: Option<RecipientOnionFields>,
 	htlcs: Vec<ClaimableHTLC>,
+}
+
+/// Represent the channel funding transaction type.
+enum FundingType {
+	/// This variant is useful when we want LDK to validate the funding transaction and
+	/// broadcast it automatically.
+	///
+	/// This is the normal flow.
+	Checked(Transaction),
+	/// This variant is useful when we want to loosen the validation checks and allow to
+	/// manually broadcast the funding transaction, leaving the responsibility to the caller.
+	///
+	/// This is useful in cases of constructing the funding transaction as part of another
+	/// flow and the caller wants to perform the validation and broadcasting. An example of such
+	/// scenario could be when constructing the funding transaction as part of a Payjoin
+	/// transaction.
+	Unchecked(OutPoint),
+}
+
+impl FundingType {
+	fn txid(&self) -> Txid {
+		match self {
+			FundingType::Checked(tx) => tx.compute_txid(),
+			FundingType::Unchecked(outp) => outp.txid,
+		}
+	}
+
+	fn transaction_or_dummy(&self) -> Transaction {
+		match self {
+			FundingType::Checked(tx) => tx.clone(),
+			FundingType::Unchecked(_) => Transaction {
+				version: bitcoin::transaction::Version::TWO,
+				lock_time: bitcoin::absolute::LockTime::ZERO,
+				input: Vec::new(),
+				output: Vec::new(),
+			},
+		}
+	}
+
+	fn is_manual_broadcast(&self) -> bool {
+		match self {
+			FundingType::Checked(_) => false,
+			FundingType::Unchecked(_) => true,
+		}
+	}
 }
 
 /// Information about claimable or being-claimed payments
@@ -1395,35 +1441,38 @@ where
 /// }
 ///
 /// // On the event processing thread once the peer has responded
-/// channel_manager.process_pending_events(&|event| match event {
-///     Event::FundingGenerationReady {
-///         temporary_channel_id, counterparty_node_id, channel_value_satoshis, output_script,
-///         user_channel_id, ..
-///     } => {
-///         assert_eq!(user_channel_id, 42);
-///         let funding_transaction = wallet.create_funding_transaction(
-///             channel_value_satoshis, output_script
-///         );
-///         match channel_manager.funding_transaction_generated(
-///             &temporary_channel_id, &counterparty_node_id, funding_transaction
-///         ) {
-///             Ok(()) => println!("Funding channel {}", temporary_channel_id),
-///             Err(e) => println!("Error funding channel {}: {:?}", temporary_channel_id, e),
-///         }
-///     },
-///     Event::ChannelPending { channel_id, user_channel_id, former_temporary_channel_id, .. } => {
-///         assert_eq!(user_channel_id, 42);
-///         println!(
-///             "Channel {} now {} pending (funding transaction has been broadcasted)", channel_id,
-///             former_temporary_channel_id.unwrap()
-///         );
-///     },
-///     Event::ChannelReady { channel_id, user_channel_id, .. } => {
-///         assert_eq!(user_channel_id, 42);
-///         println!("Channel {} ready", channel_id);
-///     },
-///     // ...
-/// #     _ => {},
+/// channel_manager.process_pending_events(&|event| {
+///     match event {
+///         Event::FundingGenerationReady {
+///             temporary_channel_id, counterparty_node_id, channel_value_satoshis, output_script,
+///             user_channel_id, ..
+///         } => {
+///             assert_eq!(user_channel_id, 42);
+///             let funding_transaction = wallet.create_funding_transaction(
+///                 channel_value_satoshis, output_script
+///             );
+///             match channel_manager.funding_transaction_generated(
+///                 temporary_channel_id, counterparty_node_id, funding_transaction
+///             ) {
+///                 Ok(()) => println!("Funding channel {}", temporary_channel_id),
+///                 Err(e) => println!("Error funding channel {}: {:?}", temporary_channel_id, e),
+///             }
+///         },
+///         Event::ChannelPending { channel_id, user_channel_id, former_temporary_channel_id, .. } => {
+///             assert_eq!(user_channel_id, 42);
+///             println!(
+///                 "Channel {} now {} pending (funding transaction has been broadcasted)", channel_id,
+///                 former_temporary_channel_id.unwrap()
+///             );
+///         },
+///         Event::ChannelReady { channel_id, user_channel_id, .. } => {
+///             assert_eq!(user_channel_id, 42);
+///             println!("Channel {} ready", channel_id);
+///         },
+///         // ...
+///     #     _ => {},
+///     }
+///     Ok(())
 /// });
 /// # }
 /// ```
@@ -1447,28 +1496,31 @@ where
 /// # fn example<T: AChannelManager>(channel_manager: T) {
 /// # let channel_manager = channel_manager.get_cm();
 /// # let error_message = "Channel force-closed";
-/// channel_manager.process_pending_events(&|event| match event {
-///     Event::OpenChannelRequest { temporary_channel_id, counterparty_node_id, ..  } => {
-///         if !is_trusted(counterparty_node_id) {
-///             match channel_manager.force_close_without_broadcasting_txn(
-///                 &temporary_channel_id, &counterparty_node_id, error_message.to_string()
-///             ) {
-///                 Ok(()) => println!("Rejecting channel {}", temporary_channel_id),
-///                 Err(e) => println!("Error rejecting channel {}: {:?}", temporary_channel_id, e),
+/// channel_manager.process_pending_events(&|event| {
+///     match event {
+///         Event::OpenChannelRequest { temporary_channel_id, counterparty_node_id, ..  } => {
+///             if !is_trusted(counterparty_node_id) {
+///                 match channel_manager.force_close_without_broadcasting_txn(
+///                     &temporary_channel_id, &counterparty_node_id, error_message.to_string()
+///                 ) {
+///                     Ok(()) => println!("Rejecting channel {}", temporary_channel_id),
+///                     Err(e) => println!("Error rejecting channel {}: {:?}", temporary_channel_id, e),
+///                 }
+///                 return Ok(());
 ///             }
-///             return;
-///         }
 ///
-///         let user_channel_id = 43;
-///         match channel_manager.accept_inbound_channel(
-///             &temporary_channel_id, &counterparty_node_id, user_channel_id
-///         ) {
-///             Ok(()) => println!("Accepting channel {}", temporary_channel_id),
-///             Err(e) => println!("Error accepting channel {}: {:?}", temporary_channel_id, e),
-///         }
-///     },
-///     // ...
-/// #     _ => {},
+///             let user_channel_id = 43;
+///             match channel_manager.accept_inbound_channel(
+///                 &temporary_channel_id, &counterparty_node_id, user_channel_id
+///             ) {
+///                 Ok(()) => println!("Accepting channel {}", temporary_channel_id),
+///                 Err(e) => println!("Error accepting channel {}: {:?}", temporary_channel_id, e),
+///             }
+///         },
+///         // ...
+///     #     _ => {},
+///     }
+///     Ok(())
 /// });
 /// # }
 /// ```
@@ -1497,13 +1549,16 @@ where
 /// }
 ///
 /// // On the event processing thread
-/// channel_manager.process_pending_events(&|event| match event {
-///     Event::ChannelClosed { channel_id, user_channel_id, ..  } => {
-///         assert_eq!(user_channel_id, 42);
-///         println!("Channel {} closed", channel_id);
-///     },
-///     // ...
-/// #     _ => {},
+/// channel_manager.process_pending_events(&|event| {
+///     match event {
+///         Event::ChannelClosed { channel_id, user_channel_id, ..  } => {
+///             assert_eq!(user_channel_id, 42);
+///             println!("Channel {} closed", channel_id);
+///         },
+///         // ...
+///     #     _ => {},
+///     }
+///     Ok(())
 /// });
 /// # }
 /// ```
@@ -1553,30 +1608,33 @@ where
 /// };
 ///
 /// // On the event processing thread
-/// channel_manager.process_pending_events(&|event| match event {
-///     Event::PaymentClaimable { payment_hash, purpose, .. } => match purpose {
-///         PaymentPurpose::Bolt11InvoicePayment { payment_preimage: Some(payment_preimage), .. } => {
+/// channel_manager.process_pending_events(&|event| {
+///     match event {
+///         Event::PaymentClaimable { payment_hash, purpose, .. } => match purpose {
+///             PaymentPurpose::Bolt11InvoicePayment { payment_preimage: Some(payment_preimage), .. } => {
+///                 assert_eq!(payment_hash, known_payment_hash);
+///                 println!("Claiming payment {}", payment_hash);
+///                 channel_manager.claim_funds(payment_preimage);
+///             },
+///             PaymentPurpose::Bolt11InvoicePayment { payment_preimage: None, .. } => {
+///                 println!("Unknown payment hash: {}", payment_hash);
+///             },
+///             PaymentPurpose::SpontaneousPayment(payment_preimage) => {
+///                 assert_ne!(payment_hash, known_payment_hash);
+///                 println!("Claiming spontaneous payment {}", payment_hash);
+///                 channel_manager.claim_funds(payment_preimage);
+///             },
+///             // ...
+/// #           _ => {},
+///         },
+///         Event::PaymentClaimed { payment_hash, amount_msat, .. } => {
 ///             assert_eq!(payment_hash, known_payment_hash);
-///             println!("Claiming payment {}", payment_hash);
-///             channel_manager.claim_funds(payment_preimage);
-///         },
-///         PaymentPurpose::Bolt11InvoicePayment { payment_preimage: None, .. } => {
-///             println!("Unknown payment hash: {}", payment_hash);
-///         },
-///         PaymentPurpose::SpontaneousPayment(payment_preimage) => {
-///             assert_ne!(payment_hash, known_payment_hash);
-///             println!("Claiming spontaneous payment {}", payment_hash);
-///             channel_manager.claim_funds(payment_preimage);
+///             println!("Claimed {} msats", amount_msat);
 ///         },
 ///         // ...
-/// #         _ => {},
-///     },
-///     Event::PaymentClaimed { payment_hash, amount_msat, .. } => {
-///         assert_eq!(payment_hash, known_payment_hash);
-///         println!("Claimed {} msats", amount_msat);
-///     },
-///     // ...
-/// #     _ => {},
+/// #       _ => {},
+///     }
+///     Ok(())
 /// });
 /// # }
 /// ```
@@ -1619,11 +1677,14 @@ where
 /// );
 ///
 /// // On the event processing thread
-/// channel_manager.process_pending_events(&|event| match event {
-///     Event::PaymentSent { payment_hash, .. } => println!("Paid {}", payment_hash),
-///     Event::PaymentFailed { payment_hash, .. } => println!("Failed paying {}", payment_hash),
-///     // ...
-/// #     _ => {},
+/// channel_manager.process_pending_events(&|event| {
+///     match event {
+///         Event::PaymentSent { payment_hash, .. } => println!("Paid {}", payment_hash),
+///         Event::PaymentFailed { payment_hash, .. } => println!("Failed paying {}", payment_hash),
+///         // ...
+///     #     _ => {},
+///     }
+///     Ok(())
 /// });
 /// # }
 /// ```
@@ -1657,23 +1718,25 @@ where
 /// let bech32_offer = offer.to_string();
 ///
 /// // On the event processing thread
-/// channel_manager.process_pending_events(&|event| match event {
-///     Event::PaymentClaimable { payment_hash, purpose, .. } => match purpose {
-///         PaymentPurpose::Bolt12OfferPayment { payment_preimage: Some(payment_preimage), .. } => {
-///             println!("Claiming payment {}", payment_hash);
-///             channel_manager.claim_funds(payment_preimage);
+/// channel_manager.process_pending_events(&|event| {
+///     match event {
+///         Event::PaymentClaimable { payment_hash, purpose, .. } => match purpose {
+///             PaymentPurpose::Bolt12OfferPayment { payment_preimage: Some(payment_preimage), .. } => {
+///                 println!("Claiming payment {}", payment_hash);
+///                 channel_manager.claim_funds(payment_preimage);
+///             },
+///             PaymentPurpose::Bolt12OfferPayment { payment_preimage: None, .. } => {
+///                 println!("Unknown payment hash: {}", payment_hash);
+///             }
+/// #           _ => {},
 ///         },
-///         PaymentPurpose::Bolt12OfferPayment { payment_preimage: None, .. } => {
-///             println!("Unknown payment hash: {}", payment_hash);
+///         Event::PaymentClaimed { payment_hash, amount_msat, .. } => {
+///             println!("Claimed {} msats", amount_msat);
 ///         },
 ///         // ...
-/// #         _ => {},
-///     },
-///     Event::PaymentClaimed { payment_hash, amount_msat, .. } => {
-///         println!("Claimed {} msats", amount_msat);
-///     },
-///     // ...
-/// #     _ => {},
+///     #     _ => {},
+///     }
+///     Ok(())
 /// });
 /// # Ok(())
 /// # }
@@ -1719,12 +1782,15 @@ where
 /// );
 ///
 /// // On the event processing thread
-/// channel_manager.process_pending_events(&|event| match event {
-///     Event::PaymentSent { payment_id: Some(payment_id), .. } => println!("Paid {}", payment_id),
-///     Event::PaymentFailed { payment_id, .. } => println!("Failed paying {}", payment_id),
-///     Event::InvoiceRequestFailed { payment_id, .. } => println!("Failed paying {}", payment_id),
-///     // ...
-/// #     _ => {},
+/// channel_manager.process_pending_events(&|event| {
+///     match event {
+///         Event::PaymentSent { payment_id: Some(payment_id), .. } => println!("Paid {}", payment_id),
+///         Event::PaymentFailed { payment_id, .. } => println!("Failed paying {}", payment_id),
+///         Event::InvoiceRequestFailed { payment_id, .. } => println!("Failed paying {}", payment_id),
+///         // ...
+///     #     _ => {},
+///     }
+///     Ok(())
 /// });
 /// # }
 /// ```
@@ -1779,11 +1845,14 @@ where
 /// );
 ///
 /// // On the event processing thread
-/// channel_manager.process_pending_events(&|event| match event {
-///     Event::PaymentSent { payment_id: Some(payment_id), .. } => println!("Paid {}", payment_id),
-///     Event::PaymentFailed { payment_id, .. } => println!("Failed paying {}", payment_id),
-///     // ...
-/// #     _ => {},
+/// channel_manager.process_pending_events(&|event| {
+///     match event {
+///         Event::PaymentSent { payment_id: Some(payment_id), .. } => println!("Paid {}", payment_id),
+///         Event::PaymentFailed { payment_id, .. } => println!("Failed paying {}", payment_id),
+///         // ...
+///     #     _ => {},
+///     }
+///     Ok(())
 /// });
 /// # Ok(())
 /// # }
@@ -1809,18 +1878,19 @@ where
 /// };
 ///
 /// // On the event processing thread
-/// channel_manager.process_pending_events(&|event| match event {
-///     Event::PaymentClaimable { payment_hash, purpose, .. } => match purpose {
-///     	PaymentPurpose::Bolt12RefundPayment { payment_preimage: Some(payment_preimage), .. } => {
-///             assert_eq!(payment_hash, known_payment_hash);
-///             println!("Claiming payment {}", payment_hash);
-///             channel_manager.claim_funds(payment_preimage);
-///         },
-///     	PaymentPurpose::Bolt12RefundPayment { payment_preimage: None, .. } => {
-///             println!("Unknown payment hash: {}", payment_hash);
-///     	},
-///         // ...
-/// #         _ => {},
+/// channel_manager.process_pending_events(&|event| {
+///     match event {
+///         Event::PaymentClaimable { payment_hash, purpose, .. } => match purpose {
+///             PaymentPurpose::Bolt12RefundPayment { payment_preimage: Some(payment_preimage), .. } => {
+///                 assert_eq!(payment_hash, known_payment_hash);
+///                 println!("Claiming payment {}", payment_hash);
+///                 channel_manager.claim_funds(payment_preimage);
+///             },
+///             PaymentPurpose::Bolt12RefundPayment { payment_preimage: None, .. } => {
+///                 println!("Unknown payment hash: {}", payment_hash);
+///             },
+///             // ...
+/// #           _ => {},
 ///     },
 ///     Event::PaymentClaimed { payment_hash, amount_msat, .. } => {
 ///         assert_eq!(payment_hash, known_payment_hash);
@@ -1828,6 +1898,8 @@ where
 ///     },
 ///     // ...
 /// #     _ => {},
+///     }
+///     Ok(())
 /// });
 /// # }
 /// ```
@@ -2183,7 +2255,10 @@ where
 	event_persist_notifier: Notifier,
 	needs_persist_flag: AtomicBool,
 
+	#[cfg(not(any(test, feature = "_test_utils")))]
 	pending_offers_messages: Mutex<Vec<PendingOnionMessage<OffersMessage>>>,
+	#[cfg(any(test, feature = "_test_utils"))]
+	pub(crate) pending_offers_messages: Mutex<Vec<PendingOnionMessage<OffersMessage>>>,
 
 	/// Tracks the message events that are to be broadcasted when we are connected to some peer.
 	pending_broadcast_messages: Mutex<Vec<MessageSendEvent>>,
@@ -2652,6 +2727,21 @@ macro_rules! send_channel_ready {
 		}
 	}}
 }
+macro_rules! emit_funding_tx_broadcast_safe_event {
+	($locked_events: expr, $channel: expr, $funding_txo: expr) => {
+		if !$channel.context.funding_tx_broadcast_safe_event_emitted() {
+			$locked_events.push_back((events::Event::FundingTxBroadcastSafe {
+				channel_id: $channel.context.channel_id(),
+				user_channel_id: $channel.context.get_user_id(),
+				funding_txo: $funding_txo,
+				counterparty_node_id: $channel.context.get_counterparty_node_id(),
+				former_temporary_channel_id: $channel.context.temporary_channel_id()
+					.expect("Unreachable: FundingTxBroadcastSafe event feature added to channel establishment process in LDK v0.0.124 where this should never be None."),
+			}, None));
+			$channel.context.set_funding_tx_broadcast_safe_event_emitted();
+		}
+	}
+}
 
 macro_rules! emit_channel_pending_event {
 	($locked_events: expr, $channel: expr) => {
@@ -2760,7 +2850,7 @@ macro_rules! handle_monitor_update_completion {
 					}
 				}
 				if let Some(tx) = batch_funding_tx {
-					log_info!($self.logger, "Broadcasting batch funding transaction with txid {}", tx.txid());
+					log_info!($self.logger, "Broadcasting batch funding transaction with txid {}", tx.compute_txid());
 					$self.tx_broadcaster.broadcast_transactions(&[&tx]);
 				}
 			}
@@ -2831,8 +2921,9 @@ macro_rules! handle_new_monitor_update {
 
 macro_rules! process_events_body {
 	($self: expr, $event_to_handle: expr, $handle_event: expr) => {
+		let mut handling_failed = false;
 		let mut processed_all_events = false;
-		while !processed_all_events {
+		while !handling_failed && !processed_all_events {
 			if $self.pending_events_processor.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed).is_err() {
 				return;
 			}
@@ -2856,24 +2947,34 @@ macro_rules! process_events_body {
 			}
 
 			let pending_events = $self.pending_events.lock().unwrap().clone();
-			let num_events = pending_events.len();
 			if !pending_events.is_empty() {
 				result = NotifyOption::DoPersist;
 			}
 
 			let mut post_event_actions = Vec::new();
 
+			let mut num_handled_events = 0;
 			for (event, action_opt) in pending_events {
 				$event_to_handle = event;
-				$handle_event;
-				if let Some(action) = action_opt {
-					post_event_actions.push(action);
+				match $handle_event {
+					Ok(()) => {
+						if let Some(action) = action_opt {
+							post_event_actions.push(action);
+						}
+						num_handled_events += 1;
+					}
+					Err(_e) => {
+						// If we encounter an error we stop handling events and make sure to replay
+						// any unhandled events on the next invocation.
+						handling_failed = true;
+						break;
+					}
 				}
 			}
 
 			{
 				let mut pending_events = $self.pending_events.lock().unwrap();
-				pending_events.drain(..num_events);
+				pending_events.drain(..num_handled_events);
 				processed_all_events = pending_events.is_empty();
 				// Note that `push_pending_forwards_ev` relies on `pending_events_processor` being
 				// updated here with the `pending_events` lock acquired.
@@ -3992,6 +4093,10 @@ where
 
 	/// Sends a payment along a given route.
 	///
+	/// This method is *DEPRECATED*, use [`Self::send_payment`] instead. If you wish to fix the
+	/// route for a payment, do so by matching the [`PaymentId`] passed to
+	/// [`Router::find_route_with_id`].
+	///
 	/// Value parameters are provided via the last hop in route, see documentation for [`RouteHop`]
 	/// fields for more info.
 	///
@@ -4041,11 +4146,12 @@ where
 	/// [`UpdateHTLCs`]: events::MessageSendEvent::UpdateHTLCs
 	/// [`PeerManager::process_events`]: crate::ln::peer_handler::PeerManager::process_events
 	/// [`ChannelMonitorUpdateStatus::InProgress`]: crate::chain::ChannelMonitorUpdateStatus::InProgress
-	pub fn send_payment_with_route(&self, route: &Route, payment_hash: PaymentHash, recipient_onion: RecipientOnionFields, payment_id: PaymentId) -> Result<(), PaymentSendFailure> {
+	#[cfg_attr(not(any(test, feature = "_test_utils")), deprecated(note = "Use `send_payment` instead"))]
+	pub fn send_payment_with_route(&self, route: Route, payment_hash: PaymentHash, recipient_onion: RecipientOnionFields, payment_id: PaymentId) -> Result<(), PaymentSendFailure> {
 		let best_block_height = self.best_block.read().unwrap().height;
 		let _persistence_guard = PersistenceNotifierGuard::notify_on_drop(self);
 		self.pending_outbound_payments
-			.send_payment_with_route(route, payment_hash, recipient_onion, payment_id,
+			.send_payment_with_route(&route, payment_hash, recipient_onion, payment_id,
 				&self.entropy_source, &self.node_signer, best_block_height,
 				|args| self.send_payment_along_path(args))
 	}
@@ -4102,12 +4208,29 @@ where
 	/// whether or not the payment was successful.
 	///
 	/// [timer tick]: Self::timer_tick_occurred
-	pub fn send_payment_for_bolt12_invoice(&self, invoice: &Bolt12Invoice) -> Result<(), Bolt12PaymentError> {
-		let secp_ctx = &self.secp_ctx;
-		let expanded_key = &self.inbound_payment_key;
-		match invoice.verify(expanded_key, secp_ctx) {
+	pub fn send_payment_for_bolt12_invoice(
+		&self, invoice: &Bolt12Invoice, context: Option<&OffersContext>,
+	) -> Result<(), Bolt12PaymentError> {
+		match self.verify_bolt12_invoice(invoice, context) {
 			Ok(payment_id) => self.send_payment_for_verified_bolt12_invoice(invoice, payment_id),
 			Err(()) => Err(Bolt12PaymentError::UnexpectedInvoice),
+		}
+	}
+
+	fn verify_bolt12_invoice(
+		&self, invoice: &Bolt12Invoice, context: Option<&OffersContext>,
+	) -> Result<PaymentId, ()> {
+		let secp_ctx = &self.secp_ctx;
+		let expanded_key = &self.inbound_payment_key;
+
+		match context {
+			None if invoice.is_for_refund_without_paths() => {
+				invoice.verify_using_metadata(expanded_key, secp_ctx)
+			},
+			Some(&OffersContext::OutboundPayment { payment_id, nonce }) => {
+				invoice.verify_using_payer_data(payment_id, nonce, expanded_key, secp_ctx)
+			},
+			_ => Err(()),
 		}
 	}
 
@@ -4322,18 +4445,18 @@ where
 
 	/// Handles the generation of a funding transaction, optionally (for tests) with a function
 	/// which checks the correctness of the funding transaction given the associated channel.
-	fn funding_transaction_generated_intern<FundingOutput: FnMut(&OutboundV1Channel<SP>, &Transaction) -> Result<OutPoint, &'static str>>(
-		&self, temporary_channel_id: &ChannelId, counterparty_node_id: &PublicKey, funding_transaction: Transaction, is_batch_funding: bool,
-		mut find_funding_output: FundingOutput,
+	fn funding_transaction_generated_intern<FundingOutput: FnMut(&OutboundV1Channel<SP>) -> Result<OutPoint, &'static str>>(
+		&self, temporary_channel_id: ChannelId, counterparty_node_id: PublicKey, funding_transaction: Transaction, is_batch_funding: bool,
+		mut find_funding_output: FundingOutput, is_manual_broadcast: bool,
 	) -> Result<(), APIError> {
 		let per_peer_state = self.per_peer_state.read().unwrap();
-		let peer_state_mutex = per_peer_state.get(counterparty_node_id)
+		let peer_state_mutex = per_peer_state.get(&counterparty_node_id)
 			.ok_or_else(|| APIError::ChannelUnavailable { err: format!("Can't find a peer matching the passed counterparty node_id {}", counterparty_node_id) })?;
 
 		let mut peer_state_lock = peer_state_mutex.lock().unwrap();
 		let peer_state = &mut *peer_state_lock;
 		let funding_txo;
-		let (mut chan, msg_opt) = match peer_state.channel_by_id.remove(temporary_channel_id) {
+		let (mut chan, msg_opt) = match peer_state.channel_by_id.remove(&temporary_channel_id) {
 			Some(ChannelPhase::UnfundedOutboundV1(mut chan)) => {
 				macro_rules! close_chan { ($err: expr, $api_err: expr, $chan: expr) => { {
 					let counterparty;
@@ -4349,7 +4472,7 @@ where
 					let _: Result<(), _> = handle_error!(self, Err(err), counterparty);
 					Err($api_err)
 				} } }
-				match find_funding_output(&chan, &funding_transaction) {
+				match find_funding_output(&chan) {
 					Ok(found_funding_txo) => funding_txo = found_funding_txo,
 					Err(err) => {
 						let chan_err = ChannelError::close(err.to_owned());
@@ -4369,7 +4492,7 @@ where
 				}
 			},
 			Some(phase) => {
-				peer_state.channel_by_id.insert(*temporary_channel_id, phase);
+				peer_state.channel_by_id.insert(temporary_channel_id, phase);
 				return Err(APIError::APIMisuseError {
 					err: format!(
 						"Channel with id {} for the passed counterparty node_id {} is not an unfunded, outbound V1 channel",
@@ -4387,6 +4510,9 @@ where
 				node_id: chan.context.get_counterparty_node_id(),
 				msg,
 			});
+		}
+		if is_manual_broadcast {
+			chan.context.set_manual_broadcast();
 		}
 		match peer_state.channel_by_id.entry(chan.context.channel_id()) {
 			hash_map::Entry::Occupied(_) => {
@@ -4416,10 +4542,11 @@ where
 	}
 
 	#[cfg(test)]
-	pub(crate) fn funding_transaction_generated_unchecked(&self, temporary_channel_id: &ChannelId, counterparty_node_id: &PublicKey, funding_transaction: Transaction, output_index: u16) -> Result<(), APIError> {
-		self.funding_transaction_generated_intern(temporary_channel_id, counterparty_node_id, funding_transaction, false, |_, tx| {
-			Ok(OutPoint { txid: tx.txid(), index: output_index })
-		})
+	pub(crate) fn funding_transaction_generated_unchecked(&self, temporary_channel_id: ChannelId, counterparty_node_id: PublicKey, funding_transaction: Transaction, output_index: u16) -> Result<(), APIError> {
+		let txid = funding_transaction.compute_txid();
+		self.funding_transaction_generated_intern(temporary_channel_id, counterparty_node_id, funding_transaction, false, |_| {
+			Ok(OutPoint { txid, index: output_index })
+		}, false)
 	}
 
 	/// Call this upon creation of a funding transaction for the given channel.
@@ -4452,8 +4579,44 @@ where
 	///
 	/// [`Event::FundingGenerationReady`]: crate::events::Event::FundingGenerationReady
 	/// [`Event::ChannelClosed`]: crate::events::Event::ChannelClosed
-	pub fn funding_transaction_generated(&self, temporary_channel_id: &ChannelId, counterparty_node_id: &PublicKey, funding_transaction: Transaction) -> Result<(), APIError> {
-		self.batch_funding_transaction_generated(&[(temporary_channel_id, counterparty_node_id)], funding_transaction)
+	pub fn funding_transaction_generated(&self, temporary_channel_id: ChannelId, counterparty_node_id: PublicKey, funding_transaction: Transaction) -> Result<(), APIError> {
+		self.batch_funding_transaction_generated(&[(&temporary_channel_id, &counterparty_node_id)], funding_transaction)
+	}
+
+
+	/// **Unsafe**: This method does not validate the spent output. It is the caller's
+	/// responsibility to ensure the spent outputs are SegWit, as well as making sure the funding
+	/// transaction has a final absolute locktime, i.e., its locktime is lower than the next block height.
+	///
+	/// For a safer method, please refer to [`ChannelManager::funding_transaction_generated`].
+	///
+	/// Call this in response to a [`Event::FundingGenerationReady`] event.
+	///
+	/// Note that if this method is called successfully, the funding transaction won't be
+	/// broadcasted and you are expected to broadcast it manually when receiving the
+	/// [`Event::FundingTxBroadcastSafe`] event.
+	///
+	/// Returns [`APIError::ChannelUnavailable`] if a funding transaction has already been provided
+	/// for the channel or if the channel has been closed as indicated by [`Event::ChannelClosed`].
+	///
+	/// May panic if the funding output is duplicative with some other channel (note that this
+	/// should be trivially prevented by using unique funding transaction keys per-channel).
+	///
+	/// Note to keep the miner incentives aligned in moving the blockchain forward, we recommend
+	/// the wallet software generating the funding transaction to apply anti-fee sniping as
+	/// implemented by Bitcoin Core wallet. See <https://bitcoinops.org/en/topics/fee-sniping/> for
+	/// more details.
+	///
+	/// [`Event::FundingGenerationReady`]: crate::events::Event::FundingGenerationReady
+	/// [`Event::FundingTxBroadcastSafe`]: crate::events::Event::FundingTxBroadcastSafe
+	/// [`Event::ChannelClosed`]: crate::events::Event::ChannelClosed
+	/// [`ChannelManager::funding_transaction_generated`]: crate::ln::channelmanager::ChannelManager::funding_transaction_generated
+	pub fn unsafe_manual_funding_transaction_generated(&self, temporary_channel_id: ChannelId, counterparty_node_id: PublicKey, funding: OutPoint) -> Result<(), APIError> {
+		let _persistence_guard = PersistenceNotifierGuard::notify_on_drop(self);
+
+		let temporary_channels = &[(&temporary_channel_id, &counterparty_node_id)];
+		return self.batch_funding_transaction_generated_intern(temporary_channels, FundingType::Unchecked(funding));
+
 	}
 
 	/// Call this upon creation of a batch funding transaction for the given channels.
@@ -4468,23 +4631,27 @@ where
 	/// If there is an error, all channels in the batch are to be considered closed.
 	pub fn batch_funding_transaction_generated(&self, temporary_channels: &[(&ChannelId, &PublicKey)], funding_transaction: Transaction) -> Result<(), APIError> {
 		let _persistence_guard = PersistenceNotifierGuard::notify_on_drop(self);
-		let mut result = Ok(());
+		self.batch_funding_transaction_generated_intern(temporary_channels, FundingType::Checked(funding_transaction))
+	}
 
-		if !funding_transaction.is_coinbase() {
-			for inp in funding_transaction.input.iter() {
-				if inp.witness.is_empty() {
-					result = result.and(Err(APIError::APIMisuseError {
-						err: "Funding transaction must be fully signed and spend Segwit outputs".to_owned()
-					}));
+	fn batch_funding_transaction_generated_intern(&self, temporary_channels: &[(&ChannelId, &PublicKey)], funding: FundingType) -> Result<(), APIError> {
+		let mut result = Ok(());
+		if let FundingType::Checked(funding_transaction) = &funding {
+			if !funding_transaction.is_coinbase() {
+				for inp in funding_transaction.input.iter() {
+					if inp.witness.is_empty() {
+						result = result.and(Err(APIError::APIMisuseError {
+							err: "Funding transaction must be fully signed and spend Segwit outputs".to_owned()
+						}));
+					}
 				}
 			}
-		}
-		if funding_transaction.output.len() > u16::max_value() as usize {
-			result = result.and(Err(APIError::APIMisuseError {
-				err: "Transaction had more than 2^16 outputs, which is not supported".to_owned()
-			}));
-		}
-		{
+
+			if funding_transaction.output.len() > u16::max_value() as usize {
+				result = result.and(Err(APIError::APIMisuseError {
+					err: "Transaction had more than 2^16 outputs, which is not supported".to_owned()
+				}));
+			}
 			let height = self.best_block.read().unwrap().height;
 			// Transactions are evaluated as final by network mempools if their locktime is strictly
 			// lower than the next block height. However, the modules constituting our Lightning
@@ -4492,7 +4659,7 @@ where
 			// module is ahead of LDK, only allow one more block of headroom.
 			if !funding_transaction.input.iter().all(|input| input.sequence == Sequence::MAX) &&
 				funding_transaction.lock_time.is_block_height() &&
-				funding_transaction.lock_time.to_consensus_u32() > height + 1
+					funding_transaction.lock_time.to_consensus_u32() > height + 1
 			{
 				result = result.and(Err(APIError::APIMisuseError {
 					err: "Funding transaction absolute timelock is non-final".to_owned()
@@ -4500,7 +4667,7 @@ where
 			}
 		}
 
-		let txid = funding_transaction.txid();
+		let txid = funding.txid();
 		let is_batch_funding = temporary_channels.len() > 1;
 		let mut funding_batch_states = if is_batch_funding {
 			Some(self.funding_batch_states.lock().unwrap())
@@ -4518,27 +4685,33 @@ where
 				btree_map::Entry::Vacant(vacant) => Some(vacant.insert(Vec::new())),
 			}
 		});
+		let is_manual_broadcast = funding.is_manual_broadcast();
 		for &(temporary_channel_id, counterparty_node_id) in temporary_channels {
 			result = result.and_then(|_| self.funding_transaction_generated_intern(
-				temporary_channel_id,
-				counterparty_node_id,
-				funding_transaction.clone(),
+				*temporary_channel_id,
+				*counterparty_node_id,
+				funding.transaction_or_dummy(),
 				is_batch_funding,
-				|chan, tx| {
+				|chan| {
 					let mut output_index = None;
 					let expected_spk = chan.context.get_funding_redeemscript().to_p2wsh();
-					for (idx, outp) in tx.output.iter().enumerate() {
-						if outp.script_pubkey == expected_spk && outp.value.to_sat() == chan.context.get_value_satoshis() {
-							if output_index.is_some() {
-								return Err("Multiple outputs matched the expected script and value");
+					let outpoint = match &funding {
+						FundingType::Checked(tx) => {
+							for (idx, outp) in tx.output.iter().enumerate() {
+								if outp.script_pubkey == expected_spk && outp.value.to_sat() == chan.context.get_value_satoshis() {
+									if output_index.is_some() {
+										return Err("Multiple outputs matched the expected script and value");
+									}
+									output_index = Some(idx as u16);
+								}
 							}
-							output_index = Some(idx as u16);
-						}
-					}
-					if output_index.is_none() {
-						return Err("No output matched the script_pubkey and value in the FundingGenerationReady event");
-					}
-					let outpoint = OutPoint { txid: tx.txid(), index: output_index.unwrap() };
+							if output_index.is_none() {
+								return Err("No output matched the script_pubkey and value in the FundingGenerationReady event");
+							}
+							OutPoint { txid, index: output_index.unwrap() }
+						},
+						FundingType::Unchecked(outpoint) => outpoint.clone(),
+					};
 					if let Some(funding_batch_state) = funding_batch_state.as_mut() {
 						// TODO(dual_funding): We only do batch funding for V1 channels at the moment, but we'll probably
 						// need to fix this somehow to not rely on using the outpoint for the channel ID if we
@@ -4546,7 +4719,8 @@ where
 						funding_batch_state.push((ChannelId::v1_from_funding_outpoint(outpoint), *counterparty_node_id, false));
 					}
 					Ok(outpoint)
-				})
+				},
+				is_manual_broadcast)
 			);
 		}
 		if let Err(ref e) = result {
@@ -6873,8 +7047,22 @@ where
 		}
 
 		if let Some(tx) = funding_broadcastable {
-			log_info!(logger, "Broadcasting funding transaction with txid {}", tx.txid());
-			self.tx_broadcaster.broadcast_transactions(&[&tx]);
+			if channel.context.is_manual_broadcast() {
+				log_info!(logger, "Not broadcasting funding transaction with txid {} as it is manually managed", tx.compute_txid());
+				let mut pending_events = self.pending_events.lock().unwrap();
+				match channel.context.get_funding_txo() {
+					Some(funding_txo) => {
+						emit_funding_tx_broadcast_safe_event!(pending_events, channel, funding_txo.into_bitcoin_outpoint())
+					},
+					None => {
+						debug_assert!(false, "Channel resumed without a funding txo, this should never happen!");
+						return (htlc_forwards, decode_update_add_htlcs);
+					}
+				};
+			} else {
+				log_info!(logger, "Broadcasting funding transaction with txid {}", tx.compute_txid());
+				self.tx_broadcaster.broadcast_transactions(&[&tx]);
+			}
 		}
 
 		{
@@ -7209,12 +7397,15 @@ where
 					MsgHandleErrInternal::from_chan_no_close(e, msg.common_fields.temporary_channel_id)
 				)?;
 			let mut pending_events = self.pending_events.lock().unwrap();
+			let is_public = (msg.common_fields.channel_flags & 1) == 1;
 			pending_events.push_back((events::Event::OpenChannelRequest {
 				temporary_channel_id: msg.common_fields.temporary_channel_id.clone(),
 				counterparty_node_id: counterparty_node_id.clone(),
 				funding_satoshis: msg.common_fields.funding_satoshis,
 				push_msat: msg.push_msat,
 				channel_type,
+				is_public,
+				params: msg.common_fields.channel_parameters(),
 			}, None));
 			peer_state.inbound_channel_request_by_id.insert(channel_id, InboundChannelRequest {
 				open_channel_msg: msg.clone(),
@@ -8621,13 +8812,12 @@ macro_rules! create_offer_builder { ($self: ident, $builder: ty) => {
 		let entropy = &*$self.entropy_source;
 		let secp_ctx = &$self.secp_ctx;
 
-		let path = $self.create_blinded_paths_using_absolute_expiry(OffersContext::Unknown {}, absolute_expiry)
+		let nonce = Nonce::from_entropy_source(entropy);
+		let context = OffersContext::InvoiceRequest { nonce };
+		let path = $self.create_blinded_paths_using_absolute_expiry(context, absolute_expiry)
 			.and_then(|paths| paths.into_iter().next().ok_or(()))
 			.map_err(|_| Bolt12SemanticError::MissingPaths)?;
-
-		let builder = OfferBuilder::deriving_signing_pubkey(
-			node_id, expanded_key, entropy, secp_ctx
-		)
+		let builder = OfferBuilder::deriving_signing_pubkey(node_id, expanded_key, nonce, secp_ctx)
 			.chain_hash($self.chain_hash)
 			.path(path);
 
@@ -8695,13 +8885,14 @@ macro_rules! create_refund_builder { ($self: ident, $builder: ty) => {
 		let entropy = &*$self.entropy_source;
 		let secp_ctx = &$self.secp_ctx;
 
-		let context = OffersContext::OutboundPayment { payment_id };
+		let nonce = Nonce::from_entropy_source(entropy);
+		let context = OffersContext::OutboundPayment { payment_id, nonce };
 		let path = $self.create_blinded_paths_using_absolute_expiry(context, Some(absolute_expiry))
 			.and_then(|paths| paths.into_iter().next().ok_or(()))
 			.map_err(|_| Bolt12SemanticError::MissingPaths)?;
 
 		let builder = RefundBuilder::deriving_payer_id(
-			node_id, expanded_key, entropy, secp_ctx, amount_msats, payment_id
+			node_id, expanded_key, nonce, secp_ctx, amount_msats, payment_id
 		)?
 			.chain_hash($self.chain_hash)
 			.absolute_expiry(absolute_expiry)
@@ -8810,8 +9001,9 @@ where
 		let entropy = &*self.entropy_source;
 		let secp_ctx = &self.secp_ctx;
 
+		let nonce = Nonce::from_entropy_source(entropy);
 		let builder: InvoiceRequestBuilder<DerivedPayerId, secp256k1::All> = offer
-			.request_invoice_deriving_payer_id(expanded_key, entropy, secp_ctx, payment_id)?
+			.request_invoice_deriving_payer_id(expanded_key, nonce, secp_ctx, payment_id)?
 			.into();
 		let builder = builder.chain_hash(self.chain_hash)?;
 
@@ -8829,8 +9021,9 @@ where
 		};
 		let invoice_request = builder.build_and_sign()?;
 
-		let context = OffersContext::OutboundPayment { payment_id };
-		let reply_paths = self.create_blinded_paths(context).map_err(|_| Bolt12SemanticError::MissingPaths)?;
+		let context = OffersContext::OutboundPayment { payment_id, nonce };
+		let reply_paths = self.create_blinded_paths(context)
+			.map_err(|_| Bolt12SemanticError::MissingPaths)?;
 
 		let _persistence_guard = PersistenceNotifierGuard::notify_on_drop(self);
 
@@ -8932,7 +9125,11 @@ where
 				)?;
 				let builder: InvoiceBuilder<DerivedSigningPubkey> = builder.into();
 				let invoice = builder.allow_mpp().build_and_sign(secp_ctx)?;
-				let reply_paths = self.create_blinded_paths(OffersContext::Unknown {})
+
+				let context = OffersContext::InboundPayment {
+					payment_hash: invoice.payment_hash(),
+				};
+				let reply_paths = self.create_blinded_paths(context)
 					.map_err(|_| Bolt12SemanticError::MissingPaths)?;
 
 				let mut pending_offers_messages = self.pending_offers_messages.lock().unwrap();
@@ -9240,7 +9437,7 @@ where
 	#[cfg(any(test, feature = "_test_utils"))]
 	pub fn get_and_clear_pending_events(&self) -> Vec<events::Event> {
 		let events = core::cell::RefCell::new(Vec::new());
-		let event_handler = |event: events::Event| events.borrow_mut().push(event);
+		let event_handler = |event: events::Event| Ok(events.borrow_mut().push(event));
 		self.process_pending_events(&event_handler);
 		events.into_inner()
 	}
@@ -9347,7 +9544,7 @@ where
 	/// using the given event handler.
 	///
 	/// See the trait-level documentation of [`EventsProvider`] for requirements.
-	pub async fn process_pending_events_async<Future: core::future::Future, H: Fn(Event) -> Future>(
+	pub async fn process_pending_events_async<Future: core::future::Future<Output = Result<(), ReplayEvent>>, H: Fn(Event) -> Future>(
 		&self, handler: H
 	) {
 		let mut ev;
@@ -10523,13 +10720,17 @@ where
 	R::Target: Router,
 	L::Target: Logger,
 {
-	fn handle_message(&self, message: OffersMessage, context: OffersContext, responder: Option<Responder>) -> ResponseInstruction<OffersMessage> {
+	fn handle_message(
+		&self, message: OffersMessage, context: Option<OffersContext>, responder: Option<Responder>,
+	) -> ResponseInstruction<OffersMessage> {
 		let secp_ctx = &self.secp_ctx;
 		let expanded_key = &self.inbound_payment_key;
 
 		let abandon_if_payment = |context| {
 			match context {
-				OffersContext::OutboundPayment { payment_id } => self.abandon_payment(payment_id),
+				Some(OffersContext::OutboundPayment { payment_id, .. }) => {
+					self.abandon_payment(payment_id)
+				},
 				_ => {},
 			}
 		};
@@ -10540,18 +10741,31 @@ where
 					Some(responder) => responder,
 					None => return ResponseInstruction::NoResponse,
 				};
+
+				let nonce = match context {
+					None if invoice_request.metadata().is_some() => None,
+					Some(OffersContext::InvoiceRequest { nonce }) => Some(nonce),
+					_ => return ResponseInstruction::NoResponse,
+				};
+
+				let invoice_request = match nonce {
+					Some(nonce) => match invoice_request.verify_using_recipient_data(
+						nonce, expanded_key, secp_ctx,
+					) {
+						Ok(invoice_request) => invoice_request,
+						Err(()) => return ResponseInstruction::NoResponse,
+					},
+					None => match invoice_request.verify_using_metadata(expanded_key, secp_ctx) {
+						Ok(invoice_request) => invoice_request,
+						Err(()) => return ResponseInstruction::NoResponse,
+					},
+				};
+
 				let amount_msats = match InvoiceBuilder::<DerivedSigningPubkey>::amount_msats(
-					&invoice_request
+					&invoice_request.inner
 				) {
 					Ok(amount_msats) => amount_msats,
 					Err(error) => return responder.respond(OffersMessage::InvoiceError(error.into())),
-				};
-				let invoice_request = match invoice_request.verify(expanded_key, secp_ctx) {
-					Ok(invoice_request) => invoice_request,
-					Err(()) => {
-						let error = Bolt12SemanticError::InvalidMetadata;
-						return responder.respond(OffersMessage::InvoiceError(error.into()));
-					},
 				};
 
 				let relative_expiry = DEFAULT_RELATIVE_EXPIRY.as_secs() as u32;
@@ -10625,24 +10839,32 @@ where
 				}
 			},
 			OffersMessage::Invoice(invoice) => {
-				let result = match invoice.verify(expanded_key, secp_ctx) {
-					Ok(payment_id) => {
-						let features = self.bolt12_invoice_features();
-						if invoice.invoice_features().requires_unknown_bits_from(&features) {
-							Err(InvoiceError::from(Bolt12SemanticError::UnknownRequiredFeatures))
-						} else if self.default_configuration.manually_handle_bolt12_invoices {
-							let event = Event::InvoiceReceived { payment_id, invoice, responder };
-							self.pending_events.lock().unwrap().push_back((event, None));
-							return ResponseInstruction::NoResponse;
-						} else {
-							self.send_payment_for_verified_bolt12_invoice(&invoice, payment_id)
-								.map_err(|e| {
-									log_trace!(self.logger, "Failed paying invoice: {:?}", e);
-									InvoiceError::from_string(format!("{:?}", e))
-								})
-						}
-					},
-					Err(()) => Err(InvoiceError::from_string("Unrecognized invoice".to_owned())),
+				let payment_id = match self.verify_bolt12_invoice(&invoice, context.as_ref()) {
+					Ok(payment_id) => payment_id,
+					Err(()) => return ResponseInstruction::NoResponse,
+				};
+
+				let logger = WithContext::from(
+					&self.logger, None, None, Some(invoice.payment_hash()),
+				);
+
+				let result = {
+					let features = self.bolt12_invoice_features();
+					if invoice.invoice_features().requires_unknown_bits_from(&features) {
+						Err(InvoiceError::from(Bolt12SemanticError::UnknownRequiredFeatures))
+					} else if self.default_configuration.manually_handle_bolt12_invoices {
+						let event = Event::InvoiceReceived {
+							payment_id, invoice, context, responder,
+						};
+						self.pending_events.lock().unwrap().push_back((event, None));
+						return ResponseInstruction::NoResponse;
+					} else {
+						self.send_payment_for_verified_bolt12_invoice(&invoice, payment_id)
+							.map_err(|e| {
+								log_trace!(logger, "Failed paying invoice: {:?}", e);
+								InvoiceError::from_string(format!("{:?}", e))
+							})
+					}
 				};
 
 				match result {
@@ -10655,7 +10877,7 @@ where
 						None => {
 							abandon_if_payment(context);
 							log_trace!(
-								self.logger,
+								logger,
 								"An error response was generated, but there is no reply_path specified \
 								for sending the response. Error: {}",
 								err
@@ -10677,8 +10899,14 @@ where
 				}
 			},
 			OffersMessage::InvoiceError(invoice_error) => {
+				let payment_hash = match context {
+					Some(OffersContext::InboundPayment { payment_hash }) => Some(payment_hash),
+					_ => None,
+				};
+				let logger = WithContext::from(&self.logger, None, None, payment_hash);
+				log_trace!(logger, "Received invoice_error: {}", invoice_error);
+
 				abandon_if_payment(context);
-				log_trace!(self.logger, "Received invoice_error: {}", invoice_error);
 				ResponseInstruction::NoResponse
 			},
 		}
@@ -12780,7 +13008,7 @@ mod tests {
 
 		// Next, attempt a regular payment and make sure it fails.
 		let payment_secret = PaymentSecret([43; 32]);
-		nodes[0].node.send_payment_with_route(&route, payment_hash,
+		nodes[0].node.send_payment_with_route(route.clone(), payment_hash,
 			RecipientOnionFields::secret_only(payment_secret), PaymentId(payment_hash.0)).unwrap();
 		check_added_monitors!(nodes[0], 1);
 		let mut events = nodes[0].node.get_and_clear_pending_msg_events();
@@ -12967,7 +13195,7 @@ mod tests {
 		route.paths[1].hops[0].short_channel_id = chan_2_id;
 		route.paths[1].hops[1].short_channel_id = chan_4_id;
 
-		match nodes[0].node.send_payment_with_route(&route, payment_hash,
+		match nodes[0].node.send_payment_with_route(route, payment_hash,
 			RecipientOnionFields::spontaneous_empty(), PaymentId(payment_hash.0))
 		.unwrap_err() {
 			PaymentSendFailure::ParameterError(APIError::APIMisuseError { ref err }) => {
@@ -13112,7 +13340,7 @@ mod tests {
 		nodes[0].node.handle_accept_channel(&nodes[1].node.get_our_node_id(), &accept_channel);
 
 		let (temporary_channel_id, tx, funding_output) = create_funding_transaction(&nodes[0], &nodes[1].node.get_our_node_id(), 1_000_000, 42);
-		let channel_id = ChannelId::from_bytes(tx.txid().to_byte_array());
+		let channel_id = ChannelId::from_bytes(tx.compute_txid().to_byte_array());
 		{
 			// Ensure that the `outpoint_to_peer` map is empty until either party has received the
 			// funding transaction, and have the real `channel_id`.
@@ -13120,7 +13348,7 @@ mod tests {
 			assert_eq!(nodes[1].node.outpoint_to_peer.lock().unwrap().len(), 0);
 		}
 
-		nodes[0].node.funding_transaction_generated(&temporary_channel_id, &nodes[1].node.get_our_node_id(), tx.clone()).unwrap();
+		nodes[0].node.funding_transaction_generated(temporary_channel_id, nodes[1].node.get_our_node_id(), tx.clone()).unwrap();
 		{
 			// Assert that `nodes[0]`'s `outpoint_to_peer` map is populated with the channel as soon as
 			// as it has the funding transaction.
@@ -13332,7 +13560,7 @@ mod tests {
 				nodes[0].node.handle_accept_channel(&nodes[1].node.get_our_node_id(), &accept_channel);
 				let (temporary_channel_id, tx, _) = create_funding_transaction(&nodes[0], &nodes[1].node.get_our_node_id(), 100_000, 42);
 				funding_tx = Some(tx.clone());
-				nodes[0].node.funding_transaction_generated(&temporary_channel_id, &nodes[1].node.get_our_node_id(), tx).unwrap();
+				nodes[0].node.funding_transaction_generated(temporary_channel_id, nodes[1].node.get_our_node_id(), tx).unwrap();
 				let funding_created_msg = get_event_msg!(nodes[0], MessageSendEvent::SendFundingCreated, nodes[1].node.get_our_node_id());
 
 				nodes[1].node.handle_funding_created(&nodes[0].node.get_our_node_id(), &funding_created_msg);
@@ -13903,7 +14131,7 @@ pub mod bench {
 	use crate::util::config::{UserConfig, MaxDustHTLCExposure};
 
 	use bitcoin::amount::Amount;
-	use bitcoin::blockdata::locktime::absolute::LockTime;
+	use bitcoin::locktime::absolute::LockTime;
 	use bitcoin::hashes::Hash;
 	use bitcoin::hashes::sha256::Hash as Sha256;
 	use bitcoin::{Transaction, TxOut};
@@ -13941,7 +14169,7 @@ pub mod bench {
 		// Note that this is unrealistic as each payment send will require at least two fsync
 		// calls per node.
 		let network = bitcoin::Network::Testnet;
-		let genesis_block = bitcoin::blockdata::constants::genesis_block(network);
+		let genesis_block = bitcoin::constants::genesis_block(network);
 
 		let tx_broadcaster = test_utils::TestBroadcaster::new(network);
 		let fee_estimator = test_utils::TestFeeEstimator { sat_per_kw: Mutex::new(253) };
@@ -13987,7 +14215,7 @@ pub mod bench {
 			tx = Transaction { version: Version::TWO, lock_time: LockTime::ZERO, input: Vec::new(), output: vec![TxOut {
 				value: Amount::from_sat(8_000_000), script_pubkey: output_script,
 			}]};
-			node_a.funding_transaction_generated(&temporary_channel_id, &node_b.get_our_node_id(), tx.clone()).unwrap();
+			node_a.funding_transaction_generated(temporary_channel_id, node_b.get_our_node_id(), tx.clone()).unwrap();
 		} else { panic!(); }
 
 		node_b.handle_funding_created(&node_a.get_our_node_id(), &get_event_msg!(node_a_holder, MessageSendEvent::SendFundingCreated, node_b.get_our_node_id()));

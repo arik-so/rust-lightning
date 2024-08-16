@@ -10,7 +10,7 @@
 use crate::ln::types::ChannelId;
 use crate::sign::SpendableOutputDescriptor;
 
-use bitcoin::blockdata::transaction::Transaction;
+use bitcoin::transaction::Transaction;
 
 use crate::routing::router::Route;
 use crate::ln::chan_utils::HTLCClaim;
@@ -107,7 +107,7 @@ impl<'a> core::fmt::Display for DebugTx<'a> {
 			debug_assert!(false, "We should never generate unknown transaction types");
 			write!(f, "unknown tx type ").unwrap();
 		}
-		write!(f, "with txid {}", self.0.txid())?;
+		write!(f, "with txid {}", self.0.compute_txid())?;
 		Ok(())
 	}
 }

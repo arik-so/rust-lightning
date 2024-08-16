@@ -12,9 +12,9 @@
 
 use bitcoin::{PubkeyHash, WPubkeyHash};
 use bitcoin::amount::Amount;
-use bitcoin::blockdata::script::{Script, ScriptBuf, Builder};
-use bitcoin::blockdata::opcodes;
-use bitcoin::blockdata::transaction::{TxIn,TxOut,OutPoint,Transaction};
+use bitcoin::script::{Script, ScriptBuf, Builder};
+use bitcoin::opcodes;
+use bitcoin::transaction::{TxIn,TxOut,OutPoint,Transaction};
 use bitcoin::sighash;
 use bitcoin::sighash::EcdsaSighashType;
 use bitcoin::transaction::Version;
@@ -33,7 +33,7 @@ use crate::ln::msgs::DecodeError;
 use crate::util::ser::{Readable, RequiredWrapper, Writeable, Writer};
 use crate::util::transaction_utils;
 
-use bitcoin::blockdata::locktime::absolute::LockTime;
+use bitcoin::locktime::absolute::LockTime;
 use bitcoin::ecdsa::Signature as BitcoinSignature;
 use bitcoin::secp256k1::{SecretKey, PublicKey, Scalar};
 use bitcoin::secp256k1::{Secp256k1, ecdsa::Signature, Message};
@@ -41,7 +41,6 @@ use bitcoin::{secp256k1, Sequence, Witness};
 
 use crate::io;
 use core::cmp;
-use crate::ln::chan_utils;
 use crate::util::transaction_utils::sort_outputs;
 use crate::ln::channel::{INITIAL_COMMITMENT_NUMBER, ANCHOR_OUTPUT_VALUE_SATOSHI};
 use core::ops::Deref;
@@ -169,6 +168,37 @@ impl HTLCClaim {
 		} else {
 			None
 		}
+	}
+}
+
+#[cfg(not(test))]
+const COMMITMENT_TX_WEIGHT_PER_HTLC: u64 = 172;
+#[cfg(test)]
+pub const COMMITMENT_TX_WEIGHT_PER_HTLC: u64 = 172;
+
+pub(crate) fn commitment_tx_base_weight(channel_type_features: &ChannelTypeFeatures) -> u64 {
+	const COMMITMENT_TX_BASE_WEIGHT: u64 = 724;
+	const COMMITMENT_TX_BASE_ANCHOR_WEIGHT: u64 = 1124;
+	if channel_type_features.supports_anchors_zero_fee_htlc_tx() { COMMITMENT_TX_BASE_ANCHOR_WEIGHT } else { COMMITMENT_TX_BASE_WEIGHT }
+}
+
+/// Get the fee cost of a commitment tx with a given number of HTLC outputs.
+/// Note that num_htlcs should not include dust HTLCs.
+pub(crate) fn commit_tx_fee_sat(feerate_per_kw: u32, num_htlcs: usize, channel_type_features: &ChannelTypeFeatures) -> u64 {
+	feerate_per_kw as u64 *
+		(commitment_tx_base_weight(channel_type_features) +
+			num_htlcs as u64 * COMMITMENT_TX_WEIGHT_PER_HTLC)
+		/ 1000
+}
+
+pub(crate) fn per_outbound_htlc_counterparty_commit_tx_fee_msat(feerate_per_kw: u32, channel_type_features: &ChannelTypeFeatures) -> u64 {
+	// Note that we need to divide before multiplying to round properly,
+	// since the lowest denomination of bitcoin on-chain is the satoshi.
+	let commitment_tx_fee = COMMITMENT_TX_WEIGHT_PER_HTLC * feerate_per_kw as u64 / 1000 * 1000;
+	if channel_type_features.supports_anchors_zero_fee_htlc_tx() {
+		commitment_tx_fee + htlc_success_tx_weight(channel_type_features) * feerate_per_kw as u64 / 1000
+	} else {
+		commitment_tx_fee
 	}
 }
 
@@ -736,7 +766,7 @@ pub fn build_htlc_input_witness(
 	let mut witness = Witness::new();
 	// First push the multisig dummy, note that due to BIP147 (NULLDUMMY) it must be a zero-length element.
 	witness.push(vec![]);
-	witness.push_ecdsa_signature(&BitcoinSignature { sig: *remote_sig, hash_ty: remote_sighash_type });
+	witness.push_ecdsa_signature(&BitcoinSignature { signature: *remote_sig, sighash_type: remote_sighash_type });
 	witness.push_ecdsa_signature(&BitcoinSignature::sighash_all(*local_sig));
 	if let Some(preimage) = preimage {
 		witness.push(preimage.0.to_vec());
@@ -772,10 +802,12 @@ pub(crate) fn legacy_deserialization_prevention_marker_for_channel_type_features
 	legacy_version_bit_set.set_scid_privacy_required();
 	legacy_version_bit_set.set_zero_conf_required();
 
-	if features.is_subset(&legacy_version_bit_set) {
-		None
-	} else {
+	debug_assert!(!legacy_version_bit_set.supports_any_optional_bits());
+	debug_assert!(!features.supports_any_optional_bits());
+	if features.requires_unknown_bits_from(&legacy_version_bit_set) {
 		Some(())
+	} else {
+		None
 	}
 }
 
@@ -810,7 +842,7 @@ pub fn get_anchor_redeemscript(funding_pubkey: &PublicKey) -> ScriptBuf {
 
 /// Locates the output with an anchor script paying to `funding_pubkey` within `commitment_tx`.
 pub(crate) fn get_anchor_output<'a>(commitment_tx: &'a Transaction, funding_pubkey: &PublicKey) -> Option<(u32, &'a TxOut)> {
-	let anchor_script = chan_utils::get_anchor_redeemscript(funding_pubkey).to_p2wsh();
+	let anchor_script = get_anchor_redeemscript(funding_pubkey).to_p2wsh();
 	commitment_tx.output.iter().enumerate()
 		.find(|(_, txout)| txout.script_pubkey == anchor_script)
 		.map(|(idx, txout)| (idx as u32, txout))
@@ -818,7 +850,7 @@ pub(crate) fn get_anchor_output<'a>(commitment_tx: &'a Transaction, funding_pubk
 
 /// Returns the witness required to satisfy and spend an anchor input.
 pub fn build_anchor_input_witness(funding_key: &PublicKey, funding_sig: &Signature) -> Witness {
-	let anchor_redeem_script = chan_utils::get_anchor_redeemscript(funding_key);
+	let anchor_redeem_script = get_anchor_redeemscript(funding_key);
 	let mut ret = Witness::new();
 	ret.push_ecdsa_signature(&BitcoinSignature::sighash_all(*funding_sig));
 	ret.push(anchor_redeem_script.as_bytes());
@@ -1395,7 +1427,7 @@ impl CommitmentTransaction {
 
 		let (obscured_commitment_transaction_number, txins) = Self::internal_build_inputs(commitment_number, channel_parameters);
 		let transaction = Self::make_transaction(obscured_commitment_transaction_number, txins, outputs);
-		let txid = transaction.txid();
+		let txid = transaction.compute_txid();
 		CommitmentTransaction {
 			commitment_number,
 			to_broadcaster_value_sat,
@@ -1427,7 +1459,7 @@ impl CommitmentTransaction {
 		let (outputs, _) = Self::internal_build_outputs(keys, self.to_broadcaster_value_sat, self.to_countersignatory_value_sat, &mut htlcs_with_aux, channel_parameters, broadcaster_funding_key, countersignatory_funding_key)?;
 
 		let transaction = Self::make_transaction(obscured_commitment_transaction_number, txins, outputs);
-		let txid = transaction.txid();
+		let txid = transaction.compute_txid();
 		let built_transaction = BuiltCommitmentTransaction {
 			transaction,
 			txid
@@ -1510,7 +1542,7 @@ impl CommitmentTransaction {
 
 		let mut htlcs = Vec::with_capacity(htlcs_with_aux.len());
 		for (htlc, _) in htlcs_with_aux {
-			let script = chan_utils::get_htlc_redeemscript(&htlc, &channel_parameters.channel_type_features(), &keys);
+			let script = get_htlc_redeemscript(&htlc, &channel_parameters.channel_type_features(), &keys);
 			let txout = TxOut {
 				script_pubkey: script.to_p2wsh(),
 				value: htlc.to_bitcoin_amount(),
@@ -1733,7 +1765,7 @@ impl<'a> TrustedCommitmentTransaction<'a> {
 			&self.inner.htlcs[htlc_index], &self.channel_type_features, &keys.broadcaster_htlc_key,
 			&keys.countersignatory_htlc_key, &keys.revocation_key
 		);
-		chan_utils::build_htlc_input_witness(
+		build_htlc_input_witness(
 			signature, counterparty_signature, preimage, &htlc_redeemscript, &self.channel_type_features,
 		)
 	}
@@ -1840,11 +1872,10 @@ mod tests {
 	use bitcoin::secp256k1::{PublicKey, SecretKey, Secp256k1};
 	use crate::util::test_utils;
 	use crate::sign::{ChannelSigner, SignerProvider};
-	use bitcoin::{Network, Txid, ScriptBuf};
+	use bitcoin::{Network, Txid, ScriptBuf, CompressedPublicKey};
 	use bitcoin::hashes::Hash;
-	use bitcoin::hashes::hex::FromHex;
+	use bitcoin::hex::FromHex;
 	use crate::ln::types::PaymentHash;
-	use bitcoin::address::Payload;
 	use bitcoin::PublicKey as BitcoinPublicKey;
 	use crate::ln::features::ChannelTypeFeatures;
 
@@ -1917,7 +1948,7 @@ mod tests {
 		// Generate broadcaster and counterparty outputs
 		let tx = builder.build(1000, 2000);
 		assert_eq!(tx.built.transaction.output.len(), 2);
-		assert_eq!(tx.built.transaction.output[1].script_pubkey, Payload::p2wpkh(&BitcoinPublicKey::new(builder.counterparty_pubkeys.payment_point)).unwrap().script_pubkey());
+		assert_eq!(tx.built.transaction.output[1].script_pubkey, bitcoin::address::Address::p2wpkh(&CompressedPublicKey(builder.counterparty_pubkeys.payment_point), Network::Testnet).script_pubkey());
 
 		// Generate broadcaster and counterparty outputs as well as two anchors
 		builder.channel_parameters.channel_type_features = ChannelTypeFeatures::anchors_zero_htlc_fee_and_dependencies();
@@ -2021,7 +2052,7 @@ mod tests {
 
 		let justice_tx = tx.trust().build_to_local_justice_tx(253, destination_script.clone()).unwrap();
 		assert_eq!(justice_tx.input.len(), 1);
-		assert_eq!(justice_tx.input[0].previous_output.txid, tx.built.transaction.txid());
+		assert_eq!(justice_tx.input[0].previous_output.txid, tx.built.transaction.compute_txid());
 		assert_eq!(justice_tx.input[0].previous_output.vout, tx.trust().revokeable_output_index().unwrap() as u32);
 		assert!(justice_tx.input[0].sequence.is_rbf());
 

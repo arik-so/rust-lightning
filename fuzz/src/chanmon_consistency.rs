@@ -19,13 +19,13 @@
 //! channel being force-closed.
 
 use bitcoin::amount::Amount;
-use bitcoin::blockdata::constants::genesis_block;
-use bitcoin::blockdata::locktime::absolute::LockTime;
-use bitcoin::blockdata::opcodes;
-use bitcoin::blockdata::script::{Builder, ScriptBuf};
-use bitcoin::blockdata::transaction::{Transaction, TxOut};
+use bitcoin::constants::genesis_block;
+use bitcoin::locktime::absolute::LockTime;
 use bitcoin::network::Network;
+use bitcoin::opcodes;
+use bitcoin::script::{Builder, ScriptBuf};
 use bitcoin::transaction::Version;
+use bitcoin::transaction::{Transaction, TxOut};
 
 use bitcoin::hash_types::BlockHash;
 use bitcoin::hashes::sha256::Hash as Sha256;
@@ -56,7 +56,7 @@ use lightning::ln::msgs::{
 	self, ChannelMessageHandler, CommitmentUpdate, DecodeError, Init, UpdateAddHTLC,
 };
 use lightning::ln::script::ShutdownScript;
-use lightning::ln::{ChannelId, PaymentHash, PaymentPreimage, PaymentSecret};
+use lightning::ln::types::{ChannelId, PaymentHash, PaymentPreimage, PaymentSecret};
 use lightning::offers::invoice::{BlindedPayInfo, UnsignedBolt12Invoice};
 use lightning::offers::invoice_request::UnsignedInvoiceRequest;
 use lightning::onion_message::messenger::{Destination, MessageRouter, OnionMessagePath};
@@ -71,6 +71,8 @@ use lightning::util::logger::Logger;
 use lightning::util::ser::{Readable, ReadableArgs, Writeable, Writer};
 use lightning::util::test_channel_signer::{EnforcementState, TestChannelSigner};
 
+use lightning_invoice::RawBolt11Invoice;
+
 use crate::utils::test_logger::{self, Output};
 use crate::utils::test_persister::TestPersister;
 
@@ -79,9 +81,8 @@ use bitcoin::secp256k1::ecdsa::{RecoverableSignature, Signature};
 use bitcoin::secp256k1::schnorr;
 use bitcoin::secp256k1::{self, Message, PublicKey, Scalar, Secp256k1, SecretKey};
 
-use bech32::u5;
+use lightning::io::Cursor;
 use std::cmp::{self, Ordering};
-use std::io::Cursor;
 use std::mem;
 use std::sync::atomic;
 use std::sync::{Arc, Mutex};
@@ -153,7 +154,7 @@ impl BroadcasterInterface for TestBroadcaster {
 
 pub struct VecWriter(pub Vec<u8>);
 impl Writer for VecWriter {
-	fn write_all(&mut self, buf: &[u8]) -> Result<(), ::std::io::Error> {
+	fn write_all(&mut self, buf: &[u8]) -> Result<(), ::lightning::io::Error> {
 		self.0.extend_from_slice(buf);
 		Ok(())
 	}
@@ -332,7 +333,7 @@ impl NodeSigner for KeyProvider {
 	}
 
 	fn sign_invoice(
-		&self, _hrp_bytes: &[u8], _invoice_data: &[u5], _recipient: Recipient,
+		&self, _invoice: &RawBolt11Invoice, _recipient: Recipient,
 	) -> Result<RecoverableSignature, ()> {
 		unreachable!()
 	}
@@ -393,7 +394,7 @@ impl SignerProvider for KeyProvider {
 	}
 
 	fn read_chan_signer(&self, buffer: &[u8]) -> Result<Self::EcdsaSigner, DecodeError> {
-		let mut reader = std::io::Cursor::new(buffer);
+		let mut reader = lightning::io::Cursor::new(buffer);
 
 		let inner: InMemorySigner = ReadableArgs::read(&mut reader, self)?;
 		let state = self.make_enforcement_state_cell(inner.commitment_seed);
@@ -550,7 +551,7 @@ fn send_payment(
 		.map(|chan| (chan.next_outbound_htlc_minimum_msat, chan.next_outbound_htlc_limit_msat))
 		.unwrap_or((0, 0));
 	if let Err(err) = source.send_payment_with_route(
-		&Route {
+		Route {
 			paths: vec![Path {
 				hops: vec![RouteHop {
 					pubkey: dest.get_our_node_id(),
@@ -619,7 +620,7 @@ fn send_hop_payment(
 		.unwrap_or((0, 0));
 	let first_hop_fee = 50_000;
 	if let Err(err) = source.send_payment_with_route(
-		&Route {
+		Route {
 			paths: vec![Path {
 				hops: vec![
 					RouteHop {
@@ -861,29 +862,29 @@ pub fn do_test<Out: Output>(data: &[u8], underlying_out: Out, anchors: bool) {
 			$source.handle_accept_channel(&$dest.get_our_node_id(), &accept_channel);
 			let funding_output;
 			{
-				let events = $source.get_and_clear_pending_events();
+				let mut events = $source.get_and_clear_pending_events();
 				assert_eq!(events.len(), 1);
 				if let events::Event::FundingGenerationReady {
-					ref temporary_channel_id,
-					ref channel_value_satoshis,
-					ref output_script,
+					temporary_channel_id,
+					channel_value_satoshis,
+					output_script,
 					..
-				} = events[0]
+				} = events.pop().unwrap()
 				{
 					let tx = Transaction {
 						version: Version($chan_id),
 						lock_time: LockTime::ZERO,
 						input: Vec::new(),
 						output: vec![TxOut {
-							value: Amount::from_sat(*channel_value_satoshis),
-							script_pubkey: output_script.clone(),
+							value: Amount::from_sat(channel_value_satoshis),
+							script_pubkey: output_script,
 						}],
 					};
-					funding_output = OutPoint { txid: tx.txid(), index: 0 };
+					funding_output = OutPoint { txid: tx.compute_txid(), index: 0 };
 					$source
 						.funding_transaction_generated(
-							&temporary_channel_id,
-							&$dest.get_our_node_id(),
+							temporary_channel_id,
+							$dest.get_our_node_id(),
 							tx.clone(),
 						)
 						.unwrap();

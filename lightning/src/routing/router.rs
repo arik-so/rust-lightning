@@ -22,7 +22,7 @@ use crate::ln::msgs::{DecodeError, ErrorAction, LightningError, MAX_VALUE_MSAT};
 use crate::ln::onion_utils;
 use crate::offers::invoice::{BlindedPayInfo, Bolt12Invoice};
 use crate::onion_message::messenger::{DefaultMessageRouter, Destination, MessageRouter, OnionMessagePath};
-use crate::routing::gossip::{DirectedChannelInfo, EffectiveCapacity, ReadOnlyNetworkGraph, NetworkGraph, NodeId, RoutingFees};
+use crate::routing::gossip::{DirectedChannelInfo, EffectiveCapacity, ReadOnlyNetworkGraph, NetworkGraph, NodeId};
 use crate::routing::scoring::{ChannelUsage, LockableScore, ScoreLookUp};
 use crate::sign::EntropySource;
 use crate::util::ser::{Writeable, Readable, ReadableArgs, Writer};
@@ -35,13 +35,17 @@ use alloc::collections::BinaryHeap;
 use core::{cmp, fmt};
 use core::ops::Deref;
 
+use lightning_types::routing::RoutingFees;
+
+pub use lightning_types::routing::{RouteHint, RouteHintHop};
+
 /// A [`Router`] implemented using [`find_route`].
 ///
 /// # Privacy
 ///
 /// Implements [`MessageRouter`] by delegating to [`DefaultMessageRouter`]. See those docs for
 /// privacy implications.
-pub struct DefaultRouter<G: Deref<Target = NetworkGraph<L>> + Clone, L: Deref, ES: Deref, S: Deref, SP: Sized, Sc: ScoreLookUp<ScoreParams = SP>> where
+pub struct DefaultRouter<G: Deref<Target = NetworkGraph<L>>, L: Deref, ES: Deref, S: Deref, SP: Sized, Sc: ScoreLookUp<ScoreParams = SP>> where
 	L::Target: Logger,
 	S::Target: for <'a> LockableScore<'a, ScoreLookUp = Sc>,
 	ES::Target: EntropySource,
@@ -51,22 +55,20 @@ pub struct DefaultRouter<G: Deref<Target = NetworkGraph<L>> + Clone, L: Deref, E
 	entropy_source: ES,
 	scorer: S,
 	score_params: SP,
-	message_router: DefaultMessageRouter<G, L, ES>,
 }
 
-impl<G: Deref<Target = NetworkGraph<L>> + Clone, L: Deref, ES: Deref + Clone, S: Deref, SP: Sized, Sc: ScoreLookUp<ScoreParams = SP>> DefaultRouter<G, L, ES, S, SP, Sc> where
+impl<G: Deref<Target = NetworkGraph<L>>, L: Deref, ES: Deref, S: Deref, SP: Sized, Sc: ScoreLookUp<ScoreParams = SP>> DefaultRouter<G, L, ES, S, SP, Sc> where
 	L::Target: Logger,
 	S::Target: for <'a> LockableScore<'a, ScoreLookUp = Sc>,
 	ES::Target: EntropySource,
 {
 	/// Creates a new router.
 	pub fn new(network_graph: G, logger: L, entropy_source: ES, scorer: S, score_params: SP) -> Self {
-		let message_router = DefaultMessageRouter::new(network_graph.clone(), entropy_source.clone());
-		Self { network_graph, logger, entropy_source, scorer, score_params, message_router }
+		Self { network_graph, logger, entropy_source, scorer, score_params }
 	}
 }
 
-impl<G: Deref<Target = NetworkGraph<L>> + Clone, L: Deref, ES: Deref, S: Deref, SP: Sized, Sc: ScoreLookUp<ScoreParams = SP>> Router for DefaultRouter<G, L, ES, S, SP, Sc> where
+impl<G: Deref<Target = NetworkGraph<L>>, L: Deref, ES: Deref, S: Deref, SP: Sized, Sc: ScoreLookUp<ScoreParams = SP>> Router for DefaultRouter<G, L, ES, S, SP, Sc> where
 	L::Target: Logger,
 	S::Target: for <'a> LockableScore<'a, ScoreLookUp = Sc>,
 	ES::Target: EntropySource,
@@ -179,7 +181,7 @@ impl<G: Deref<Target = NetworkGraph<L>> + Clone, L: Deref, ES: Deref, S: Deref, 
 	}
 }
 
-impl< G: Deref<Target = NetworkGraph<L>> + Clone, L: Deref, ES: Deref, S: Deref, SP: Sized, Sc: ScoreLookUp<ScoreParams = SP>> MessageRouter for DefaultRouter<G, L, ES, S, SP, Sc> where
+impl< G: Deref<Target = NetworkGraph<L>>, L: Deref, ES: Deref, S: Deref, SP: Sized, Sc: ScoreLookUp<ScoreParams = SP>> MessageRouter for DefaultRouter<G, L, ES, S, SP, Sc> where
 	L::Target: Logger,
 	S::Target: for <'a> LockableScore<'a, ScoreLookUp = Sc>,
 	ES::Target: EntropySource,
@@ -187,7 +189,7 @@ impl< G: Deref<Target = NetworkGraph<L>> + Clone, L: Deref, ES: Deref, S: Deref,
 	fn find_path(
 		&self, sender: PublicKey, peers: Vec<PublicKey>, destination: Destination
 	) -> Result<OnionMessagePath, ()> {
-		self.message_router.find_path(sender, peers, destination)
+		DefaultMessageRouter::<_, _, ES>::find_path(&self.network_graph, sender, peers, destination)
 	}
 
 	fn create_blinded_paths<
@@ -195,7 +197,7 @@ impl< G: Deref<Target = NetworkGraph<L>> + Clone, L: Deref, ES: Deref, S: Deref,
 	> (
 		&self, recipient: PublicKey, context: MessageContext, peers: Vec<PublicKey>, secp_ctx: &Secp256k1<T>,
 	) -> Result<Vec<BlindedPath>, ()> {
-		self.message_router.create_blinded_paths(recipient, context, peers, secp_ctx)
+		DefaultMessageRouter::create_blinded_paths(&self.network_graph, recipient, context, peers, &self.entropy_source, secp_ctx)
 	}
 
 	fn create_compact_blinded_paths<
@@ -203,7 +205,7 @@ impl< G: Deref<Target = NetworkGraph<L>> + Clone, L: Deref, ES: Deref, S: Deref,
 	> (
 		&self, recipient: PublicKey, context: MessageContext, peers: Vec<message::ForwardNode>, secp_ctx: &Secp256k1<T>,
 	) -> Result<Vec<BlindedPath>, ()> {
-		self.message_router.create_compact_blinded_paths(recipient, context, peers, secp_ctx)
+		DefaultMessageRouter::create_compact_blinded_paths(&self.network_graph, recipient, context, peers, &self.entropy_source, secp_ctx)
 	}
 }
 
@@ -1101,10 +1103,6 @@ impl ReadableArgs<bool> for Features {
 	}
 }
 
-/// A list of hops along a payment path terminating with a channel to the recipient.
-#[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct RouteHint(pub Vec<RouteHintHop>);
-
 impl Writeable for RouteHint {
 	fn write<W: crate::util::ser::Writer>(&self, writer: &mut W) -> Result<(), io::Error> {
 		(self.0.len() as u64).write(writer)?;
@@ -1124,27 +1122,6 @@ impl Readable for RouteHint {
 		}
 		Ok(Self(hops))
 	}
-}
-
-/// A channel descriptor for a hop along a payment path.
-///
-/// While this generally comes from BOLT 11's `r` field, this struct includes more fields than are
-/// available in BOLT 11. Thus, encoding and decoding this via `lightning-invoice` is lossy, as
-/// fields not supported in BOLT 11 will be stripped.
-#[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct RouteHintHop {
-	/// The node_id of the non-target end of the route
-	pub src_node_id: PublicKey,
-	/// The short_channel_id of this channel
-	pub short_channel_id: u64,
-	/// The fees which must be paid to use this channel
-	pub fees: RoutingFees,
-	/// The difference in CLTV values between this node and the next node.
-	pub cltv_expiry_delta: u16,
-	/// The minimum value, in msat, which must be relayed to the next hop.
-	pub htlc_minimum_msat: Option<u64>,
-	/// The maximum value in msat available for routing with a single HTLC.
-	pub htlc_maximum_msat: Option<u64>,
 }
 
 impl_writeable_tlv_based!(RouteHintHop, {
@@ -3594,11 +3571,11 @@ mod tests {
 	use bitcoin::amount::Amount;
 	use bitcoin::hashes::Hash;
 	use bitcoin::network::Network;
-	use bitcoin::blockdata::constants::ChainHash;
-	use bitcoin::blockdata::script::Builder;
-	use bitcoin::blockdata::opcodes;
-	use bitcoin::blockdata::transaction::TxOut;
-	use bitcoin::hashes::hex::FromHex;
+	use bitcoin::constants::ChainHash;
+	use bitcoin::script::Builder;
+	use bitcoin::opcodes;
+	use bitcoin::transaction::TxOut;
+	use bitcoin::hex::FromHex;
 	use bitcoin::secp256k1::{PublicKey,SecretKey};
 	use bitcoin::secp256k1::Secp256k1;
 
@@ -8808,7 +8785,7 @@ mod tests {
 pub(crate) mod bench_utils {
 	use super::*;
 	use std::fs::File;
-
+	use std::io::Read;
 	use bitcoin::hashes::Hash;
 	use bitcoin::secp256k1::SecretKey;
 
@@ -8868,9 +8845,13 @@ pub(crate) mod bench_utils {
 	pub(crate) fn read_graph_scorer(logger: &TestLogger)
 	-> Result<(Arc<NetworkGraph<&TestLogger>>, ProbabilisticScorer<Arc<NetworkGraph<&TestLogger>>, &TestLogger>), &'static str> {
 		let (mut graph_file, mut scorer_file) = get_graph_scorer_file()?;
-		let graph = Arc::new(NetworkGraph::read(&mut graph_file, logger).unwrap());
+		let mut graph_buffer = Vec::new();
+		let mut scorer_buffer = Vec::new();
+		graph_file.read_to_end(&mut graph_buffer).unwrap();
+		scorer_file.read_to_end(&mut scorer_buffer).unwrap();
+		let graph = Arc::new(NetworkGraph::read(&mut &graph_buffer[..], logger).unwrap());
 		let scorer_args = (Default::default(), Arc::clone(&graph), logger);
-		let scorer = ProbabilisticScorer::read(&mut scorer_file, scorer_args).unwrap();
+		let scorer = ProbabilisticScorer::read(&mut &scorer_buffer[..], scorer_args).unwrap();
 		Ok((graph, scorer))
 	}
 

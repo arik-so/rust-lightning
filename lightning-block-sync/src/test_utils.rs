@@ -4,10 +4,10 @@ use crate::{
 	UnboundedCache,
 };
 
-use bitcoin::blockdata::block::{Block, Header, Version};
-use bitcoin::blockdata::constants::genesis_block;
-use bitcoin::blockdata::locktime::absolute::LockTime;
+use bitcoin::block::{Block, Header, Version};
+use bitcoin::constants::genesis_block;
 use bitcoin::hash_types::{BlockHash, TxMerkleNode};
+use bitcoin::locktime::absolute::LockTime;
 use bitcoin::network::Network;
 use bitcoin::transaction;
 use bitcoin::Transaction;
@@ -53,7 +53,7 @@ impl Blockchain {
 				input: vec![],
 				output: vec![],
 			};
-			let merkle_root = TxMerkleNode::from_raw_hash(coinbase.txid().to_raw_hash());
+			let merkle_root = TxMerkleNode::from_raw_hash(coinbase.compute_txid().to_raw_hash());
 			self.blocks.push(Block {
 				header: Header {
 					version: Version::NO_SOFT_FORK_SIGNALLING,

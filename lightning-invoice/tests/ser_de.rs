@@ -1,15 +1,12 @@
 extern crate bech32;
-extern crate lightning;
 extern crate lightning_invoice;
-extern crate secp256k1;
-extern crate hex;
 
 use bitcoin::{PubkeyHash, ScriptHash, WitnessVersion};
-use bitcoin::hashes::hex::FromHex;
+use bitcoin::hex::FromHex;
 use bitcoin::hashes::{sha256, Hash};
 use lightning_invoice::*;
-use secp256k1::PublicKey;
-use secp256k1::ecdsa::{RecoverableSignature, RecoveryId};
+use bitcoin::secp256k1::PublicKey;
+use bitcoin::secp256k1::ecdsa::{RecoverableSignature, RecoveryId};
 use std::collections::HashSet;
 use std::time::Duration;
 use std::str::FromStr;

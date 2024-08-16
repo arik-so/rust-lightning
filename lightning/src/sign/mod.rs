@@ -14,17 +14,16 @@
 
 use bitcoin::amount::Amount;
 use bitcoin::bip32::{ChildNumber, Xpriv, Xpub};
-use bitcoin::blockdata::locktime::absolute::LockTime;
-use bitcoin::blockdata::opcodes;
-use bitcoin::blockdata::script::{Builder, Script, ScriptBuf};
-use bitcoin::blockdata::transaction::{Transaction, TxIn, TxOut};
 use bitcoin::ecdsa::Signature as EcdsaSignature;
+use bitcoin::locktime::absolute::LockTime;
 use bitcoin::network::Network;
+use bitcoin::opcodes;
+use bitcoin::script::{Builder, Script, ScriptBuf};
 use bitcoin::sighash;
 use bitcoin::sighash::EcdsaSighashType;
 use bitcoin::transaction::Version;
+use bitcoin::transaction::{Transaction, TxIn, TxOut};
 
-use bech32::u5;
 use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::sha256d::Hash as Sha256dHash;
 use bitcoin::hashes::{Hash, HashEngine};
@@ -36,6 +35,8 @@ use bitcoin::secp256k1::schnorr;
 use bitcoin::secp256k1::All;
 use bitcoin::secp256k1::{Keypair, PublicKey, Scalar, Secp256k1, SecretKey, Signing};
 use bitcoin::{secp256k1, Psbt, Sequence, Txid, WPubkeyHash, Witness};
+
+use lightning_invoice::RawBolt11Invoice;
 
 use crate::chain::transaction::OutPoint;
 use crate::crypto::utils::{hkdf_extract_expand_twice, sign, sign_with_aux_rand};
@@ -69,7 +70,6 @@ use crate::sign::ecdsa::EcdsaChannelSigner;
 #[cfg(taproot)]
 use crate::sign::taproot::TaprootChannelSigner;
 use crate::util::atomic_counter::AtomicCounter;
-use crate::util::invoice::construct_invoice_preimage;
 use core::convert::TryInto;
 use core::ops::Deref;
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -328,7 +328,7 @@ impl SpendableOutputDescriptor {
 	/// To get the proprietary field use:
 	/// ```
 	/// use bitcoin::psbt::{Psbt};
-	/// use bitcoin::hashes::hex::FromHex;
+	/// use bitcoin::hex::FromHex;
 	///
 	/// # let s = "70736274ff0100520200000001dee978529ab3e61a2987bea5183713d0e6d5ceb5ac81100fdb54a1a2\
 	///	# 		 69cef505000000000090000000011f26000000000000160014abb3ab63280d4ccc5c11d6b50fd427a8\
@@ -752,7 +752,7 @@ pub trait ChannelSigner {
 	///
 	/// Note that the commitment number starts at `(1 << 48) - 1` and counts backwards.
 	// TODO: return a Result so we can signal a validation error
-	fn release_commitment_secret(&self, idx: u64) -> [u8; 32];
+	fn release_commitment_secret(&self, idx: u64) -> Result<[u8; 32], ()>;
 
 	/// Validate the counterparty's signatures on the holder commitment transaction and HTLCs.
 	///
@@ -867,7 +867,7 @@ pub trait NodeSigner {
 	///
 	/// Errors if the [`Recipient`] variant is not supported by the implementation.
 	fn sign_invoice(
-		&self, hrp_bytes: &[u8], invoice_data: &[u5], recipient: Recipient,
+		&self, invoice: &RawBolt11Invoice, recipient: Recipient,
 	) -> Result<RecoverableSignature, ()>;
 
 	/// Signs the [`TaggedHash`] of a BOLT 12 invoice request.
@@ -1327,8 +1327,8 @@ impl InMemorySigner {
 				.unwrap()[..]
 		);
 		let local_delayedsig = EcdsaSignature {
-			sig: sign_with_aux_rand(secp_ctx, &sighash, &delayed_payment_key, &self),
-			hash_ty: EcdsaSighashType::All,
+			signature: sign_with_aux_rand(secp_ctx, &sighash, &delayed_payment_key, &self),
+			sighash_type: EcdsaSighashType::All,
 		};
 		let payment_script =
 			bitcoin::Address::p2wsh(&witness_script, Network::Bitcoin).script_pubkey();
@@ -1361,8 +1361,8 @@ impl ChannelSigner for InMemorySigner {
 		Ok(PublicKey::from_secret_key(secp_ctx, &commitment_secret))
 	}
 
-	fn release_commitment_secret(&self, idx: u64) -> [u8; 32] {
-		chan_utils::build_commitment_secret(&self.commitment_seed, idx)
+	fn release_commitment_secret(&self, idx: u64) -> Result<[u8; 32], ()> {
+		Ok(chan_utils::build_commitment_secret(&self.commitment_seed, idx))
 	}
 
 	fn validate_holder_commitment(
@@ -1699,6 +1699,7 @@ impl EcdsaChannelSigner for InMemorySigner {
 }
 
 #[cfg(taproot)]
+#[allow(unused)]
 impl TaprootChannelSigner for InMemorySigner {
 	fn generate_local_nonce_pair(
 		&self, commitment_number: u64, secp_ctx: &Secp256k1<All>,
@@ -2106,13 +2107,12 @@ impl KeysManager {
 					};
 					let pubkey = Xpub::from_priv(&secp_ctx, &secret).to_pub();
 					if derivation_idx == 2 {
-						assert_eq!(pubkey.inner, self.shutdown_pubkey);
+						assert_eq!(pubkey.0, self.shutdown_pubkey);
 					}
 					let witness_script =
 						bitcoin::Address::p2pkh(&pubkey, Network::Testnet).script_pubkey();
-					let payment_script = bitcoin::Address::p2wpkh(&pubkey, Network::Testnet)
-						.expect("uncompressed key found")
-						.script_pubkey();
+					let payment_script =
+						bitcoin::Address::p2wpkh(&pubkey, Network::Testnet).script_pubkey();
 
 					if payment_script != output.script_pubkey {
 						return Err(());
@@ -2131,8 +2131,7 @@ impl KeysManager {
 					let sig = sign_with_aux_rand(secp_ctx, &sighash, &secret.private_key, &self);
 					let mut sig_ser = sig.serialize_der().to_vec();
 					sig_ser.push(EcdsaSighashType::All as u8);
-					let witness =
-						Witness::from_slice(&[&sig_ser, &pubkey.inner.serialize().to_vec()]);
+					let witness = Witness::from_slice(&[&sig_ser, &pubkey.0.serialize().to_vec()]);
 					psbt.inputs[input_idx].final_script_witness = Some(witness);
 				},
 			}
@@ -2174,17 +2173,14 @@ impl NodeSigner for KeysManager {
 	}
 
 	fn sign_invoice(
-		&self, hrp_bytes: &[u8], invoice_data: &[u5], recipient: Recipient,
+		&self, invoice: &RawBolt11Invoice, recipient: Recipient,
 	) -> Result<RecoverableSignature, ()> {
-		let preimage = construct_invoice_preimage(&hrp_bytes, &invoice_data);
+		let hash = invoice.signable_hash();
 		let secret = match recipient {
 			Recipient::Node => Ok(&self.node_secret),
 			Recipient::PhantomNode => Err(()),
 		}?;
-		Ok(self.secp_ctx.sign_ecdsa_recoverable(
-			&hash_to_message!(&Sha256::hash(&preimage).to_byte_array()),
-			secret,
-		))
+		Ok(self.secp_ctx.sign_ecdsa_recoverable(&hash_to_message!(&hash), secret))
 	}
 
 	fn sign_bolt12_invoice_request(
@@ -2352,17 +2348,14 @@ impl NodeSigner for PhantomKeysManager {
 	}
 
 	fn sign_invoice(
-		&self, hrp_bytes: &[u8], invoice_data: &[u5], recipient: Recipient,
+		&self, invoice: &RawBolt11Invoice, recipient: Recipient,
 	) -> Result<RecoverableSignature, ()> {
-		let preimage = construct_invoice_preimage(&hrp_bytes, &invoice_data);
+		let hash = invoice.signable_hash();
 		let secret = match recipient {
 			Recipient::Node => &self.inner.node_secret,
 			Recipient::PhantomNode => &self.phantom_secret,
 		};
-		Ok(self.inner.secp_ctx.sign_ecdsa_recoverable(
-			&hash_to_message!(&Sha256::hash(&preimage).to_byte_array()),
-			secret,
-		))
+		Ok(self.inner.secp_ctx.sign_ecdsa_recoverable(&hash_to_message!(&hash), secret))
 	}
 
 	fn sign_bolt12_invoice_request(
@@ -2516,7 +2509,7 @@ pub fn dyn_sign() {
 #[cfg(ldk_bench)]
 pub mod benches {
 	use crate::sign::{EntropySource, KeysManager};
-	use bitcoin::blockdata::constants::genesis_block;
+	use bitcoin::constants::genesis_block;
 	use bitcoin::Network;
 	use std::sync::mpsc::TryRecvError;
 	use std::sync::{mpsc, Arc};

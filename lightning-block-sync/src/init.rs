@@ -4,7 +4,7 @@
 use crate::poll::{ChainPoller, Validate, ValidatedBlockHeader};
 use crate::{BlockSource, BlockSourceResult, Cache, ChainNotifier};
 
-use bitcoin::blockdata::block::Header;
+use bitcoin::block::Header;
 use bitcoin::hash_types::BlockHash;
 use bitcoin::network::Network;
 
@@ -59,7 +59,7 @@ where
 ///
 /// use lightning_block_sync::*;
 ///
-/// use std::io::Cursor;
+/// use lightning::io::Cursor;
 ///
 /// async fn init_sync<
 /// 	B: BlockSource,

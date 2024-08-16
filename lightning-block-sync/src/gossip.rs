@@ -4,10 +4,10 @@
 
 use crate::{AsyncBlockSourceResult, BlockData, BlockSource, BlockSourceError};
 
-use bitcoin::blockdata::block::Block;
-use bitcoin::blockdata::constants::ChainHash;
-use bitcoin::blockdata::transaction::{OutPoint, TxOut};
+use bitcoin::block::Block;
+use bitcoin::constants::ChainHash;
 use bitcoin::hash_types::BlockHash;
+use bitcoin::transaction::{OutPoint, TxOut};
 
 use lightning::ln::peer_handler::APeerManager;
 
@@ -198,7 +198,7 @@ where
 						return Err(UtxoLookupError::UnknownTx);
 					}
 
-					outpoint = OutPoint::new(transaction.txid(), output_index.into());
+					outpoint = OutPoint::new(transaction.compute_txid(), output_index.into());
 					output = transaction.output[output_index as usize].clone();
 				}};
 			}

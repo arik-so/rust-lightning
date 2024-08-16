@@ -16,9 +16,9 @@ use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::secp256k1::{self, PublicKey, Scalar, Secp256k1, SecretKey};
 
 use crate::blinded_path::{BlindedPath, IntroductionNode, NextMessageHop, NodeIdLookUp};
-use crate::blinded_path::message::{advance_path_by_one, ForwardNode, ForwardTlvs, MessageContext, OffersContext, ReceiveTlvs};
+use crate::blinded_path::message::{advance_path_by_one, ForwardNode, ForwardTlvs, MessageContext, ReceiveTlvs};
 use crate::blinded_path::utils;
-use crate::events::{Event, EventHandler, EventsProvider};
+use crate::events::{Event, EventHandler, EventsProvider, ReplayEvent};
 use crate::sign::{EntropySource, NodeSigner, Recipient};
 use crate::ln::features::{InitFeatures, NodeFeatures};
 use crate::ln::msgs::{self, OnionMessage, OnionMessageHandler, SocketAddress};
@@ -31,11 +31,14 @@ use super::packet::OnionMessageContents;
 use super::packet::ParsedOnionMessageContents;
 use super::offers::OffersMessageHandler;
 use super::packet::{BIG_PACKET_HOP_DATA_LEN, ForwardControlTlvs, Packet, Payload, ReceiveControlTlvs, SMALL_PACKET_HOP_DATA_LEN};
+use crate::util::async_poll::{MultiResultFuturePoller, ResultFuture};
 use crate::util::logger::{Logger, WithContext};
 use crate::util::ser::Writeable;
+use crate::util::wakers::{Future, Notifier};
 
 use core::fmt;
 use core::ops::Deref;
+use core::sync::atomic::{AtomicBool, Ordering};
 use crate::io;
 use crate::sync::Mutex;
 use crate::prelude::*;
@@ -142,7 +145,7 @@ for OnionMessenger<ES, NS, L, NL, MR, OMH, APH, CMH> where
 /// ```
 /// # extern crate bitcoin;
 /// # use bitcoin::hashes::_export::_core::time::Duration;
-/// # use bitcoin::hashes::hex::FromHex;
+/// # use bitcoin::hex::FromHex;
 /// # use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey, self};
 /// # use lightning::blinded_path::{BlindedPath, EmptyNodeIdLookUp};
 /// # use lightning::blinded_path::message::{ForwardNode, MessageContext};
@@ -261,12 +264,12 @@ pub struct OnionMessenger<
 	async_payments_handler: APH,
 	custom_handler: CMH,
 	intercept_messages_for_offline_peers: bool,
-	pending_events: Mutex<PendingEvents>,
-}
-
-struct PendingEvents {
-	intercepted_msgs: Vec<Event>,
-	peer_connecteds: Vec<Event>,
+	pending_intercepted_msgs_events: Mutex<Vec<Event>>,
+	pending_peer_connected_events: Mutex<Vec<Event>>,
+	pending_events_processor: AtomicBool,
+	/// A [`Notifier`] used to wake up the background processor in case we have any [`Event`]s for
+	/// it to give to users.
+	event_notifier: Notifier,
 }
 
 /// [`OnionMessage`]s buffered to be sent.
@@ -503,8 +506,8 @@ where
 		I: ExactSizeIterator<Item = ForwardNode>,
 		T: secp256k1::Signing + secp256k1::Verification
 	>(
-		&self, recipient: PublicKey, context: MessageContext, peers: I,
-		secp_ctx: &Secp256k1<T>, compact_paths: bool
+		network_graph: &G, recipient: PublicKey, context: MessageContext, peers: I,
+		entropy_source: &ES, secp_ctx: &Secp256k1<T>, compact_paths: bool,
 	) -> Result<Vec<BlindedPath>, ()> {
 		// Limit the number of blinded paths that are computed.
 		const MAX_PATHS: usize = 3;
@@ -513,7 +516,7 @@ where
 		// recipient's node_id.
 		const MIN_PEER_CHANNELS: usize = 3;
 
-		let network_graph = self.network_graph.deref().read_only();
+		let network_graph = network_graph.deref().read_only();
 		let is_recipient_announced =
 			network_graph.nodes().contains_key(&NodeId::from_pubkey(&recipient));
 
@@ -543,7 +546,7 @@ where
 
 		let paths = peer_info.into_iter()
 			.map(|(peer, _, _)| {
-				BlindedPath::new_for_message(&[peer], recipient, context.clone(), &*self.entropy_source, secp_ctx)
+				BlindedPath::new_for_message(&[peer], recipient, context.clone(), &**entropy_source, secp_ctx)
 			})
 			.take(MAX_PATHS)
 			.collect::<Result<Vec<_>, _>>();
@@ -552,7 +555,7 @@ where
 			Ok(paths) if !paths.is_empty() => Ok(paths),
 			_ => {
 				if is_recipient_announced {
-					BlindedPath::one_hop_for_message(recipient, context, &*self.entropy_source, secp_ctx)
+					BlindedPath::one_hop_for_message(recipient, context, &**entropy_source, secp_ctx)
 						.map(|path| vec![path])
 				} else {
 					Err(())
@@ -568,17 +571,11 @@ where
 
 		Ok(paths)
 	}
-}
 
-impl<G: Deref<Target=NetworkGraph<L>>, L: Deref, ES: Deref> MessageRouter for DefaultMessageRouter<G, L, ES>
-where
-	L::Target: Logger,
-	ES::Target: EntropySource,
-{
-	fn find_path(
-		&self, sender: PublicKey, peers: Vec<PublicKey>, mut destination: Destination
+	pub(crate) fn find_path(
+		network_graph: &G, sender: PublicKey, peers: Vec<PublicKey>, mut destination: Destination
 	) -> Result<OnionMessagePath, ()> {
-		let network_graph = self.network_graph.deref().read_only();
+		let network_graph = network_graph.deref().read_only();
 		destination.resolve(&network_graph);
 
 		let first_node = match destination.first_node() {
@@ -608,26 +605,55 @@ where
 		}
 	}
 
-	fn create_blinded_paths<
+	pub(crate) fn create_blinded_paths<
 		T: secp256k1::Signing + secp256k1::Verification
 	>(
-		&self, recipient: PublicKey, context: MessageContext,
-		peers: Vec<PublicKey>, secp_ctx: &Secp256k1<T>,
+		network_graph: &G, recipient: PublicKey, context: MessageContext,
+		peers: Vec<PublicKey>, entropy_source: &ES, secp_ctx: &Secp256k1<T>,
 	) -> Result<Vec<BlindedPath>, ()> {
 		let peers = peers
 			.into_iter()
 			.map(|node_id| ForwardNode { node_id, short_channel_id: None });
-		self.create_blinded_paths_from_iter(recipient, context, peers, secp_ctx, false)
+		Self::create_blinded_paths_from_iter(network_graph, recipient, context, peers.into_iter(), entropy_source, secp_ctx, false)
+	}
+
+	pub(crate) fn create_compact_blinded_paths<
+		T: secp256k1::Signing + secp256k1::Verification
+	>(
+		network_graph: &G, recipient: PublicKey, context: MessageContext,
+		peers: Vec<ForwardNode>, entropy_source: &ES, secp_ctx: &Secp256k1<T>,
+	) -> Result<Vec<BlindedPath>, ()> {
+		Self::create_blinded_paths_from_iter(network_graph, recipient, context, peers.into_iter(), entropy_source, secp_ctx, true)
+	}
+}
+
+impl<G: Deref<Target=NetworkGraph<L>>, L: Deref, ES: Deref> MessageRouter for DefaultMessageRouter<G, L, ES>
+where
+	L::Target: Logger,
+	ES::Target: EntropySource,
+{
+	fn find_path(
+		&self, sender: PublicKey, peers: Vec<PublicKey>, destination: Destination
+	) -> Result<OnionMessagePath, ()> {
+		Self::find_path(&self.network_graph, sender, peers, destination)
+	}
+
+	fn create_blinded_paths<
+		T: secp256k1::Signing + secp256k1::Verification
+	>(
+		&self, recipient: PublicKey, context: MessageContext, peers: Vec<PublicKey>, secp_ctx: &Secp256k1<T>,
+	) -> Result<Vec<BlindedPath>, ()> {
+		Self::create_blinded_paths(&self.network_graph, recipient, context, peers, &self.entropy_source, secp_ctx)
 	}
 
 	fn create_compact_blinded_paths<
 		T: secp256k1::Signing + secp256k1::Verification
 	>(
-		&self, recipient: PublicKey, context: MessageContext,
-		peers: Vec<ForwardNode>, secp_ctx: &Secp256k1<T>,
+		&self, recipient: PublicKey, context: MessageContext, peers: Vec<ForwardNode>, secp_ctx: &Secp256k1<T>,
 	) -> Result<Vec<BlindedPath>, ()> {
-		self.create_blinded_paths_from_iter(recipient, context, peers.into_iter(), secp_ctx, true)
+		Self::create_compact_blinded_paths(&self.network_graph, recipient, context, peers, &self.entropy_source, secp_ctx)
 	}
+
 }
 
 /// A path for sending an [`OnionMessage`].
@@ -1021,6 +1047,29 @@ where
 	}
 }
 
+macro_rules! drop_handled_events_and_abort { ($self: expr, $res: expr, $offset: expr, $event_queue: expr) => {
+	// We want to make sure to cleanly abort upon event handling failure. To this end, we drop all
+	// successfully handled events from the given queue, reset the events processing flag, and
+	// return, to have the events eventually replayed upon next invocation.
+	{
+		let mut queue_lock = $event_queue.lock().unwrap();
+
+		// We skip `$offset` result entries to reach the ones relevant for the given `$event_queue`.
+		let mut res_iter = $res.iter().skip($offset);
+
+		// Keep all events which previously error'd *or* any that have been added since we dropped
+		// the Mutex before.
+		queue_lock.retain(|_| res_iter.next().map_or(true, |r| r.is_err()));
+
+		if $res.iter().any(|r| r.is_err()) {
+			// We failed handling some events. Return to have them eventually replayed.
+			$self.pending_events_processor.store(false, Ordering::Release);
+			$self.event_notifier.notify();
+			return;
+		}
+	}
+}}
+
 impl<ES: Deref, NS: Deref, L: Deref, NL: Deref, MR: Deref, OMH: Deref, APH: Deref, CMH: Deref>
 OnionMessenger<ES, NS, L, NL, MR, OMH, APH, CMH>
 where
@@ -1095,10 +1144,10 @@ where
 			async_payments_handler,
 			custom_handler,
 			intercept_messages_for_offline_peers,
-			pending_events: Mutex::new(PendingEvents {
-				intercepted_msgs: Vec::new(),
-				peer_connecteds: Vec::new(),
-			}),
+			pending_intercepted_msgs_events: Mutex::new(Vec::new()),
+			pending_peer_connected_events: Mutex::new(Vec::new()),
+			pending_events_processor: AtomicBool::new(false),
+			event_notifier: Notifier::new(),
 		}
 	}
 
@@ -1210,6 +1259,7 @@ where
 				Some(addresses) => {
 					e.insert(OnionMessageRecipient::pending_connection(addresses))
 						.enqueue_message(onion_message);
+					self.event_notifier.notify();
 					Ok(SendSuccess::BufferedAwaitingConnection(first_node_id))
 				},
 			},
@@ -1316,14 +1366,27 @@ where
 
 	fn enqueue_intercepted_event(&self, event: Event) {
 		const MAX_EVENTS_BUFFER_SIZE: usize = (1 << 10) * 256;
-		let mut pending_events = self.pending_events.lock().unwrap();
-		let total_buffered_bytes: usize =
-			pending_events.intercepted_msgs.iter().map(|ev| ev.serialized_length()).sum();
+		let mut pending_intercepted_msgs_events =
+			self.pending_intercepted_msgs_events.lock().unwrap();
+		let total_buffered_bytes: usize = pending_intercepted_msgs_events.iter()
+			.map(|ev| ev.serialized_length()).sum();
 		if total_buffered_bytes >= MAX_EVENTS_BUFFER_SIZE {
 			log_trace!(self.logger, "Dropping event {:?}: buffer full", event);
 			return
 		}
-		pending_events.intercepted_msgs.push(event);
+		pending_intercepted_msgs_events.push(event);
+		self.event_notifier.notify();
+	}
+
+	/// Gets a [`Future`] that completes when an event is available via
+	/// [`EventsProvider::process_pending_events`] or [`Self::process_pending_events_async`].
+	///
+	/// Note that callbacks registered on the [`Future`] MUST NOT call back into this
+	/// [`OnionMessenger`] and should instead register actions to be taken later.
+	///
+	/// [`EventsProvider::process_pending_events`]: crate::events::EventsProvider::process_pending_events
+	pub fn get_update_future(&self) -> Future {
+		self.event_notifier.get_future()
 	}
 
 	/// Processes any events asynchronously using the given handler.
@@ -1333,42 +1396,63 @@ where
 	/// have an ordering requirement.
 	///
 	/// See the trait-level documentation of [`EventsProvider`] for requirements.
-	pub async fn process_pending_events_async<Future: core::future::Future<Output = ()> + core::marker::Unpin, H: Fn(Event) -> Future>(
+	pub async fn process_pending_events_async<Future: core::future::Future<Output = Result<(), ReplayEvent>> + core::marker::Unpin, H: Fn(Event) -> Future>(
 		&self, handler: H
 	) {
-		let mut intercepted_msgs = Vec::new();
-		let mut peer_connecteds = Vec::new();
-		{
-			let mut pending_events = self.pending_events.lock().unwrap();
-			core::mem::swap(&mut pending_events.intercepted_msgs, &mut intercepted_msgs);
-			core::mem::swap(&mut pending_events.peer_connecteds, &mut peer_connecteds);
+		if self.pending_events_processor.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed).is_err() {
+			return;
 		}
 
-		let mut futures = Vec::with_capacity(intercepted_msgs.len());
-		for (node_id, recipient) in self.message_recipients.lock().unwrap().iter_mut() {
-			if let OnionMessageRecipient::PendingConnection(_, addresses, _) = recipient {
-				if let Some(addresses) = addresses.take() {
-					futures.push(Some(handler(Event::ConnectionNeeded { node_id: *node_id, addresses })));
+		{
+			let intercepted_msgs = self.pending_intercepted_msgs_events.lock().unwrap().clone();
+			let mut futures = Vec::with_capacity(intercepted_msgs.len());
+			for (node_id, recipient) in self.message_recipients.lock().unwrap().iter_mut() {
+				if let OnionMessageRecipient::PendingConnection(_, addresses, _) = recipient {
+					if let Some(addresses) = addresses.take() {
+						let future = ResultFuture::Pending(handler(Event::ConnectionNeeded { node_id: *node_id, addresses }));
+						futures.push(future);
+					}
 				}
 			}
-		}
 
-		for ev in intercepted_msgs {
-			if let Event::OnionMessageIntercepted { .. } = ev {} else { debug_assert!(false); }
-			futures.push(Some(handler(ev)));
-		}
-		// Let the `OnionMessageIntercepted` events finish before moving on to peer_connecteds
-		crate::util::async_poll::MultiFuturePoller(futures).await;
+			// The offset in the `futures` vec at which `intercepted_msgs` start. We don't bother
+			// replaying `ConnectionNeeded` events.
+			let intercepted_msgs_offset = futures.len();
 
-		if peer_connecteds.len() <= 1 {
-			for event in peer_connecteds { handler(event).await; }
-		} else {
-			let mut futures = Vec::new();
-			for event in peer_connecteds {
-				futures.push(Some(handler(event)));
+			for ev in intercepted_msgs {
+				if let Event::OnionMessageIntercepted { .. } = ev {} else { debug_assert!(false); }
+				let future = ResultFuture::Pending(handler(ev));
+				futures.push(future);
 			}
-			crate::util::async_poll::MultiFuturePoller(futures).await;
+			// Let the `OnionMessageIntercepted` events finish before moving on to peer_connecteds
+			let res = MultiResultFuturePoller::new(futures).await;
+			drop_handled_events_and_abort!(self, res, intercepted_msgs_offset, self.pending_intercepted_msgs_events);
 		}
+
+		{
+			let peer_connecteds = self.pending_peer_connected_events.lock().unwrap().clone();
+			let num_peer_connecteds = peer_connecteds.len();
+			if num_peer_connecteds <= 1 {
+				for event in peer_connecteds {
+					if handler(event).await.is_ok() {
+						self.pending_peer_connected_events.lock().unwrap().drain(..num_peer_connecteds);
+					} else {
+						// We failed handling the event. Return to have it eventually replayed.
+						self.pending_events_processor.store(false, Ordering::Release);
+						return;
+					}
+				}
+			} else {
+				let mut futures = Vec::new();
+				for event in peer_connecteds {
+					let future = ResultFuture::Pending(handler(event));
+					futures.push(future);
+				}
+				let res = MultiResultFuturePoller::new(futures).await;
+				drop_handled_events_and_abort!(self, res, 0, self.pending_peer_connected_events);
+			}
+		}
+		self.pending_events_processor.store(false, Ordering::Release);
 	}
 }
 
@@ -1408,31 +1492,42 @@ where
 	CMH::Target: CustomOnionMessageHandler,
 {
 	fn process_pending_events<H: Deref>(&self, handler: H) where H::Target: EventHandler {
+		if self.pending_events_processor.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed).is_err() {
+			return;
+		}
+
 		for (node_id, recipient) in self.message_recipients.lock().unwrap().iter_mut() {
 			if let OnionMessageRecipient::PendingConnection(_, addresses, _) = recipient {
 				if let Some(addresses) = addresses.take() {
-					handler.handle_event(Event::ConnectionNeeded { node_id: *node_id, addresses });
+					let _ = handler.handle_event(Event::ConnectionNeeded { node_id: *node_id, addresses });
 				}
 			}
 		}
-		let mut events = Vec::new();
+		let intercepted_msgs;
+		let peer_connecteds;
 		{
-			let mut pending_events = self.pending_events.lock().unwrap();
+			let pending_intercepted_msgs_events = self.pending_intercepted_msgs_events.lock().unwrap();
+			intercepted_msgs = pending_intercepted_msgs_events.clone();
+			let mut pending_peer_connected_events = self.pending_peer_connected_events.lock().unwrap();
+			peer_connecteds = pending_peer_connected_events.clone();
 			#[cfg(debug_assertions)] {
-				for ev in pending_events.intercepted_msgs.iter() {
+				for ev in pending_intercepted_msgs_events.iter() {
 					if let Event::OnionMessageIntercepted { .. } = ev {} else { panic!(); }
 				}
-				for ev in pending_events.peer_connecteds.iter() {
+				for ev in pending_peer_connected_events.iter() {
 					if let Event::OnionMessagePeerConnected { .. } = ev {} else { panic!(); }
 				}
 			}
-			core::mem::swap(&mut pending_events.intercepted_msgs, &mut events);
-			events.append(&mut pending_events.peer_connecteds);
-			pending_events.peer_connecteds.shrink_to(10); // Limit total heap usage
+			pending_peer_connected_events.shrink_to(10); // Limit total heap usage
 		}
-		for ev in events {
-			handler.handle_event(ev);
-		}
+
+		let res = intercepted_msgs.into_iter().map(|ev| handler.handle_event(ev)).collect::<Vec<_>>();
+		drop_handled_events_and_abort!(self, res, 0, self.pending_intercepted_msgs_events);
+
+		let res = peer_connecteds.into_iter().map(|ev| handler.handle_event(ev)).collect::<Vec<_>>();
+		drop_handled_events_and_abort!(self, res, 0, self.pending_peer_connected_events);
+
+		self.pending_events_processor.store(false, Ordering::Release);
 	}
 }
 
@@ -1461,8 +1556,8 @@ where
 				match message {
 					ParsedOnionMessageContents::Offers(msg) => {
 						let context = match context {
-							None => OffersContext::Unknown {},
-							Some(MessageContext::Offers(context)) => context,
+							None => None,
+							Some(MessageContext::Offers(context)) => Some(context),
 							Some(MessageContext::Custom(_)) => {
 								debug_assert!(false, "Shouldn't have triggered this case.");
 								return
@@ -1558,9 +1653,12 @@ where
 				.or_insert_with(|| OnionMessageRecipient::ConnectedPeer(VecDeque::new()))
 				.mark_connected();
 			if self.intercept_messages_for_offline_peers {
-				self.pending_events.lock().unwrap().peer_connecteds.push(
+				let mut pending_peer_connected_events =
+					self.pending_peer_connected_events.lock().unwrap();
+				pending_peer_connected_events.push(
 					Event::OnionMessagePeerConnected { peer_node_id: *their_node_id }
 				);
+				self.event_notifier.notify();
 			}
 		} else {
 			self.message_recipients.lock().unwrap().remove(their_node_id);

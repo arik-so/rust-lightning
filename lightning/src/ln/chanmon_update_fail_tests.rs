@@ -12,7 +12,7 @@
 //! There are a bunch of these as their handling is relatively error-prone so they are split out
 //! here. See also the chanmon_fail_consistency fuzz test.
 
-use bitcoin::blockdata::constants::genesis_block;
+use bitcoin::constants::genesis_block;
 use bitcoin::hash_types::BlockHash;
 use bitcoin::network::Network;
 use crate::chain::channelmonitor::{ANTI_REORG_DELAY, ChannelMonitor};
@@ -50,7 +50,7 @@ fn test_monitor_and_persister_update_fail() {
 
 	// Create some initial channel
 	let chan = create_announced_chan_between_nodes(&nodes, 0, 1);
-	let outpoint = OutPoint { txid: chan.3.txid(), index: 0 };
+	let outpoint = OutPoint { txid: chan.3.compute_txid(), index: 0 };
 
 	// Rebalance the network to generate htlc in the two directions
 	send_payment(&nodes[0], &vec!(&nodes[1])[..], 10_000_000);
@@ -133,7 +133,7 @@ fn do_test_simple_monitor_temporary_update_fail(disconnect: bool) {
 	chanmon_cfgs[0].persister.set_update_ret(ChannelMonitorUpdateStatus::InProgress);
 
 	{
-		unwrap_send_err!(nodes[0].node.send_payment_with_route(&route, payment_hash_1,
+		unwrap_send_err!(nodes[0].node.send_payment_with_route(route, payment_hash_1,
 				RecipientOnionFields::secret_only(payment_secret_1), PaymentId(payment_hash_1.0)
 			), false, APIError::MonitorUpdateInProgress, {});
 		check_added_monitors!(nodes[0], 1);
@@ -190,7 +190,7 @@ fn do_test_simple_monitor_temporary_update_fail(disconnect: bool) {
 	let (route, payment_hash_2, _, payment_secret_2) = get_route_and_payment_hash!(&nodes[0], nodes[1], 1000000);
 	{
 		chanmon_cfgs[0].persister.set_update_ret(ChannelMonitorUpdateStatus::InProgress);
-		unwrap_send_err!(nodes[0].node.send_payment_with_route(&route, payment_hash_2,
+		unwrap_send_err!(nodes[0].node.send_payment_with_route(route, payment_hash_2,
 				RecipientOnionFields::secret_only(payment_secret_2), PaymentId(payment_hash_2.0)
 			), false, APIError::MonitorUpdateInProgress, {});
 		check_added_monitors!(nodes[0], 1);
@@ -257,7 +257,7 @@ fn do_test_monitor_temporary_update_fail(disconnect_count: usize) {
 	let (route, payment_hash_2, payment_preimage_2, payment_secret_2) = get_route_and_payment_hash!(nodes[0], nodes[1], 1000000);
 	{
 		chanmon_cfgs[0].persister.set_update_ret(ChannelMonitorUpdateStatus::InProgress);
-		unwrap_send_err!(nodes[0].node.send_payment_with_route(&route, payment_hash_2,
+		unwrap_send_err!(nodes[0].node.send_payment_with_route(route, payment_hash_2,
 				RecipientOnionFields::secret_only(payment_secret_2), PaymentId(payment_hash_2.0)
 			), false, APIError::MonitorUpdateInProgress, {});
 		check_added_monitors!(nodes[0], 1);
@@ -607,7 +607,7 @@ fn test_monitor_update_fail_cs() {
 
 	let (route, our_payment_hash, payment_preimage, our_payment_secret) = get_route_and_payment_hash!(nodes[0], nodes[1], 1000000);
 	{
-		nodes[0].node.send_payment_with_route(&route, our_payment_hash,
+		nodes[0].node.send_payment_with_route(route, our_payment_hash,
 			RecipientOnionFields::secret_only(our_payment_secret), PaymentId(our_payment_hash.0)).unwrap();
 		check_added_monitors!(nodes[0], 1);
 	}
@@ -700,7 +700,7 @@ fn test_monitor_update_fail_no_rebroadcast() {
 
 	let (route, our_payment_hash, payment_preimage_1, payment_secret_1) = get_route_and_payment_hash!(nodes[0], nodes[1], 1000000);
 	{
-		nodes[0].node.send_payment_with_route(&route, our_payment_hash,
+		nodes[0].node.send_payment_with_route(route, our_payment_hash,
 			RecipientOnionFields::secret_only(payment_secret_1), PaymentId(our_payment_hash.0)).unwrap();
 		check_added_monitors!(nodes[0], 1);
 	}
@@ -748,7 +748,7 @@ fn test_monitor_update_raa_while_paused() {
 	send_payment(&nodes[0], &[&nodes[1]], 5000000);
 	let (route, our_payment_hash_1, payment_preimage_1, our_payment_secret_1) = get_route_and_payment_hash!(nodes[0], nodes[1], 1000000);
 	{
-		nodes[0].node.send_payment_with_route(&route, our_payment_hash_1,
+		nodes[0].node.send_payment_with_route(route, our_payment_hash_1,
 			RecipientOnionFields::secret_only(our_payment_secret_1), PaymentId(our_payment_hash_1.0)).unwrap();
 		check_added_monitors!(nodes[0], 1);
 	}
@@ -756,7 +756,7 @@ fn test_monitor_update_raa_while_paused() {
 
 	let (route, our_payment_hash_2, payment_preimage_2, our_payment_secret_2) = get_route_and_payment_hash!(nodes[1], nodes[0], 1000000);
 	{
-		nodes[1].node.send_payment_with_route(&route, our_payment_hash_2,
+		nodes[1].node.send_payment_with_route(route, our_payment_hash_2,
 			RecipientOnionFields::secret_only(our_payment_secret_2), PaymentId(our_payment_hash_2.0)).unwrap();
 		check_added_monitors!(nodes[1], 1);
 	}
@@ -845,7 +845,7 @@ fn do_test_monitor_update_fail_raa(test_ignore_second_cs: bool) {
 	// holding cell.
 	let (route, payment_hash_2, payment_preimage_2, payment_secret_2) = get_route_and_payment_hash!(nodes[0], nodes[2], 1000000);
 	{
-		nodes[0].node.send_payment_with_route(&route, payment_hash_2,
+		nodes[0].node.send_payment_with_route(route, payment_hash_2,
 			RecipientOnionFields::secret_only(payment_secret_2), PaymentId(payment_hash_2.0)).unwrap();
 		check_added_monitors!(nodes[0], 1);
 	}
@@ -870,7 +870,7 @@ fn do_test_monitor_update_fail_raa(test_ignore_second_cs: bool) {
 	// being paused waiting a monitor update.
 	let (route, payment_hash_3, _, payment_secret_3) = get_route_and_payment_hash!(nodes[0], nodes[2], 1000000);
 	{
-		nodes[0].node.send_payment_with_route(&route, payment_hash_3,
+		nodes[0].node.send_payment_with_route(route, payment_hash_3,
 			RecipientOnionFields::secret_only(payment_secret_3), PaymentId(payment_hash_3.0)).unwrap();
 		check_added_monitors!(nodes[0], 1);
 	}
@@ -890,7 +890,7 @@ fn do_test_monitor_update_fail_raa(test_ignore_second_cs: bool) {
 	let (payment_preimage_4, payment_hash_4) = if test_ignore_second_cs {
 		// Try to route another payment backwards from 2 to make sure 1 holds off on responding
 		let (route, payment_hash_4, payment_preimage_4, payment_secret_4) = get_route_and_payment_hash!(nodes[2], nodes[0], 1000000);
-		nodes[2].node.send_payment_with_route(&route, payment_hash_4,
+		nodes[2].node.send_payment_with_route(route, payment_hash_4,
 			RecipientOnionFields::secret_only(payment_secret_4), PaymentId(payment_hash_4.0)).unwrap();
 		check_added_monitors!(nodes[2], 1);
 
@@ -1197,10 +1197,10 @@ fn raa_no_response_awaiting_raa_state() {
 	// requires only an RAA response due to AwaitingRAA) we can deliver the RAA and require the CS
 	// generation during RAA while in monitor-update-failed state.
 	{
-		nodes[0].node.send_payment_with_route(&route, payment_hash_1,
+		nodes[0].node.send_payment_with_route(route.clone(), payment_hash_1,
 			RecipientOnionFields::secret_only(payment_secret_1), PaymentId(payment_hash_1.0)).unwrap();
 		check_added_monitors!(nodes[0], 1);
-		nodes[0].node.send_payment_with_route(&route, payment_hash_2,
+		nodes[0].node.send_payment_with_route(route.clone(), payment_hash_2,
 			RecipientOnionFields::secret_only(payment_secret_2), PaymentId(payment_hash_2.0)).unwrap();
 		check_added_monitors!(nodes[0], 0);
 	}
@@ -1250,7 +1250,7 @@ fn raa_no_response_awaiting_raa_state() {
 	// chanmon_fail_consistency test required it to actually find the bug (by seeing out-of-sync
 	// commitment transaction states) whereas here we can explicitly check for it.
 	{
-		nodes[0].node.send_payment_with_route(&route, payment_hash_3,
+		nodes[0].node.send_payment_with_route(route, payment_hash_3,
 			RecipientOnionFields::secret_only(payment_secret_3), PaymentId(payment_hash_3.0)).unwrap();
 		check_added_monitors!(nodes[0], 0);
 		assert!(nodes[0].node.get_and_clear_pending_msg_events().is_empty());
@@ -1344,7 +1344,7 @@ fn claim_while_disconnected_monitor_update_fail() {
 	// the monitor still failed
 	let (route, payment_hash_2, payment_preimage_2, payment_secret_2) = get_route_and_payment_hash!(nodes[0], nodes[1], 1000000);
 	{
-		nodes[0].node.send_payment_with_route(&route, payment_hash_2,
+		nodes[0].node.send_payment_with_route(route, payment_hash_2,
 			RecipientOnionFields::secret_only(payment_secret_2), PaymentId(payment_hash_2.0)).unwrap();
 		check_added_monitors!(nodes[0], 1);
 	}
@@ -1440,7 +1440,7 @@ fn monitor_failed_no_reestablish_response() {
 	// on receipt).
 	let (route, payment_hash_1, payment_preimage_1, payment_secret_1) = get_route_and_payment_hash!(nodes[0], nodes[1], 1000000);
 	{
-		nodes[0].node.send_payment_with_route(&route, payment_hash_1,
+		nodes[0].node.send_payment_with_route(route, payment_hash_1,
 			RecipientOnionFields::secret_only(payment_secret_1), PaymentId(payment_hash_1.0)).unwrap();
 		check_added_monitors!(nodes[0], 1);
 	}
@@ -1517,7 +1517,7 @@ fn first_message_on_recv_ordering() {
 	// can deliver it and fail the monitor update.
 	let (route, payment_hash_1, payment_preimage_1, payment_secret_1) = get_route_and_payment_hash!(nodes[0], nodes[1], 1000000);
 	{
-		nodes[0].node.send_payment_with_route(&route, payment_hash_1,
+		nodes[0].node.send_payment_with_route(route, payment_hash_1,
 			RecipientOnionFields::secret_only(payment_secret_1), PaymentId(payment_hash_1.0)).unwrap();
 		check_added_monitors!(nodes[0], 1);
 	}
@@ -1541,7 +1541,7 @@ fn first_message_on_recv_ordering() {
 	// Route the second payment, generating an update_add_htlc/commitment_signed
 	let (route, payment_hash_2, payment_preimage_2, payment_secret_2) = get_route_and_payment_hash!(nodes[0], nodes[1], 1000000);
 	{
-		nodes[0].node.send_payment_with_route(&route, payment_hash_2,
+		nodes[0].node.send_payment_with_route(route, payment_hash_2,
 			RecipientOnionFields::secret_only(payment_secret_2), PaymentId(payment_hash_2.0)).unwrap();
 		check_added_monitors!(nodes[0], 1);
 	}
@@ -1626,7 +1626,7 @@ fn test_monitor_update_fail_claim() {
 
 	let (route, payment_hash_2, _, payment_secret_2) = get_route_and_payment_hash!(nodes[2], nodes[0], 1_000_000);
 	{
-		nodes[2].node.send_payment_with_route(&route, payment_hash_2,
+		nodes[2].node.send_payment_with_route(route.clone(), payment_hash_2,
 			RecipientOnionFields::secret_only(payment_secret_2), PaymentId(payment_hash_2.0)).unwrap();
 		check_added_monitors!(nodes[2], 1);
 	}
@@ -1645,7 +1645,7 @@ fn test_monitor_update_fail_claim() {
 	expect_pending_htlcs_forwardable_ignore!(nodes[1]);
 
 	let (_, payment_hash_3, payment_secret_3) = get_payment_preimage_hash!(nodes[0]);
-	nodes[2].node.send_payment_with_route(&route, payment_hash_3,
+	nodes[2].node.send_payment_with_route(route, payment_hash_3,
 		RecipientOnionFields::secret_only(payment_secret_3), PaymentId(payment_hash_3.0)).unwrap();
 	check_added_monitors!(nodes[2], 1);
 
@@ -1743,7 +1743,7 @@ fn test_monitor_update_on_pending_forwards() {
 
 	let (route, payment_hash_2, payment_preimage_2, payment_secret_2) = get_route_and_payment_hash!(nodes[2], nodes[0], 1000000);
 	{
-		nodes[2].node.send_payment_with_route(&route, payment_hash_2,
+		nodes[2].node.send_payment_with_route(route, payment_hash_2,
 			RecipientOnionFields::secret_only(payment_secret_2), PaymentId(payment_hash_2.0)).unwrap();
 		check_added_monitors!(nodes[2], 1);
 	}
@@ -1808,7 +1808,7 @@ fn monitor_update_claim_fail_no_response() {
 	// Now start forwarding a second payment, skipping the last RAA so B is in AwaitingRAA
 	let (route, payment_hash_2, payment_preimage_2, payment_secret_2) = get_route_and_payment_hash!(nodes[0], nodes[1], 1000000);
 	{
-		nodes[0].node.send_payment_with_route(&route, payment_hash_2,
+		nodes[0].node.send_payment_with_route(route, payment_hash_2,
 			RecipientOnionFields::secret_only(payment_secret_2), PaymentId(payment_hash_2.0)).unwrap();
 		check_added_monitors!(nodes[0], 1);
 	}
@@ -1861,7 +1861,7 @@ fn do_during_funding_monitor_fail(confirm_a_first: bool, restore_b_before_conf: 
 
 	let (temporary_channel_id, funding_tx, funding_output) = create_funding_transaction(&nodes[0], &nodes[1].node.get_our_node_id(), 100000, 43);
 
-	nodes[0].node.funding_transaction_generated(&temporary_channel_id, &nodes[1].node.get_our_node_id(), funding_tx.clone()).unwrap();
+	nodes[0].node.funding_transaction_generated(temporary_channel_id, nodes[1].node.get_our_node_id(), funding_tx.clone()).unwrap();
 	check_added_monitors!(nodes[0], 0);
 
 	chanmon_cfgs[1].persister.set_update_ret(ChannelMonitorUpdateStatus::InProgress);
@@ -1884,7 +1884,7 @@ fn do_during_funding_monitor_fail(confirm_a_first: bool, restore_b_before_conf: 
 	let events = nodes[0].node.get_and_clear_pending_events();
 	assert_eq!(events.len(), 0);
 	assert_eq!(nodes[0].tx_broadcaster.txn_broadcasted.lock().unwrap().len(), 1);
-	assert_eq!(nodes[0].tx_broadcaster.txn_broadcasted.lock().unwrap().split_off(0)[0].txid(), funding_output.txid);
+	assert_eq!(nodes[0].tx_broadcaster.txn_broadcasted.lock().unwrap().split_off(0)[0].compute_txid(), funding_output.txid);
 
 	if confirm_a_first {
 		confirm_transaction(&nodes[0], &funding_tx);
@@ -2007,7 +2007,7 @@ fn test_path_paused_mpp() {
 	// the second got a MonitorUpdateInProgress err. This implies
 	// PaymentSendFailure::PartialFailure as some paths succeeded, preventing retry.
 	if let Err(PaymentSendFailure::PartialFailure { results, ..}) = nodes[0].node.send_payment_with_route(
-		&route, payment_hash, RecipientOnionFields::secret_only(payment_secret), PaymentId(payment_hash.0)
+		route, payment_hash, RecipientOnionFields::secret_only(payment_secret), PaymentId(payment_hash.0)
 	) {
 		assert_eq!(results.len(), 2);
 		if let Ok(()) = results[0] {} else { panic!(); }
@@ -2055,7 +2055,7 @@ fn test_pending_update_fee_ack_on_reconnect() {
 	send_payment(&nodes[0], &[&nodes[1]], 100_000_00);
 
 	let (route, payment_hash, payment_preimage, payment_secret) = get_route_and_payment_hash!(&nodes[1], nodes[0], 1_000_000);
-	nodes[1].node.send_payment_with_route(&route, payment_hash,
+	nodes[1].node.send_payment_with_route(route, payment_hash,
 		RecipientOnionFields::secret_only(payment_secret), PaymentId(payment_hash.0)).unwrap();
 	check_added_monitors!(nodes[1], 1);
 	let bs_initial_send_msgs = get_htlc_update_msgs!(nodes[1], nodes[0].node.get_our_node_id());
@@ -2315,13 +2315,13 @@ fn do_channel_holding_cell_serialize(disconnect: bool, reload_a: bool) {
 	// (c) will not be freed from the holding cell.
 	let (payment_preimage_0, payment_hash_0, ..) = route_payment(&nodes[1], &[&nodes[0]], 100_000);
 
-	nodes[0].node.send_payment_with_route(&route, payment_hash_1,
+	nodes[0].node.send_payment_with_route(route.clone(), payment_hash_1,
 		RecipientOnionFields::secret_only(payment_secret_1), PaymentId(payment_hash_1.0)).unwrap();
 	check_added_monitors!(nodes[0], 1);
 	let send = SendEvent::from_node(&nodes[0]);
 	assert_eq!(send.msgs.len(), 1);
 
-	nodes[0].node.send_payment_with_route(&route, payment_hash_2,
+	nodes[0].node.send_payment_with_route(route, payment_hash_2,
 		RecipientOnionFields::secret_only(payment_secret_2), PaymentId(payment_hash_2.0)).unwrap();
 	check_added_monitors!(nodes[0], 0);
 
@@ -2494,7 +2494,7 @@ fn do_test_reconnect_dup_htlc_claims(htlc_status: HTLCStatusAtDupClaim, second_f
 		// In order to get the HTLC claim into the holding cell at nodes[1], we need nodes[1] to be
 		// awaiting a remote revoke_and_ack from nodes[0].
 		let (route, second_payment_hash, _, second_payment_secret) = get_route_and_payment_hash!(nodes[0], nodes[1], 100_000);
-		nodes[0].node.send_payment_with_route(&route, second_payment_hash,
+		nodes[0].node.send_payment_with_route(route, second_payment_hash,
 			RecipientOnionFields::secret_only(second_payment_secret), PaymentId(second_payment_hash.0)).unwrap();
 		check_added_monitors!(nodes[0], 1);
 
@@ -2795,7 +2795,7 @@ fn do_test_outbound_reload_without_init_mon(use_0conf: bool) {
 
 	let (temporary_channel_id, funding_tx, ..) = create_funding_transaction(&nodes[0], &nodes[1].node.get_our_node_id(), 100000, 43);
 
-	nodes[0].node.funding_transaction_generated(&temporary_channel_id, &nodes[1].node.get_our_node_id(), funding_tx.clone()).unwrap();
+	nodes[0].node.funding_transaction_generated(temporary_channel_id, nodes[1].node.get_our_node_id(), funding_tx.clone()).unwrap();
 	check_added_monitors!(nodes[0], 0);
 
 	let funding_created_msg = get_event_msg!(nodes[0], MessageSendEvent::SendFundingCreated, nodes[1].node.get_our_node_id());
@@ -2886,7 +2886,7 @@ fn do_test_inbound_reload_without_init_mon(use_0conf: bool, lock_commitment: boo
 
 	let (temporary_channel_id, funding_tx, ..) = create_funding_transaction(&nodes[0], &nodes[1].node.get_our_node_id(), 100000, 43);
 
-	nodes[0].node.funding_transaction_generated(&temporary_channel_id, &nodes[1].node.get_our_node_id(), funding_tx.clone()).unwrap();
+	nodes[0].node.funding_transaction_generated(temporary_channel_id, nodes[1].node.get_our_node_id(), funding_tx.clone()).unwrap();
 	check_added_monitors!(nodes[0], 0);
 
 	let funding_created_msg = get_event_msg!(nodes[0], MessageSendEvent::SendFundingCreated, nodes[1].node.get_our_node_id());
@@ -3584,7 +3584,7 @@ fn do_test_glacial_peer_cant_hang(hold_chan_a: bool) {
 
 		let (route, payment_hash_2, _, payment_secret_2) = get_route_and_payment_hash!(&nodes[1], nodes[2], 1_000_000);
 
-		nodes[1].node.send_payment_with_route(&route, payment_hash_2,
+		nodes[1].node.send_payment_with_route(route, payment_hash_2,
 			RecipientOnionFields::secret_only(payment_secret_2), PaymentId(payment_hash_2.0)).unwrap();
 		check_added_monitors(&nodes[1], 0);
 

@@ -25,7 +25,7 @@ use super::offers::{OffersMessage, OffersMessageHandler};
 use super::packet::{OnionMessageContents, Packet};
 
 use bitcoin::network::Network;
-use bitcoin::hashes::hex::FromHex;
+use bitcoin::hex::FromHex;
 use bitcoin::secp256k1::{All, PublicKey, Secp256k1, SecretKey};
 
 use crate::io;
@@ -76,7 +76,7 @@ impl Drop for MessengerNode {
 struct TestOffersMessageHandler {}
 
 impl OffersMessageHandler for TestOffersMessageHandler {
-	fn handle_message(&self, _message: OffersMessage, _context: OffersContext, _responder: Option<Responder>) -> ResponseInstruction<OffersMessage> {
+	fn handle_message(&self, _message: OffersMessage, _context: Option<OffersContext>, _responder: Option<Responder>) -> ResponseInstruction<OffersMessage> {
 		ResponseInstruction::NoResponse
 	}
 }
@@ -307,7 +307,7 @@ fn disconnect_peers(node_a: &MessengerNode, node_b: &MessengerNode) {
 
 fn release_events(node: &MessengerNode) -> Vec<Event> {
 	let events = core::cell::RefCell::new(Vec::new());
-	node.messenger.process_pending_events(&|e| events.borrow_mut().push(e));
+	node.messenger.process_pending_events(&|e| Ok(events.borrow_mut().push(e)));
 	events.into_inner()
 }
 

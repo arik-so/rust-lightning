@@ -45,7 +45,9 @@ pub trait OffersMessageHandler {
 	/// The returned [`OffersMessage`], if any, is enqueued to be sent by [`OnionMessenger`].
 	///
 	/// [`OnionMessenger`]: crate::onion_message::messenger::OnionMessenger
-	fn handle_message(&self, message: OffersMessage, context: OffersContext, responder: Option<Responder>) -> ResponseInstruction<OffersMessage>;
+	fn handle_message(
+		&self, message: OffersMessage, context: Option<OffersContext>, responder: Option<Responder>,
+	) -> ResponseInstruction<OffersMessage>;
 
 	/// Releases any [`OffersMessage`]s that need to be sent.
 	///
@@ -170,7 +172,7 @@ impl<L: Logger + ?Sized> ReadableArgs<(u64, &L)> for OffersMessage {
 		}
 
 		let mut bytes = Vec::new();
-		r.read_to_end(&mut bytes).unwrap();
+		r.read_to_limit(&mut bytes, u64::MAX).unwrap();
 
 		match Self::parse(tlv_type, bytes) {
 			Ok(message) => Ok(message),

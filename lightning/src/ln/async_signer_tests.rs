@@ -10,18 +10,21 @@
 //! Tests for asynchronous signing. These tests verify that the channel state machine behaves
 //! properly with a signer implementation that asynchronously derives signatures.
 
+use std::collections::HashSet;
+
 use bitcoin::{Transaction, TxOut, TxIn, Amount};
-use bitcoin::blockdata::locktime::absolute::LockTime;
+use bitcoin::locktime::absolute::LockTime;
 use bitcoin::transaction::Version;
 
 use crate::chain::channelmonitor::LATENCY_GRACE_PERIOD_BLOCKS;
 use crate::chain::ChannelMonitorUpdateStatus;
 use crate::events::bump_transaction::WalletSource;
-use crate::events::{ClosureReason, Event, MessageSendEvent, MessageSendEventsProvider, PaymentPurpose};
+use crate::events::{ClosureReason, Event, MessageSendEvent, MessageSendEventsProvider};
 use crate::ln::{functional_test_utils::*, msgs};
 use crate::ln::msgs::ChannelMessageHandler;
 use crate::ln::channelmanager::{PaymentId, RAACommitmentOrder, RecipientOnionFields};
 use crate::util::test_channel_signer::SignerOp;
+use crate::util::logger::Logger;
 
 #[test]
 fn test_async_commitment_signature_for_funding_created() {
@@ -46,7 +49,7 @@ fn test_async_commitment_signature_for_funding_created() {
 	// message...
 	let (temporary_channel_id, tx, _) = create_funding_transaction(&nodes[0], &nodes[1].node.get_our_node_id(), 100000, 42);
 	nodes[0].disable_channel_signer_op(&nodes[1].node.get_our_node_id(), &temporary_channel_id, SignerOp::SignCounterpartyCommitment);
-	nodes[0].node.funding_transaction_generated(&temporary_channel_id, &nodes[1].node.get_our_node_id(), tx.clone()).unwrap();
+	nodes[0].node.funding_transaction_generated(temporary_channel_id, nodes[1].node.get_our_node_id(), tx.clone()).unwrap();
 	check_added_monitors(&nodes[0], 0);
 
 	assert!(nodes[0].node.get_and_clear_pending_msg_events().is_empty());
@@ -93,7 +96,7 @@ fn test_async_commitment_signature_for_funding_signed() {
 
 	// nodes[0] --- funding_created --> nodes[1]
 	let (temporary_channel_id, tx, _) = create_funding_transaction(&nodes[0], &nodes[1].node.get_our_node_id(), 100000, 42);
-	nodes[0].node.funding_transaction_generated(&temporary_channel_id, &nodes[1].node.get_our_node_id(), tx.clone()).unwrap();
+	nodes[0].node.funding_transaction_generated(temporary_channel_id, nodes[1].node.get_our_node_id(), tx.clone()).unwrap();
 	check_added_monitors(&nodes[0], 0);
 
 	let mut funding_created_msg = get_event_msg!(nodes[0], MessageSendEvent::SendFundingCreated, nodes[1].node.get_our_node_id());
@@ -127,11 +130,17 @@ fn test_async_commitment_signature_for_funding_signed() {
 
 #[test]
 fn test_async_commitment_signature_for_commitment_signed() {
-	do_test_async_commitment_signature_for_commitment_signed_revoke_and_ack(true);
-	do_test_async_commitment_signature_for_commitment_signed_revoke_and_ack(false);
+	for i in 0..=8 {
+		let enable_signer_op_order = vec![
+			SignerOp::GetPerCommitmentPoint,
+			SignerOp::ReleaseCommitmentSecret,
+			SignerOp::SignCounterpartyCommitment,
+		].into_iter().filter(|&op| i & (1 << op as u8) != 0).collect();
+		do_test_async_commitment_signature_for_commitment_signed_revoke_and_ack(enable_signer_op_order);
+	}
 }
 
-fn do_test_async_commitment_signature_for_commitment_signed_revoke_and_ack(enable_sign_counterparty_commit_first: bool) {
+fn do_test_async_commitment_signature_for_commitment_signed_revoke_and_ack(enable_signer_op_order: Vec<SignerOp>) {
 	let chanmon_cfgs = create_chanmon_cfgs(2);
 	let node_cfgs = create_node_cfgs(2, &chanmon_cfgs);
 	let node_chanmgrs = create_node_chanmgrs(2, &node_cfgs, &[None, None]);
@@ -142,7 +151,7 @@ fn do_test_async_commitment_signature_for_commitment_signed_revoke_and_ack(enabl
 	let src = &nodes[0];
 	let dst = &nodes[1];
 	let (route, our_payment_hash, _our_payment_preimage, our_payment_secret) = get_route_and_payment_hash!(src, dst, 8000000);
-	src.node.send_payment_with_route(&route, our_payment_hash,
+	src.node.send_payment_with_route(route, our_payment_hash,
 		RecipientOnionFields::secret_only(our_payment_secret), PaymentId(our_payment_hash.0)).unwrap();
 	check_added_monitors!(src, 1);
 
@@ -160,31 +169,33 @@ fn do_test_async_commitment_signature_for_commitment_signed_revoke_and_ack(enabl
 	// Mark dst's signer as unavailable and handle src's commitment_signed: while dst won't yet have a
 	// `commitment_signed` of its own to offer, it should publish a `revoke_and_ack`.
 	dst.disable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, SignerOp::GetPerCommitmentPoint);
+	dst.disable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, SignerOp::ReleaseCommitmentSecret);
 	dst.disable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, SignerOp::SignCounterpartyCommitment);
 	dst.node.handle_commitment_signed(&src.node.get_our_node_id(), &payment_event.commitment_msg);
 	check_added_monitors(dst, 1);
 
-	if enable_sign_counterparty_commit_first {
-		// Unblock CS -> no messages should be sent, since we must send RAA first.
-		dst.enable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, SignerOp::SignCounterpartyCommitment);
+	let mut enabled_signer_ops = HashSet::new();
+	log_trace!(dst.logger, "enable_signer_op_order={:?}", enable_signer_op_order);
+	for op in enable_signer_op_order {
+		enabled_signer_ops.insert(op);
+		dst.enable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, op);
 		dst.node.signer_unblocked(Some((src.node.get_our_node_id(), chan_id)));
-		let events = dst.node.get_and_clear_pending_msg_events();
-		assert!(events.is_empty(), "expected no message, got {}", events.len());
 
-		// Unblock revoke_and_ack -> we should send both RAA + CS.
-		dst.enable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, SignerOp::GetPerCommitmentPoint);
-		dst.node.signer_unblocked(Some((src.node.get_our_node_id(), chan_id)));
-		get_revoke_commit_msgs(&dst, &src.node.get_our_node_id());
-	} else {
-		// Unblock revoke_and_ack -> we should send just RAA.
-		dst.enable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, SignerOp::GetPerCommitmentPoint);
-		dst.node.signer_unblocked(Some((src.node.get_our_node_id(), chan_id)));
-		get_event_msg!(dst, MessageSendEvent::SendRevokeAndACK, src.node.get_our_node_id());
-
-		// Unblock commitment signed -> we should send CS.
-		dst.enable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, SignerOp::SignCounterpartyCommitment);
-		dst.node.signer_unblocked(Some((src.node.get_our_node_id(), chan_id)));
-		get_htlc_update_msgs(dst, &src.node.get_our_node_id());
+		if enabled_signer_ops.contains(&SignerOp::GetPerCommitmentPoint) && enabled_signer_ops.contains(&SignerOp::ReleaseCommitmentSecret) {
+			// We are just able to send revoke_and_ack
+			if op == SignerOp::GetPerCommitmentPoint || op == SignerOp::ReleaseCommitmentSecret {
+				get_event_msg!(dst, MessageSendEvent::SendRevokeAndACK, src.node.get_our_node_id());
+			}
+			// We either just sent or previously sent revoke_and_ack
+			// and now we are able to send commitment_signed
+			if op == SignerOp::SignCounterpartyCommitment {
+				get_htlc_update_msgs(dst, &src.node.get_our_node_id());
+			}
+		} else {
+			// We can't send either message until RAA is unblocked
+			let events = dst.node.get_and_clear_pending_msg_events();
+			assert!(events.is_empty(), "expected no message, got {}", events.len());
+		}
 	}
 }
 
@@ -225,7 +236,7 @@ fn test_async_commitment_signature_for_funding_signed_0conf() {
 
 	// nodes[0] --- funding_created --> nodes[1]
 	let (temporary_channel_id, tx, _) = create_funding_transaction(&nodes[0], &nodes[1].node.get_our_node_id(), 100000, 42);
-	nodes[0].node.funding_transaction_generated(&temporary_channel_id, &nodes[1].node.get_our_node_id(), tx.clone()).unwrap();
+	nodes[0].node.funding_transaction_generated(temporary_channel_id, nodes[1].node.get_our_node_id(), tx.clone()).unwrap();
 	check_added_monitors(&nodes[0], 0);
 
 	let mut funding_created_msg = get_event_msg!(nodes[0], MessageSendEvent::SendFundingCreated, nodes[1].node.get_our_node_id());
@@ -296,12 +307,22 @@ enum UnblockSignerAcrossDisconnectCase {
 
 #[test]
 fn test_async_raa_peer_disconnect() {
-	do_test_async_raa_peer_disconnect(UnblockSignerAcrossDisconnectCase::AtEnd);
-	do_test_async_raa_peer_disconnect(UnblockSignerAcrossDisconnectCase::BeforeMonitorRestored);
-	do_test_async_raa_peer_disconnect(UnblockSignerAcrossDisconnectCase::BeforeReestablish);
+	do_test_async_raa_peer_disconnect(UnblockSignerAcrossDisconnectCase::AtEnd, true);
+	do_test_async_raa_peer_disconnect(UnblockSignerAcrossDisconnectCase::AtEnd, false);
+	do_test_async_raa_peer_disconnect(UnblockSignerAcrossDisconnectCase::BeforeMonitorRestored, true);
+	do_test_async_raa_peer_disconnect(UnblockSignerAcrossDisconnectCase::BeforeMonitorRestored, false);
+	do_test_async_raa_peer_disconnect(UnblockSignerAcrossDisconnectCase::BeforeReestablish, true);
+	do_test_async_raa_peer_disconnect(UnblockSignerAcrossDisconnectCase::BeforeReestablish, false);
 }
 
-fn do_test_async_raa_peer_disconnect(test_case: UnblockSignerAcrossDisconnectCase) {
+fn do_test_async_raa_peer_disconnect(test_case: UnblockSignerAcrossDisconnectCase, raa_blocked_by_commit_point: bool) {
+	// `raa_blocked_by_commit_point` determines whether we block the RAA by blocking the
+	// signer on `GetPerCommitmentPoint` or `ReleaseCommitmentSecret`.
+	let block_raa_signer_op = if raa_blocked_by_commit_point {
+		SignerOp::GetPerCommitmentPoint
+	} else {
+		SignerOp::ReleaseCommitmentSecret
+	};
 	let chanmon_cfgs = create_chanmon_cfgs(2);
 	let node_cfgs = create_node_cfgs(2, &chanmon_cfgs);
 	let node_chanmgrs = create_node_chanmgrs(2, &node_cfgs, &[None, None]);
@@ -312,7 +333,7 @@ fn do_test_async_raa_peer_disconnect(test_case: UnblockSignerAcrossDisconnectCas
 	let src = &nodes[0];
 	let dst = &nodes[1];
 	let (route, our_payment_hash, _our_payment_preimage, our_payment_secret) = get_route_and_payment_hash!(src, dst, 8000000);
-	src.node.send_payment_with_route(&route, our_payment_hash,
+	src.node.send_payment_with_route(route, our_payment_hash,
 		RecipientOnionFields::secret_only(our_payment_secret), PaymentId(our_payment_hash.0)).unwrap();
 	check_added_monitors!(src, 1);
 
@@ -334,7 +355,7 @@ fn do_test_async_raa_peer_disconnect(test_case: UnblockSignerAcrossDisconnectCas
 
 	// Mark dst's signer as unavailable and handle src's commitment_signed: while dst won't yet have a
 	// `commitment_signed` of its own to offer, it should publish a `revoke_and_ack`.
-	dst.disable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, SignerOp::GetPerCommitmentPoint);
+	dst.disable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, block_raa_signer_op);
 	dst.node.handle_commitment_signed(&src.node.get_our_node_id(), &payment_event.commitment_msg);
 	check_added_monitors(dst, 1);
 
@@ -359,13 +380,13 @@ fn do_test_async_raa_peer_disconnect(test_case: UnblockSignerAcrossDisconnectCas
 
 	if test_case == UnblockSignerAcrossDisconnectCase::BeforeReestablish {
 		// Reenable the signer before the reestablish.
-		dst.enable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, SignerOp::GetPerCommitmentPoint);
+		dst.enable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, block_raa_signer_op);
 	}
 
 	dst.node.handle_channel_reestablish(&src.node.get_our_node_id(), &reestablish_1[0]);
 
 	if test_case == UnblockSignerAcrossDisconnectCase::BeforeMonitorRestored {
-		dst.enable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, SignerOp::GetPerCommitmentPoint);
+		dst.enable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, block_raa_signer_op);
 		chanmon_cfgs[1].persister.set_update_ret(ChannelMonitorUpdateStatus::Completed);
 		let (outpoint, latest_update, _) = dst.chain_monitor.latest_monitor_update_id.lock().unwrap().get(&chan_id).unwrap().clone();
 		dst.chain_monitor.chain_monitor.force_channel_monitor_updated(outpoint, latest_update);
@@ -384,7 +405,7 @@ fn do_test_async_raa_peer_disconnect(test_case: UnblockSignerAcrossDisconnectCas
 	}
 
 	// Mark dst's signer as available and retry: we now expect to see dst's RAA + CS.
-	dst.enable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, SignerOp::GetPerCommitmentPoint);
+	dst.enable_channel_signer_op(&src.node.get_our_node_id(), &chan_id, block_raa_signer_op);
 	dst.node.signer_unblocked(Some((src.node.get_our_node_id(), chan_id)));
 
 	if test_case == UnblockSignerAcrossDisconnectCase::AtEnd {
@@ -436,7 +457,7 @@ fn do_test_async_commitment_signature_peer_disconnect(test_case: UnblockSignerAc
 	let src = &nodes[0];
 	let dst = &nodes[1];
 	let (route, our_payment_hash, _our_payment_preimage, our_payment_secret) = get_route_and_payment_hash!(src, dst, 8000000);
-	src.node.send_payment_with_route(&route, our_payment_hash,
+	src.node.send_payment_with_route(route, our_payment_hash,
 		RecipientOnionFields::secret_only(our_payment_secret), PaymentId(our_payment_hash.0)).unwrap();
 	check_added_monitors!(src, 1);
 
@@ -553,7 +574,7 @@ fn do_test_async_commitment_signature_ordering(monitor_update_failure: bool) {
 	// Start to send the second update_add_htlc + commitment_signed, but don't actually make it
 	// to the peer.
 	let (route, payment_hash_2, payment_preimage_2, payment_secret_2) = get_route_and_payment_hash!(nodes[0], nodes[1], 1000000);
-	nodes[0].node.send_payment_with_route(&route, payment_hash_2,
+	nodes[0].node.send_payment_with_route(route, payment_hash_2,
 		RecipientOnionFields::secret_only(payment_secret_2), PaymentId(payment_hash_2.0)).unwrap();
 	check_added_monitors!(nodes[0], 1);
 
@@ -713,7 +734,7 @@ fn do_test_async_holder_signatures(anchors: bool, remote_commitment: bool) {
 	if anchors {
 		*nodes[0].fee_estimator.sat_per_kw.lock().unwrap() *= 2;
 		*nodes[1].fee_estimator.sat_per_kw.lock().unwrap() *= 2;
-		closing_node.wallet_source.add_utxo(bitcoin::OutPoint { txid: coinbase_tx.txid(), vout: 0 }, coinbase_tx.output[0].value);
+		closing_node.wallet_source.add_utxo(bitcoin::OutPoint { txid: coinbase_tx.compute_txid(), vout: 0 }, coinbase_tx.output[0].value);
 	}
 
 	// Route an HTLC and set the signer as unavailable.
@@ -752,7 +773,7 @@ fn do_test_async_holder_signatures(anchors: bool, remote_commitment: bool) {
 			txn.remove(0)
 		} else {
 			assert_eq!(txn.len(), 2);
-			if txn[0].input[0].previous_output.txid == funding_tx.txid() {
+			if txn[0].input[0].previous_output.txid == funding_tx.compute_txid() {
 				check_spends!(txn[0], funding_tx);
 				check_spends!(txn[1], txn[0]);
 				txn.remove(0)

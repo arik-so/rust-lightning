@@ -1,6 +1,5 @@
 // Imports that need to be added manually
-use bech32::u5;
-use bitcoin::blockdata::script::ScriptBuf;
+use bitcoin::script::ScriptBuf;
 use bitcoin::secp256k1::ecdh::SharedSecret;
 use bitcoin::secp256k1::ecdsa::RecoverableSignature;
 use bitcoin::secp256k1::schnorr;
@@ -27,9 +26,11 @@ use lightning::util::logger::Logger;
 use lightning::util::ser::{Readable, Writeable, Writer};
 use lightning::util::test_channel_signer::TestChannelSigner;
 
+use lightning_invoice::RawBolt11Invoice;
+
 use crate::utils::test_logger;
 
-use std::io::{self, Cursor};
+use lightning::io::{self, Cursor};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[inline]
@@ -106,7 +107,8 @@ struct TestOffersMessageHandler {}
 
 impl OffersMessageHandler for TestOffersMessageHandler {
 	fn handle_message(
-		&self, _message: OffersMessage, _context: OffersContext, _responder: Option<Responder>,
+		&self, _message: OffersMessage, _context: Option<OffersContext>,
+		_responder: Option<Responder>,
 	) -> ResponseInstruction<OffersMessage> {
 		ResponseInstruction::NoResponse
 	}
@@ -166,7 +168,7 @@ impl CustomOnionMessageHandler for TestCustomMessageHandler {
 		&self, _message_type: u64, buffer: &mut R,
 	) -> Result<Option<Self::CustomMessage>, msgs::DecodeError> {
 		let mut buf = Vec::new();
-		buffer.read_to_end(&mut buf)?;
+		buffer.read_to_limit(&mut buf, u64::MAX)?;
 		return Ok(Some(TestCustomMessage {}));
 	}
 	fn release_pending_custom_messages(&self) -> Vec<PendingOnionMessage<Self::CustomMessage>> {
@@ -176,7 +178,7 @@ impl CustomOnionMessageHandler for TestCustomMessageHandler {
 
 pub struct VecWriter(pub Vec<u8>);
 impl Writer for VecWriter {
-	fn write_all(&mut self, buf: &[u8]) -> Result<(), ::std::io::Error> {
+	fn write_all(&mut self, buf: &[u8]) -> Result<(), ::lightning::io::Error> {
 		self.0.extend_from_slice(buf);
 		Ok(())
 	}
@@ -224,7 +226,7 @@ impl NodeSigner for KeyProvider {
 	}
 
 	fn sign_invoice(
-		&self, _hrp_bytes: &[u8], _invoice_data: &[u5], _recipient: Recipient,
+		&self, _invoice: &RawBolt11Invoice, _recipient: Recipient,
 	) -> Result<RecoverableSignature, ()> {
 		unreachable!()
 	}
@@ -280,7 +282,7 @@ impl SignerProvider for KeyProvider {
 
 #[cfg(test)]
 mod tests {
-	use bitcoin::hashes::hex::FromHex;
+	use bitcoin::hex::FromHex;
 	use lightning::util::logger::{Logger, Record};
 	use std::collections::HashMap;
 	use std::sync::Mutex;

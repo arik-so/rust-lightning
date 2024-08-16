@@ -25,12 +25,8 @@
 #[cfg(not(any(feature = "std", feature = "no-std")))]
 compile_error!("at least one of the `std` or `no-std` features must be enabled");
 
-pub mod payment;
-pub mod utils;
-
 extern crate bech32;
-#[macro_use] extern crate lightning;
-extern crate secp256k1;
+extern crate lightning_types;
 extern crate alloc;
 #[cfg(any(test, feature = "std"))]
 extern crate core;
@@ -40,16 +36,14 @@ extern crate serde;
 #[cfg(feature = "std")]
 use std::time::SystemTime;
 
-use bech32::u5;
+use bech32::{FromBase32, u5};
 use bitcoin::{Address, Network, PubkeyHash, ScriptHash, WitnessProgram, WitnessVersion};
-use bitcoin::address::Payload;
 use bitcoin::hashes::{Hash, sha256};
-use lightning::ln::features::Bolt11InvoiceFeatures;
-use lightning::util::invoice::construct_invoice_preimage;
+use lightning_types::features::Bolt11InvoiceFeatures;
 
-use secp256k1::PublicKey;
-use secp256k1::{Message, Secp256k1};
-use secp256k1::ecdsa::RecoverableSignature;
+use bitcoin::secp256k1::PublicKey;
+use bitcoin::secp256k1::{Message, Secp256k1};
+use bitcoin::secp256k1::ecdsa::RecoverableSignature;
 
 use core::cmp::Ordering;
 use core::fmt::{Display, Formatter, self};
@@ -64,12 +58,10 @@ use core::str;
 use serde::{Deserialize, Deserializer,Serialize, Serializer, de::Error};
 
 #[doc(no_inline)]
-pub use lightning::ln::types::PaymentSecret;
+pub use lightning_types::payment::PaymentSecret;
 #[doc(no_inline)]
-pub use lightning::routing::router::{RouteHint, RouteHintHop};
-#[doc(no_inline)]
-pub use lightning::routing::gossip::RoutingFees;
-use lightning::util::string::UntrustedString;
+pub use lightning_types::routing::{RoutingFees, RouteHint, RouteHintHop};
+use lightning_types::string::UntrustedString;
 
 mod de;
 mod ser;
@@ -91,7 +83,7 @@ use crate::prelude::*;
 pub enum Bolt11ParseError {
 	Bech32Error(bech32::Error),
 	ParseAmountError(ParseIntError),
-	MalformedSignature(secp256k1::Error),
+	MalformedSignature(bitcoin::secp256k1::Error),
 	BadPrefix,
 	UnknownCurrency,
 	UnknownSiPrefix,
@@ -139,29 +131,25 @@ pub const DEFAULT_EXPIRY_TIME: u64 = 3600;
 
 /// Default minimum final CLTV expiry as defined by [BOLT 11].
 ///
-/// Note that this is *not* the same value as rust-lightning's minimum CLTV expiry, which is
-/// provided in [`MIN_FINAL_CLTV_EXPIRY_DELTA`].
+/// Note that this is *not* the same value as rust-lightning's minimum CLTV expiry.
 ///
 /// [BOLT 11]: https://github.com/lightning/bolts/blob/master/11-payment-encoding.md
-/// [`MIN_FINAL_CLTV_EXPIRY_DELTA`]: lightning::ln::channelmanager::MIN_FINAL_CLTV_EXPIRY_DELTA
 pub const DEFAULT_MIN_FINAL_CLTV_EXPIRY_DELTA: u64 = 18;
 
 /// Builder for [`Bolt11Invoice`]s. It's the most convenient and advised way to use this library. It
 /// ensures that only a semantically and syntactically correct invoice can be built using it.
 ///
 /// ```
-/// extern crate secp256k1;
-/// extern crate lightning;
 /// extern crate lightning_invoice;
 /// extern crate bitcoin;
 ///
 /// use bitcoin::hashes::Hash;
 /// use bitcoin::hashes::sha256;
 ///
-/// use secp256k1::Secp256k1;
-/// use secp256k1::SecretKey;
+/// use bitcoin::secp256k1::Secp256k1;
+/// use bitcoin::secp256k1::SecretKey;
 ///
-/// use lightning::ln::types::PaymentSecret;
+/// use lightning_types::payment::PaymentSecret;
 ///
 /// use lightning_invoice::{Currency, InvoiceBuilder};
 ///
@@ -876,7 +864,7 @@ impl SignedRawBolt11Invoice {
 	}
 
 	/// Recovers the public key used for signing the invoice from the recoverable signature.
-	pub fn recover_payee_pub_key(&self) -> Result<PayeePubKey, secp256k1::Error> {
+	pub fn recover_payee_pub_key(&self) -> Result<PayeePubKey, bitcoin::secp256k1::Error> {
 		let hash = Message::from_digest(self.hash);
 
 		Ok(PayeePubKey(Secp256k1::new().recover_ecdsa(
@@ -970,7 +958,23 @@ macro_rules! find_all_extract {
 impl RawBolt11Invoice {
 	/// Hash the HRP as bytes and signatureless data part.
 	fn hash_from_parts(hrp_bytes: &[u8], data_without_signature: &[u5]) -> [u8; 32] {
-		let preimage = construct_invoice_preimage(hrp_bytes, data_without_signature);
+		let mut preimage = Vec::<u8>::from(hrp_bytes);
+
+		let mut data_part = Vec::from(data_without_signature);
+		let overhang = (data_part.len() * 5) % 8;
+		if overhang > 0 {
+			// add padding if data does not end at a byte boundary
+			data_part.push(u5::try_from_u8(0).unwrap());
+
+			// if overhang is in (1..3) we need to add u5(0) padding two times
+			if overhang < 3 {
+				data_part.push(u5::try_from_u8(0).unwrap());
+			}
+		}
+
+		preimage.extend_from_slice(&Vec::<u8>::from_base32(&data_part)
+			.expect("No padding error may occur due to appended zero above."));
+
 		let mut hash: [u8; 32] = Default::default();
 		hash.copy_from_slice(&sha256::Hash::hash(&preimage)[..]);
 		hash
@@ -1242,9 +1246,9 @@ impl Bolt11Invoice {
 	/// Check that the invoice is signed correctly and that key recovery works
 	pub fn check_signature(&self) -> Result<(), Bolt11SemanticError> {
 		match self.signed_invoice.recover_payee_pub_key() {
-			Err(secp256k1::Error::InvalidRecoveryId) =>
+			Err(bitcoin::secp256k1::Error::InvalidRecoveryId) =>
 				return Err(Bolt11SemanticError::InvalidRecoveryId),
-			Err(secp256k1::Error::InvalidSignature) =>
+			Err(bitcoin::secp256k1::Error::InvalidSignature) =>
 				return Err(Bolt11SemanticError::InvalidSignature),
 			Err(e) => panic!("no other error may occur, got {:?}", e),
 			Ok(_) => {},
@@ -1427,22 +1431,22 @@ impl Bolt11Invoice {
 	/// Returns a list of all fallback addresses as [`Address`]es
 	pub fn fallback_addresses(&self) -> Vec<Address> {
 		self.fallbacks().iter().filter_map(|fallback| {
-			let payload = match fallback {
+			let address = match fallback {
 				Fallback::SegWitProgram { version, program } => {
-					match WitnessProgram::new(*version, program.clone()) {
-						Ok(witness_program) => Payload::WitnessProgram(witness_program),
+					match WitnessProgram::new(*version, &program) {
+						Ok(witness_program) => Address::from_witness_program(witness_program, self.network()),
 						Err(_) => return None,
 					}
 				}
 				Fallback::PubKeyHash(pkh) => {
-					Payload::PubkeyHash(*pkh)
+					Address::p2pkh(*pkh, self.network())
 				}
 				Fallback::ScriptHash(sh) => {
-					Payload::ScriptHash(*sh)
+					Address::p2sh_from_hash(*sh, self.network())
 				}
 			};
 
-			Some(Address::new(self.network(), payload))
+			Some(address)
 		}).collect()
 	}
 
@@ -1525,6 +1529,11 @@ impl Description {
 	/// Returns the underlying description [`UntrustedString`]
 	pub fn into_inner(self) -> UntrustedString {
 		self.0
+	}
+
+	/// Get a reference to the underlying description [`UntrustedString`]
+	pub fn as_inner(&self) -> &UntrustedString {
+		&self.0
 	}
 }
 
@@ -1631,15 +1640,12 @@ pub enum CreationError {
 	/// The supplied millisatoshi amount was greater than the total bitcoin supply.
 	InvalidAmount,
 
-	/// Route hints were required for this invoice and were missing. Applies to
-	/// [phantom invoices].
-	///
-	/// [phantom invoices]: crate::utils::create_phantom_invoice
+	// TODO: These two errors are really errors with things in the `lightning` crate and thus
+	// shouldn't live here.
+	/// Route hints were required for this invoice and were missing.
 	MissingRouteHints,
 
-	/// The provided `min_final_cltv_expiry_delta` was less than [`MIN_FINAL_CLTV_EXPIRY_DELTA`].
-	///
-	/// [`MIN_FINAL_CLTV_EXPIRY_DELTA`]: lightning::ln::channelmanager::MIN_FINAL_CLTV_EXPIRY_DELTA
+	/// The provided `min_final_cltv_expiry_delta` was less than rust-lightning's minimum.
 	MinFinalCltvExpiryDeltaTooShort,
 }
 
@@ -1803,9 +1809,9 @@ mod test {
 	#[test]
 	fn test_check_signature() {
 		use crate::TaggedField::*;
-		use secp256k1::Secp256k1;
-		use secp256k1::ecdsa::{RecoveryId, RecoverableSignature};
-		use secp256k1::{SecretKey, PublicKey};
+		use bitcoin::secp256k1::Secp256k1;
+		use bitcoin::secp256k1::ecdsa::{RecoveryId, RecoverableSignature};
+		use bitcoin::secp256k1::{SecretKey, PublicKey};
 		use crate::{SignedRawBolt11Invoice, Bolt11InvoiceSignature, RawBolt11Invoice, RawHrp, RawDataPart, Currency, Sha256,
 			 PositiveTimestamp};
 
@@ -1872,14 +1878,14 @@ mod test {
 	#[test]
 	fn test_check_feature_bits() {
 		use crate::TaggedField::*;
-		use lightning::ln::features::Bolt11InvoiceFeatures;
-		use secp256k1::Secp256k1;
-		use secp256k1::SecretKey;
+		use lightning_types::features::Bolt11InvoiceFeatures;
+		use bitcoin::secp256k1::Secp256k1;
+		use bitcoin::secp256k1::SecretKey;
 		use crate::{Bolt11Invoice, RawBolt11Invoice, RawHrp, RawDataPart, Currency, Sha256, PositiveTimestamp,
 			 Bolt11SemanticError};
 
 		let private_key = SecretKey::from_slice(&[42; 32]).unwrap();
-		let payment_secret = lightning::ln::types::PaymentSecret([21; 32]);
+		let payment_secret = lightning_types::payment::PaymentSecret([21; 32]);
 		let invoice_template = RawBolt11Invoice {
 			hrp: RawHrp {
 				currency: Currency::Bitcoin,
@@ -1993,9 +1999,9 @@ mod test {
 	#[test]
 	fn test_builder_fail() {
 		use crate::*;
-		use lightning::routing::router::RouteHintHop;
+		use lightning_types::routing::RouteHintHop;
 		use std::iter::FromIterator;
-		use secp256k1::PublicKey;
+		use bitcoin::secp256k1::PublicKey;
 
 		let builder = InvoiceBuilder::new(Currency::Bitcoin)
 			.payment_hash(sha256::Hash::from_slice(&[0;32][..]).unwrap())
@@ -2047,9 +2053,9 @@ mod test {
 	#[test]
 	fn test_builder_ok() {
 		use crate::*;
-		use lightning::routing::router::RouteHintHop;
-		use secp256k1::Secp256k1;
-		use secp256k1::{SecretKey, PublicKey};
+		use lightning_types::routing::RouteHintHop;
+		use bitcoin::secp256k1::Secp256k1;
+		use bitcoin::secp256k1::{SecretKey, PublicKey};
 		use std::time::Duration;
 
 		let secp_ctx = Secp256k1::new();
@@ -2169,8 +2175,8 @@ mod test {
 	#[test]
 	fn test_default_values() {
 		use crate::*;
-		use secp256k1::Secp256k1;
-		use secp256k1::SecretKey;
+		use bitcoin::secp256k1::Secp256k1;
+		use bitcoin::secp256k1::SecretKey;
 
 		let signed_invoice = InvoiceBuilder::new(Currency::Bitcoin)
 			.description("Test".into())
@@ -2195,8 +2201,8 @@ mod test {
 	#[test]
 	fn test_expiration() {
 		use crate::*;
-		use secp256k1::Secp256k1;
-		use secp256k1::SecretKey;
+		use bitcoin::secp256k1::Secp256k1;
+		use bitcoin::secp256k1::SecretKey;
 
 		let signed_invoice = InvoiceBuilder::new(Currency::Bitcoin)
 			.description("Test".into())

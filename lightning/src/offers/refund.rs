@@ -82,7 +82,7 @@
 //! [`ChannelManager`]: crate::ln::channelmanager::ChannelManager
 //! [`ChannelManager::create_refund_builder`]: crate::ln::channelmanager::ChannelManager::create_refund_builder
 
-use bitcoin::blockdata::constants::ChainHash;
+use bitcoin::constants::ChainHash;
 use bitcoin::network::Network;
 use bitcoin::secp256k1::{PublicKey, Secp256k1, self};
 use core::hash::{Hash, Hasher};
@@ -95,15 +95,16 @@ use crate::blinded_path::BlindedPath;
 use crate::ln::types::PaymentHash;
 use crate::ln::channelmanager::PaymentId;
 use crate::ln::features::InvoiceRequestFeatures;
-use crate::ln::inbound_payment::{ExpandedKey, IV_LEN, Nonce};
+use crate::ln::inbound_payment::{ExpandedKey, IV_LEN};
 use crate::ln::msgs::{DecodeError, MAX_VALUE_MSAT};
 use crate::offers::invoice::BlindedPayInfo;
 use crate::offers::invoice_request::{InvoiceRequestTlvStream, InvoiceRequestTlvStreamRef};
+use crate::offers::nonce::Nonce;
 use crate::offers::offer::{OfferTlvStream, OfferTlvStreamRef};
 use crate::offers::parse::{Bech32Encode, Bolt12ParseError, Bolt12SemanticError, ParsedMessage};
 use crate::offers::payer::{PayerContents, PayerTlvStream, PayerTlvStreamRef};
 use crate::offers::signer::{Metadata, MetadataMaterial, self};
-use crate::util::ser::{SeekReadable, Readable, WithoutLength, Writeable, Writer};
+use crate::util::ser::{CursorReadable, Readable, WithoutLength, Writeable, Writer};
 use crate::util::string::PrintableString;
 
 #[cfg(not(c_bindings))]
@@ -121,7 +122,8 @@ use crate::prelude::*;
 #[cfg(feature = "std")]
 use std::time::SystemTime;
 
-pub(super) const IV_BYTES: &[u8; IV_LEN] = b"LDK Refund ~~~~~";
+pub(super) const IV_BYTES_WITH_METADATA: &[u8; IV_LEN] = b"LDK Refund ~~~~~";
+pub(super) const IV_BYTES_WITHOUT_METADATA: &[u8; IV_LEN] = b"LDK Refund v2~~~";
 
 /// Builds a [`Refund`] for the "offer for money" flow.
 ///
@@ -188,25 +190,28 @@ macro_rules! refund_builder_methods { (
 	/// different payer id for each refund, assuming a different nonce is used.  Otherwise, the
 	/// provided `node_id` is used for the payer id.
 	///
-	/// Also, sets the metadata when [`RefundBuilder::build`] is called such that it can be used to
-	/// verify that an [`InvoiceRequest`] was produced for the refund given an [`ExpandedKey`].
+	/// Also, sets the metadata when [`RefundBuilder::build`] is called such that it can be used by
+	/// [`Bolt12Invoice::verify_using_metadata`] to determine if the invoice was produced for the
+	/// refund given an [`ExpandedKey`]. However, if [`RefundBuilder::path`] is called, then the
+	/// metadata must be included in each [`BlindedPath`] instead. In this case, use
+	/// [`Bolt12Invoice::verify_using_payer_data`].
 	///
 	/// The `payment_id` is encrypted in the metadata and should be unique. This ensures that only
 	/// one invoice will be paid for the refund and that payments can be uniquely identified.
 	///
-	/// [`InvoiceRequest`]: crate::offers::invoice_request::InvoiceRequest
+	/// [`Bolt12Invoice::verify_using_metadata`]: crate::offers::invoice::Bolt12Invoice::verify_using_metadata
+	/// [`Bolt12Invoice::verify_using_payer_data`]: crate::offers::invoice::Bolt12Invoice::verify_using_payer_data
 	/// [`ExpandedKey`]: crate::ln::inbound_payment::ExpandedKey
-	pub fn deriving_payer_id<ES: Deref>(
-		node_id: PublicKey, expanded_key: &ExpandedKey, entropy_source: ES,
+	pub fn deriving_payer_id(
+		node_id: PublicKey, expanded_key: &ExpandedKey, nonce: Nonce,
 		secp_ctx: &'a Secp256k1<$secp_context>, amount_msats: u64, payment_id: PaymentId
-	) -> Result<Self, Bolt12SemanticError> where ES::Target: EntropySource {
+	) -> Result<Self, Bolt12SemanticError> {
 		if amount_msats > MAX_VALUE_MSAT {
 			return Err(Bolt12SemanticError::InvalidAmount);
 		}
 
-		let nonce = Nonce::from_entropy_source(entropy_source);
 		let payment_id = Some(payment_id);
-		let derivation_material = MetadataMaterial::new(nonce, expanded_key, IV_BYTES, payment_id);
+		let derivation_material = MetadataMaterial::new(nonce, expanded_key, payment_id);
 		let metadata = Metadata::DerivedSigningPubkey(derivation_material);
 		Ok(Self {
 			refund: RefundContents {
@@ -302,9 +307,12 @@ macro_rules! refund_builder_methods { (
 		if $self.refund.payer.0.has_derivation_material() {
 			let mut metadata = core::mem::take(&mut $self.refund.payer.0);
 
-			if $self.refund.paths.is_none() {
+			let iv_bytes = if $self.refund.paths.is_none() {
 				metadata = metadata.without_keys();
-			}
+				IV_BYTES_WITH_METADATA
+			} else {
+				IV_BYTES_WITHOUT_METADATA
+			};
 
 			let mut tlv_stream = $self.refund.as_tlv_stream();
 			tlv_stream.0.metadata = None;
@@ -312,7 +320,8 @@ macro_rules! refund_builder_methods { (
 				tlv_stream.2.payer_id = None;
 			}
 
-			let (derived_metadata, keys) = metadata.derive_from(tlv_stream, $self.secp_ctx);
+			let (derived_metadata, keys) =
+				metadata.derive_from(iv_bytes, tlv_stream, $self.secp_ctx);
 			metadata = derived_metadata;
 			if let Some(keys) = keys {
 				$self.refund.payer_id = keys.public_key();
@@ -415,7 +424,7 @@ pub struct Refund {
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(super) struct RefundContents {
-	payer: PayerContents,
+	pub(super) payer: PayerContents,
 	// offer fields
 	description: String,
 	absolute_expiry: Option<Duration>,
@@ -727,10 +736,6 @@ impl RefundContents {
 		self.payer_note.as_ref().map(|payer_note| PrintableString(payer_note.as_str()))
 	}
 
-	pub(super) fn derives_keys(&self) -> bool {
-		self.payer.0.derives_payer_keys()
-	}
-
 	pub(super) fn as_tlv_stream(&self) -> RefundTlvStreamRef {
 		let payer = PayerTlvStreamRef {
 			metadata: self.payer.0.as_bytes(),
@@ -796,11 +801,11 @@ type RefundTlvStreamRef<'a> = (
 	InvoiceRequestTlvStreamRef<'a>,
 );
 
-impl SeekReadable for RefundTlvStream {
-	fn read<R: io::Read + io::Seek>(r: &mut R) -> Result<Self, DecodeError> {
-		let payer = SeekReadable::read(r)?;
-		let offer = SeekReadable::read(r)?;
-		let invoice_request = SeekReadable::read(r)?;
+impl CursorReadable for RefundTlvStream {
+	fn read<R: AsRef<[u8]>>(r: &mut io::Cursor<R>) -> Result<Self, DecodeError> {
+		let payer = CursorReadable::read(r)?;
+		let offer = CursorReadable::read(r)?;
+		let invoice_request = CursorReadable::read(r)?;
 
 		Ok((payer, offer, invoice_request))
 	}
@@ -926,7 +931,7 @@ mod tests {
 		super::RefundMaybeWithDerivedMetadataBuilder as RefundBuilder,
 	};
 
-	use bitcoin::blockdata::constants::ChainHash;
+	use bitcoin::constants::ChainHash;
 	use bitcoin::network::Network;
 	use bitcoin::secp256k1::{Keypair, Secp256k1, SecretKey};
 
@@ -939,6 +944,7 @@ mod tests {
 	use crate::ln::inbound_payment::ExpandedKey;
 	use crate::ln::msgs::{DecodeError, MAX_VALUE_MSAT};
 	use crate::offers::invoice_request::InvoiceRequestTlvStreamRef;
+	use crate::offers::nonce::Nonce;
 	use crate::offers::offer::OfferTlvStreamRef;
 	use crate::offers::parse::{Bolt12ParseError, Bolt12SemanticError};
 	use crate::offers::payer::PayerTlvStreamRef;
@@ -1028,11 +1034,12 @@ mod tests {
 		let node_id = payer_pubkey();
 		let expanded_key = ExpandedKey::new(&KeyMaterial([42; 32]));
 		let entropy = FixedEntropy {};
+		let nonce = Nonce::from_entropy_source(&entropy);
 		let secp_ctx = Secp256k1::new();
 		let payment_id = PaymentId([1; 32]);
 
 		let refund = RefundBuilder
-			::deriving_payer_id(node_id, &expanded_key, &entropy, &secp_ctx, 1000, payment_id)
+			::deriving_payer_id(node_id, &expanded_key, nonce, &secp_ctx, 1000, payment_id)
 			.unwrap()
 			.build().unwrap();
 		assert_eq!(refund.payer_id(), node_id);
@@ -1043,10 +1050,13 @@ mod tests {
 			.unwrap()
 			.build().unwrap()
 			.sign(recipient_sign).unwrap();
-		match invoice.verify(&expanded_key, &secp_ctx) {
+		match invoice.verify_using_metadata(&expanded_key, &secp_ctx) {
 			Ok(payment_id) => assert_eq!(payment_id, PaymentId([1; 32])),
 			Err(()) => panic!("verification failed"),
 		}
+		assert!(
+			invoice.verify_using_payer_data(payment_id, nonce, &expanded_key, &secp_ctx).is_err()
+		);
 
 		let mut tlv_stream = refund.as_tlv_stream();
 		tlv_stream.2.amount = Some(2000);
@@ -1059,7 +1069,7 @@ mod tests {
 			.unwrap()
 			.build().unwrap()
 			.sign(recipient_sign).unwrap();
-		assert!(invoice.verify(&expanded_key, &secp_ctx).is_err());
+		assert!(invoice.verify_using_metadata(&expanded_key, &secp_ctx).is_err());
 
 		// Fails verification with altered metadata
 		let mut tlv_stream = refund.as_tlv_stream();
@@ -1074,7 +1084,7 @@ mod tests {
 			.unwrap()
 			.build().unwrap()
 			.sign(recipient_sign).unwrap();
-		assert!(invoice.verify(&expanded_key, &secp_ctx).is_err());
+		assert!(invoice.verify_using_metadata(&expanded_key, &secp_ctx).is_err());
 	}
 
 	#[test]
@@ -1082,6 +1092,7 @@ mod tests {
 		let node_id = payer_pubkey();
 		let expanded_key = ExpandedKey::new(&KeyMaterial([42; 32]));
 		let entropy = FixedEntropy {};
+		let nonce = Nonce::from_entropy_source(&entropy);
 		let secp_ctx = Secp256k1::new();
 		let payment_id = PaymentId([1; 32]);
 
@@ -1095,7 +1106,7 @@ mod tests {
 		};
 
 		let refund = RefundBuilder
-			::deriving_payer_id(node_id, &expanded_key, &entropy, &secp_ctx, 1000, payment_id)
+			::deriving_payer_id(node_id, &expanded_key, nonce, &secp_ctx, 1000, payment_id)
 			.unwrap()
 			.path(blinded_path)
 			.build().unwrap();
@@ -1106,10 +1117,10 @@ mod tests {
 			.unwrap()
 			.build().unwrap()
 			.sign(recipient_sign).unwrap();
-		match invoice.verify(&expanded_key, &secp_ctx) {
-			Ok(payment_id) => assert_eq!(payment_id, PaymentId([1; 32])),
-			Err(()) => panic!("verification failed"),
-		}
+		assert!(invoice.verify_using_metadata(&expanded_key, &secp_ctx).is_err());
+		assert!(
+			invoice.verify_using_payer_data(payment_id, nonce, &expanded_key, &secp_ctx).is_ok()
+		);
 
 		// Fails verification with altered fields
 		let mut tlv_stream = refund.as_tlv_stream();
@@ -1123,7 +1134,9 @@ mod tests {
 			.unwrap()
 			.build().unwrap()
 			.sign(recipient_sign).unwrap();
-		assert!(invoice.verify(&expanded_key, &secp_ctx).is_err());
+		assert!(
+			invoice.verify_using_payer_data(payment_id, nonce, &expanded_key, &secp_ctx).is_err()
+		);
 
 		// Fails verification with altered payer_id
 		let mut tlv_stream = refund.as_tlv_stream();
@@ -1138,7 +1151,9 @@ mod tests {
 			.unwrap()
 			.build().unwrap()
 			.sign(recipient_sign).unwrap();
-		assert!(invoice.verify(&expanded_key, &secp_ctx).is_err());
+		assert!(
+			invoice.verify_using_payer_data(payment_id, nonce, &expanded_key, &secp_ctx).is_err()
+		);
 	}
 
 	#[test]

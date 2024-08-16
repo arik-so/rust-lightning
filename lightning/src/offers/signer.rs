@@ -16,8 +16,9 @@ use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::secp256k1::{Keypair, PublicKey, Secp256k1, SecretKey, self};
 use core::fmt;
 use crate::ln::channelmanager::PaymentId;
-use crate::ln::inbound_payment::{ExpandedKey, IV_LEN, Nonce};
+use crate::ln::inbound_payment::{ExpandedKey, IV_LEN};
 use crate::offers::merkle::TlvRecord;
+use crate::offers::nonce::Nonce;
 use crate::util::ser::Writeable;
 
 use crate::prelude::*;
@@ -40,27 +41,54 @@ const WITH_ENCRYPTED_PAYMENT_ID_HMAC_INPUT: &[u8; 16] = &[4; 16];
 #[derive(Clone)]
 pub(super) enum Metadata {
 	/// Metadata as parsed, supplied by the user, or derived from the message contents.
+	///
+	/// This is the terminal variant; any `Metadata` in a created message will always use this.
 	Bytes(Vec<u8>),
 
+	/// Metadata for deriving keys included as recipient data in a blinded path.
+	///
+	/// This variant should only be used at verification time, never when building.
+	RecipientData(Nonce),
+
+	/// Metadata for deriving keys included as payer data in a blinded path.
+	///
+	/// This variant should only be used at verification time, never when building.
+	PayerData([u8; PaymentId::LENGTH + Nonce::LENGTH]),
+
 	/// Metadata to be derived from message contents and given material.
+	///
+	/// This variant should only be used at building time.
 	Derived(MetadataMaterial),
 
 	/// Metadata and signing pubkey to be derived from message contents and given material.
+	///
+	/// This variant should only be used at building time.
 	DerivedSigningPubkey(MetadataMaterial),
 }
 
 impl Metadata {
+	pub fn payer_data(payment_id: PaymentId, nonce: Nonce, expanded_key: &ExpandedKey) -> Self {
+		let encrypted_payment_id = expanded_key.crypt_for_offer(payment_id.0, nonce);
+
+		let mut bytes = [0u8; PaymentId::LENGTH + Nonce::LENGTH];
+		bytes[..PaymentId::LENGTH].copy_from_slice(encrypted_payment_id.as_slice());
+		bytes[PaymentId::LENGTH..].copy_from_slice(nonce.as_slice());
+
+		Metadata::PayerData(bytes)
+	}
+
 	pub fn as_bytes(&self) -> Option<&Vec<u8>> {
 		match self {
 			Metadata::Bytes(bytes) => Some(bytes),
-			Metadata::Derived(_) => None,
-			Metadata::DerivedSigningPubkey(_) => None,
+			_ => { debug_assert!(false); None },
 		}
 	}
 
 	pub fn has_derivation_material(&self) -> bool {
 		match self {
 			Metadata::Bytes(_) => false,
+			Metadata::RecipientData(_) => { debug_assert!(false); false },
+			Metadata::PayerData(_) => { debug_assert!(false); false },
 			Metadata::Derived(_) => true,
 			Metadata::DerivedSigningPubkey(_) => true,
 		}
@@ -74,6 +102,8 @@ impl Metadata {
 			// derived, as wouldn't be the case if a Metadata::Bytes with length PaymentId::LENGTH +
 			// Nonce::LENGTH had been set explicitly.
 			Metadata::Bytes(bytes) => bytes.len() == PaymentId::LENGTH + Nonce::LENGTH,
+			Metadata::RecipientData(_) => false,
+			Metadata::PayerData(_) => true,
 			Metadata::Derived(_) => false,
 			Metadata::DerivedSigningPubkey(_) => true,
 		}
@@ -87,32 +117,42 @@ impl Metadata {
 			// derived, as wouldn't be the case if a Metadata::Bytes with length Nonce::LENGTH had
 			// been set explicitly.
 			Metadata::Bytes(bytes) => bytes.len() == Nonce::LENGTH,
+			Metadata::RecipientData(_) => true,
+			Metadata::PayerData(_) => false,
 			Metadata::Derived(_) => false,
 			Metadata::DerivedSigningPubkey(_) => true,
 		}
 	}
 
+	/// Indicates that signing keys should not be derived when calling [`derive_from`]. Only
+	/// applicable to state [`Metadata::DerivedSigningPubkey`]; calling this in other states will
+	/// result in no change.
+	///
+	/// [`derive_from`]: Self::derive_from
 	pub fn without_keys(self) -> Self {
 		match self {
 			Metadata::Bytes(_) => self,
+			Metadata::RecipientData(_) => { debug_assert!(false); self },
+			Metadata::PayerData(_) => { debug_assert!(false); self },
 			Metadata::Derived(_) => self,
 			Metadata::DerivedSigningPubkey(material) => Metadata::Derived(material),
 		}
 	}
 
 	pub fn derive_from<W: Writeable, T: secp256k1::Signing>(
-		self, tlv_stream: W, secp_ctx: Option<&Secp256k1<T>>
+		self, iv_bytes: &[u8; IV_LEN], tlv_stream: W, secp_ctx: Option<&Secp256k1<T>>
 	) -> (Self, Option<Keypair>) {
 		match self {
 			Metadata::Bytes(_) => (self, None),
-			Metadata::Derived(mut metadata_material) => {
-				tlv_stream.write(&mut metadata_material.hmac).unwrap();
-				(Metadata::Bytes(metadata_material.derive_metadata()), None)
+			Metadata::RecipientData(_) => { debug_assert!(false); (self, None) },
+			Metadata::PayerData(_) => { debug_assert!(false); (self, None) },
+			Metadata::Derived(metadata_material) => {
+				(Metadata::Bytes(metadata_material.derive_metadata(iv_bytes, tlv_stream)), None)
 			},
-			Metadata::DerivedSigningPubkey(mut metadata_material) => {
-				tlv_stream.write(&mut metadata_material.hmac).unwrap();
+			Metadata::DerivedSigningPubkey(metadata_material) => {
 				let secp_ctx = secp_ctx.unwrap();
-				let (metadata, keys) = metadata_material.derive_metadata_and_keys(secp_ctx);
+				let (metadata, keys) =
+					metadata_material.derive_metadata_and_keys(iv_bytes, tlv_stream, secp_ctx);
 				(Metadata::Bytes(metadata), Some(keys))
 			},
 		}
@@ -125,10 +165,24 @@ impl Default for Metadata {
 	}
 }
 
+impl AsRef<[u8]> for Metadata {
+	fn as_ref(&self) -> &[u8] {
+		match self {
+			Metadata::Bytes(bytes) => &bytes,
+			Metadata::RecipientData(nonce) => &nonce.0,
+			Metadata::PayerData(bytes) => bytes.as_slice(),
+			Metadata::Derived(_) => { debug_assert!(false); &[] },
+			Metadata::DerivedSigningPubkey(_) => { debug_assert!(false); &[] },
+		}
+	}
+}
+
 impl fmt::Debug for Metadata {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Metadata::Bytes(bytes) => bytes.fmt(f),
+			Metadata::RecipientData(Nonce(bytes)) => bytes.fmt(f),
+			Metadata::PayerData(bytes) => bytes.fmt(f),
 			Metadata::Derived(_) => f.write_str("Derived"),
 			Metadata::DerivedSigningPubkey(_) => f.write_str("DerivedSigningPubkey"),
 		}
@@ -144,6 +198,8 @@ impl PartialEq for Metadata {
 			} else {
 				false
 			},
+			Metadata::RecipientData(_) => false,
+			Metadata::PayerData(_) => false,
 			Metadata::Derived(_) => false,
 			Metadata::DerivedSigningPubkey(_) => false,
 		}
@@ -160,10 +216,7 @@ pub(super) struct MetadataMaterial {
 }
 
 impl MetadataMaterial {
-	pub fn new(
-		nonce: Nonce, expanded_key: &ExpandedKey, iv_bytes: &[u8; IV_LEN],
-		payment_id: Option<PaymentId>
-	) -> Self {
+	pub fn new(nonce: Nonce, expanded_key: &ExpandedKey, payment_id: Option<PaymentId>) -> Self {
 		// Encrypt payment_id
 		let encrypted_payment_id = payment_id.map(|payment_id| {
 			expanded_key.crypt_for_offer(payment_id.0, nonce)
@@ -171,12 +224,16 @@ impl MetadataMaterial {
 
 		Self {
 			nonce,
-			hmac: expanded_key.hmac_for_offer(nonce, iv_bytes),
+			hmac: expanded_key.hmac_for_offer(),
 			encrypted_payment_id,
 		}
 	}
 
-	fn derive_metadata(mut self) -> Vec<u8> {
+	fn derive_metadata<W: Writeable>(mut self, iv_bytes: &[u8; IV_LEN], tlv_stream: W) -> Vec<u8> {
+		self.hmac.input(iv_bytes);
+		self.hmac.input(&self.nonce.0);
+		tlv_stream.write(&mut self.hmac).unwrap();
+
 		self.hmac.input(DERIVED_METADATA_HMAC_INPUT);
 		self.maybe_include_encrypted_payment_id();
 
@@ -186,14 +243,17 @@ impl MetadataMaterial {
 		bytes
 	}
 
-	fn derive_metadata_and_keys<T: secp256k1::Signing>(
-		mut self, secp_ctx: &Secp256k1<T>
+	fn derive_metadata_and_keys<W: Writeable, T: secp256k1::Signing>(
+		mut self, iv_bytes: &[u8; IV_LEN], tlv_stream: W, secp_ctx: &Secp256k1<T>
 	) -> (Vec<u8>, Keypair) {
+		self.hmac.input(iv_bytes);
+		self.hmac.input(&self.nonce.0);
+		tlv_stream.write(&mut self.hmac).unwrap();
+
 		self.hmac.input(DERIVED_METADATA_AND_KEYS_HMAC_INPUT);
 		self.maybe_include_encrypted_payment_id();
 
-		let mut bytes = self.encrypted_payment_id.map(|id| id.to_vec()).unwrap_or(vec![]);
-		bytes.extend_from_slice(self.nonce.as_slice());
+		let bytes = self.encrypted_payment_id.map(|id| id.to_vec()).unwrap_or(vec![]);
 
 		let hmac = Hmac::from_engine(self.hmac);
 		let privkey = SecretKey::from_slice(hmac.as_byte_array()).unwrap();
@@ -215,9 +275,12 @@ impl MetadataMaterial {
 
 pub(super) fn derive_keys(nonce: Nonce, expanded_key: &ExpandedKey) -> Keypair {
 	const IV_BYTES: &[u8; IV_LEN] = b"LDK Invoice ~~~~";
+	let mut hmac = expanded_key.hmac_for_offer();
+	hmac.input(IV_BYTES);
+	hmac.input(&nonce.0);
+
 	let secp_ctx = Secp256k1::new();
-	let hmac = Hmac::from_engine(expanded_key.hmac_for_offer(nonce, IV_BYTES));
-	let privkey = SecretKey::from_slice(hmac.as_byte_array()).unwrap();
+	let privkey = SecretKey::from_slice(Hmac::from_engine(hmac).as_byte_array()).unwrap();
 	Keypair::from_secret_key(&secp_ctx, &privkey)
 }
 
@@ -312,7 +375,9 @@ fn hmac_for_message<'a>(
 		Ok(nonce) => nonce,
 		Err(_) => return Err(()),
 	};
-	let mut hmac = expanded_key.hmac_for_offer(nonce, iv_bytes);
+	let mut hmac = expanded_key.hmac_for_offer();
+	hmac.input(iv_bytes);
+	hmac.input(&nonce.0);
 
 	for record in tlv_stream {
 		hmac.input(record.record_bytes);

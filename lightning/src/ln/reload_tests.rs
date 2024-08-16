@@ -201,7 +201,7 @@ fn test_no_txn_manager_serialize_deserialize() {
 	nodes[1].node.peer_disconnected(&nodes[0].node.get_our_node_id());
 
 	let chan_0_monitor_serialized =
-		get_monitor!(nodes[0], ChannelId::v1_from_funding_outpoint(OutPoint { txid: tx.txid(), index: 0 })).encode();
+		get_monitor!(nodes[0], ChannelId::v1_from_funding_outpoint(OutPoint { txid: tx.compute_txid(), index: 0 })).encode();
 	reload_node!(nodes[0], nodes[0].node.encode(), &[&chan_0_monitor_serialized], persister, new_chain_monitor, nodes_0_deserialized);
 
 	nodes[0].node.peer_connected(&nodes[1].node.get_our_node_id(), &msgs::Init {
@@ -252,7 +252,7 @@ fn test_manager_serialize_deserialize_events() {
 
 	let (temporary_channel_id, tx, funding_output) = create_funding_transaction(&node_a, &node_b.node.get_our_node_id(), channel_value, 42);
 
-	node_a.node.funding_transaction_generated(&temporary_channel_id, &node_b.node.get_our_node_id(), tx.clone()).unwrap();
+	node_a.node.funding_transaction_generated(temporary_channel_id, node_b.node.get_our_node_id(), tx.clone()).unwrap();
 	check_added_monitors!(node_a, 0);
 
 	node_b.node.handle_funding_created(&node_a.node.get_our_node_id(), &get_event_msg!(node_a, MessageSendEvent::SendFundingCreated, node_b.node.get_our_node_id()));
@@ -289,7 +289,7 @@ fn test_manager_serialize_deserialize_events() {
 	let events_4 = nodes[0].node.get_and_clear_pending_events();
 	assert_eq!(events_4.len(), 0);
 	assert_eq!(nodes[0].tx_broadcaster.txn_broadcasted.lock().unwrap().len(), 1);
-	assert_eq!(nodes[0].tx_broadcaster.txn_broadcasted.lock().unwrap()[0].txid(), funding_output.txid);
+	assert_eq!(nodes[0].tx_broadcaster.txn_broadcasted.lock().unwrap()[0].compute_txid(), funding_output.txid);
 
 	// Make sure the channel is functioning as though the de/serialization never happened
 	assert_eq!(nodes[0].node.list_channels().len(), 1);
@@ -459,7 +459,7 @@ fn test_manager_serialize_deserialize_inconsistent_monitor() {
 		let txn = nodes[0].tx_broadcaster.txn_broadcasted.lock().unwrap();
 		assert_eq!(txn.len(), 1);
 		check_spends!(txn[0], funding_tx);
-		assert_eq!(txn[0].input[0].previous_output.txid, funding_tx.txid());
+		assert_eq!(txn[0].input[0].previous_output.txid, funding_tx.compute_txid());
 	}
 	check_added_monitors!(nodes[0], 1);
 
@@ -716,7 +716,7 @@ fn test_forwardable_regen() {
 
 	// First send a payment to nodes[1]
 	let (route, payment_hash, payment_preimage, payment_secret) = get_route_and_payment_hash!(nodes[0], nodes[1], 100_000);
-	nodes[0].node.send_payment_with_route(&route, payment_hash,
+	nodes[0].node.send_payment_with_route(route, payment_hash,
 		RecipientOnionFields::secret_only(payment_secret), PaymentId(payment_hash.0)).unwrap();
 	check_added_monitors!(nodes[0], 1);
 
@@ -730,7 +730,7 @@ fn test_forwardable_regen() {
 
 	// Next send a payment which is forwarded by nodes[1]
 	let (route_2, payment_hash_2, payment_preimage_2, payment_secret_2) = get_route_and_payment_hash!(nodes[0], nodes[2], 200_000);
-	nodes[0].node.send_payment_with_route(&route_2, payment_hash_2,
+	nodes[0].node.send_payment_with_route(route_2, payment_hash_2,
 		RecipientOnionFields::secret_only(payment_secret_2), PaymentId(payment_hash_2.0)).unwrap();
 	check_added_monitors!(nodes[0], 1);
 
@@ -815,7 +815,7 @@ fn do_test_partial_claim_before_restart(persist_both_monitors: bool) {
 			core::cmp::Ordering::Less } else { core::cmp::Ordering::Greater }
 	});
 
-	nodes[0].node.send_payment_with_route(&route, payment_hash,
+	nodes[0].node.send_payment_with_route(route, payment_hash,
 		RecipientOnionFields::secret_only(payment_secret), PaymentId(payment_hash.0)).unwrap();
 	check_added_monitors!(nodes[0], 2);
 
@@ -983,7 +983,7 @@ fn do_forwarded_payment_no_manager_persistence(use_cs_commitment: bool, claim_ht
 	}
 	let payment_id = PaymentId(nodes[0].keys_manager.backing.get_secure_random_bytes());
 	let htlc_expiry = nodes[0].best_block_info().1 + TEST_FINAL_CLTV;
-	nodes[0].node.send_payment_with_route(&route, payment_hash,
+	nodes[0].node.send_payment_with_route(route, payment_hash,
 		RecipientOnionFields::secret_only(payment_secret), payment_id).unwrap();
 	check_added_monitors!(nodes[0], 1);
 
@@ -1227,7 +1227,7 @@ fn test_reload_partial_funding_batch() {
 	assert_eq!(nodes[0].tx_broadcaster.txn_broadcast().len(), 0);
 
 	// Reload the node while a subset of the channels in the funding batch have persisted monitors.
-	let channel_id_1 = ChannelId::v1_from_funding_outpoint(OutPoint { txid: tx.txid(), index: 0 });
+	let channel_id_1 = ChannelId::v1_from_funding_outpoint(OutPoint { txid: tx.compute_txid(), index: 0 });
 	let node_encoded = nodes[0].node.encode();
 	let channel_monitor_1_serialized = get_monitor!(nodes[0], channel_id_1).encode();
 	reload_node!(nodes[0], node_encoded, &[&channel_monitor_1_serialized], new_persister, new_chain_monitor, new_channel_manager);
@@ -1249,9 +1249,9 @@ fn test_reload_partial_funding_batch() {
 	{
 		let broadcasted_txs = nodes[0].tx_broadcaster.txn_broadcast();
 		assert_eq!(broadcasted_txs.len(), 1);
-		assert!(broadcasted_txs[0].txid() != tx.txid());
+		assert!(broadcasted_txs[0].compute_txid() != tx.compute_txid());
 		assert_eq!(broadcasted_txs[0].input.len(), 1);
-		assert_eq!(broadcasted_txs[0].input[0].previous_output.txid, tx.txid());
+		assert_eq!(broadcasted_txs[0].input[0].previous_output.txid, tx.compute_txid());
 	}
 
 	// Ensure the channels don't exist anymore.

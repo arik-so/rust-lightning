@@ -26,6 +26,8 @@ use lightning::chain::chainmonitor::{ChainMonitor, Persist};
 use lightning::events::EventHandler;
 #[cfg(feature = "std")]
 use lightning::events::EventsProvider;
+#[cfg(feature = "futures")]
+use lightning::events::ReplayEvent;
 use lightning::events::{Event, PathFailure};
 
 use lightning::ln::channelmanager::AChannelManager;
@@ -490,23 +492,28 @@ pub(crate) mod futures_util {
 	pub(crate) struct Selector<
 		A: Future<Output = ()> + Unpin,
 		B: Future<Output = ()> + Unpin,
-		C: Future<Output = bool> + Unpin,
+		C: Future<Output = ()> + Unpin,
+		D: Future<Output = bool> + Unpin,
 	> {
 		pub a: A,
 		pub b: B,
 		pub c: C,
+		pub d: D,
 	}
+
 	pub(crate) enum SelectorOutput {
 		A,
 		B,
-		C(bool),
+		C,
+		D(bool),
 	}
 
 	impl<
 			A: Future<Output = ()> + Unpin,
 			B: Future<Output = ()> + Unpin,
-			C: Future<Output = bool> + Unpin,
-		> Future for Selector<A, B, C>
+			C: Future<Output = ()> + Unpin,
+			D: Future<Output = bool> + Unpin,
+		> Future for Selector<A, B, C, D>
 	{
 		type Output = SelectorOutput;
 		fn poll(
@@ -525,12 +532,40 @@ pub(crate) mod futures_util {
 				Poll::Pending => {},
 			}
 			match Pin::new(&mut self.c).poll(ctx) {
+				Poll::Ready(()) => {
+					return Poll::Ready(SelectorOutput::C);
+				},
+				Poll::Pending => {},
+			}
+			match Pin::new(&mut self.d).poll(ctx) {
 				Poll::Ready(res) => {
-					return Poll::Ready(SelectorOutput::C(res));
+					return Poll::Ready(SelectorOutput::D(res));
 				},
 				Poll::Pending => {},
 			}
 			Poll::Pending
+		}
+	}
+
+	/// A selector that takes a future wrapped in an option that will be polled if it is `Some` and
+	/// will always be pending otherwise.
+	pub(crate) struct OptionalSelector<F: Future<Output = ()> + Unpin> {
+		pub optional_future: Option<F>,
+	}
+
+	impl<F: Future<Output = ()> + Unpin> Future for OptionalSelector<F> {
+		type Output = ();
+		fn poll(mut self: Pin<&mut Self>, ctx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
+			match self.optional_future.as_mut() {
+				Some(f) => match Pin::new(f).poll(ctx) {
+					Poll::Ready(()) => {
+						self.optional_future.take();
+						Poll::Ready(())
+					},
+					Poll::Pending => Poll::Pending,
+				},
+				None => Poll::Pending,
+			}
 		}
 	}
 
@@ -555,7 +590,7 @@ pub(crate) mod futures_util {
 #[cfg(feature = "futures")]
 use core::task;
 #[cfg(feature = "futures")]
-use futures_util::{dummy_waker, Selector, SelectorOutput};
+use futures_util::{dummy_waker, OptionalSelector, Selector, SelectorOutput};
 
 /// Processes background events in a future.
 ///
@@ -583,6 +618,7 @@ use futures_util::{dummy_waker, Selector, SelectorOutput};
 /// could setup `process_events_async` like this:
 /// ```
 /// # use lightning::io;
+/// # use lightning::events::ReplayEvent;
 /// # use std::sync::{Arc, RwLock};
 /// # use std::sync::atomic::{AtomicBool, Ordering};
 /// # use std::time::SystemTime;
@@ -600,7 +636,7 @@ use futures_util::{dummy_waker, Selector, SelectorOutput};
 /// # }
 /// # struct EventHandler {}
 /// # impl EventHandler {
-/// #     async fn handle_event(&self, _: lightning::events::Event) {}
+/// #     async fn handle_event(&self, _: lightning::events::Event) -> Result<(), ReplayEvent> { Ok(()) }
 /// # }
 /// # #[derive(Eq, PartialEq, Clone, Hash)]
 /// # struct SocketDescriptor {}
@@ -698,7 +734,7 @@ pub async fn process_events_async<
 	G: 'static + Deref<Target = NetworkGraph<L>> + Send + Sync,
 	L: 'static + Deref + Send + Sync,
 	P: 'static + Deref + Send + Sync,
-	EventHandlerFuture: core::future::Future<Output = ()>,
+	EventHandlerFuture: core::future::Future<Output = Result<(), ReplayEvent>>,
 	EventHandler: Fn(Event) -> EventHandlerFuture,
 	PS: 'static + Deref + Send,
 	M: 'static
@@ -751,12 +787,16 @@ where
 					if update_scorer(scorer, &event, duration_since_epoch) {
 						log_trace!(logger, "Persisting scorer after update");
 						if let Err(e) = persister.persist_scorer(&scorer) {
-							log_error!(logger, "Error: Failed to persist scorer, check your disk and permissions {}", e)
+							log_error!(logger, "Error: Failed to persist scorer, check your disk and permissions {}", e);
+							// We opt not to abort early on persistence failure here as persisting
+							// the scorer is non-critical and we still hope that it will have
+							// resolved itself when it is potentially critical in event handling
+							// below.
 						}
 					}
 				}
 			}
-			event_handler(event).await;
+			event_handler(event).await
 		})
 	};
 	define_run_body!(
@@ -775,18 +815,25 @@ where
 		scorer,
 		should_break,
 		{
+			let om_fut = if let Some(om) = onion_messenger.as_ref() {
+				let fut = om.get_om().get_update_future();
+				OptionalSelector { optional_future: Some(fut) }
+			} else {
+				OptionalSelector { optional_future: None }
+			};
 			let fut = Selector {
 				a: channel_manager.get_cm().get_event_or_persistence_needed_future(),
 				b: chain_monitor.get_update_future(),
-				c: sleeper(if mobile_interruptable_platform {
+				c: om_fut,
+				d: sleeper(if mobile_interruptable_platform {
 					Duration::from_millis(100)
 				} else {
 					Duration::from_secs(FASTEST_TIMER)
 				}),
 			};
 			match fut.await {
-				SelectorOutput::A | SelectorOutput::B => {},
-				SelectorOutput::C(exit) => {
+				SelectorOutput::A | SelectorOutput::B | SelectorOutput::C => {},
+				SelectorOutput::D(exit) => {
 					should_break = exit;
 				},
 			}
@@ -913,7 +960,7 @@ impl BackgroundProcessor {
 						}
 					}
 				}
-				event_handler.handle_event(event);
+				event_handler.handle_event(event)
 			};
 			define_run_body!(
 				persister,
@@ -931,11 +978,19 @@ impl BackgroundProcessor {
 				scorer,
 				stop_thread.load(Ordering::Acquire),
 				{
-					Sleeper::from_two_futures(
-						&channel_manager.get_cm().get_event_or_persistence_needed_future(),
-						&chain_monitor.get_update_future(),
-					)
-					.wait_timeout(Duration::from_millis(100));
+					let sleeper = if let Some(om) = onion_messenger.as_ref() {
+						Sleeper::from_three_futures(
+							&channel_manager.get_cm().get_event_or_persistence_needed_future(),
+							&chain_monitor.get_update_future(),
+							&om.get_om().get_update_future(),
+						)
+					} else {
+						Sleeper::from_two_futures(
+							&channel_manager.get_cm().get_event_or_persistence_needed_future(),
+							&chain_monitor.get_update_future(),
+						)
+					};
+					sleeper.wait_timeout(Duration::from_millis(100));
 				},
 				|_| Instant::now(),
 				|time: &Instant, dur| time.elapsed().as_secs() > dur,
@@ -1004,18 +1059,21 @@ impl Drop for BackgroundProcessor {
 #[cfg(all(feature = "std", test))]
 mod tests {
 	use super::{BackgroundProcessor, GossipSync, FRESHNESS_TIMER};
-	use bitcoin::blockdata::constants::{genesis_block, ChainHash};
-	use bitcoin::blockdata::locktime::absolute::LockTime;
-	use bitcoin::blockdata::transaction::{Transaction, TxOut};
+	use bitcoin::constants::{genesis_block, ChainHash};
 	use bitcoin::hashes::Hash;
+	use bitcoin::locktime::absolute::LockTime;
 	use bitcoin::network::Network;
 	use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
 	use bitcoin::transaction::Version;
+	use bitcoin::transaction::{Transaction, TxOut};
 	use bitcoin::{Amount, ScriptBuf, Txid};
+	use core::sync::atomic::{AtomicBool, Ordering};
 	use lightning::chain::channelmonitor::ANTI_REORG_DELAY;
 	use lightning::chain::transaction::OutPoint;
 	use lightning::chain::{chainmonitor, BestBlock, Confirm, Filter};
-	use lightning::events::{Event, MessageSendEvent, MessageSendEventsProvider, PathFailure};
+	use lightning::events::{
+		Event, MessageSendEvent, MessageSendEventsProvider, PathFailure, ReplayEvent,
+	};
 	use lightning::ln::channelmanager;
 	use lightning::ln::channelmanager::{
 		ChainParameters, PaymentId, BREAKDOWN_TIMEOUT, MIN_CLTV_EXPIRY_DELTA,
@@ -1268,7 +1326,7 @@ mod tests {
 				&& key == CHANNEL_MANAGER_PERSISTENCE_KEY
 			{
 				if let Some((error, message)) = self.manager_error {
-					return Err(std::io::Error::new(error, message));
+					return Err(std::io::Error::new(error, message).into());
 				}
 			}
 
@@ -1286,7 +1344,7 @@ mod tests {
 				};
 
 				if let Some((error, message)) = self.graph_error {
-					return Err(std::io::Error::new(error, message));
+					return Err(std::io::Error::new(error, message).into());
 				}
 			}
 
@@ -1295,7 +1353,7 @@ mod tests {
 				&& key == SCORER_PERSISTENCE_KEY
 			{
 				if let Some((error, message)) = self.scorer_error {
-					return Err(std::io::Error::new(error, message));
+					return Err(std::io::Error::new(error, message).into());
 				}
 			}
 
@@ -1618,8 +1676,8 @@ mod tests {
 			$node_a
 				.node
 				.funding_transaction_generated(
-					&temporary_channel_id,
-					&$node_b.node.get_our_node_id(),
+					temporary_channel_id,
+					$node_b.node.get_our_node_id(),
 					tx.clone(),
 				)
 				.unwrap();
@@ -1757,7 +1815,7 @@ mod tests {
 		// Initiate the background processors to watch each node.
 		let data_dir = nodes[0].kv_store.get_data_dir();
 		let persister = Arc::new(Persister::new(data_dir));
-		let event_handler = |_: _| {};
+		let event_handler = |_: _| Ok(());
 		let bg_processor = BackgroundProcessor::start(
 			persister,
 			event_handler,
@@ -1808,7 +1866,10 @@ mod tests {
 		nodes[0]
 			.node
 			.force_close_broadcasting_latest_txn(
-				&ChannelId::v1_from_funding_outpoint(OutPoint { txid: tx.txid(), index: 0 }),
+				&ChannelId::v1_from_funding_outpoint(OutPoint {
+					txid: tx.compute_txid(),
+					index: 0,
+				}),
 				&nodes[1].node.get_our_node_id(),
 				error_message.to_string(),
 			)
@@ -1847,7 +1908,7 @@ mod tests {
 		let (_, nodes) = create_nodes(1, "test_timer_tick_called");
 		let data_dir = nodes[0].kv_store.get_data_dir();
 		let persister = Arc::new(Persister::new(data_dir));
-		let event_handler = |_: _| {};
+		let event_handler = |_: _| Ok(());
 		let bg_processor = BackgroundProcessor::start(
 			persister,
 			event_handler,
@@ -1889,7 +1950,7 @@ mod tests {
 		let persister = Arc::new(
 			Persister::new(data_dir).with_manager_error(std::io::ErrorKind::Other, "test"),
 		);
-		let event_handler = |_: _| {};
+		let event_handler = |_: _| Ok(());
 		let bg_processor = BackgroundProcessor::start(
 			persister,
 			event_handler,
@@ -1924,7 +1985,7 @@ mod tests {
 
 		let bp_future = super::process_events_async(
 			persister,
-			|_: _| async {},
+			|_: _| async { Ok(()) },
 			nodes[0].chain_monitor.clone(),
 			nodes[0].node.clone(),
 			Some(nodes[0].messenger.clone()),
@@ -1944,7 +2005,7 @@ mod tests {
 		match bp_future.await {
 			Ok(_) => panic!("Expected error persisting manager"),
 			Err(e) => {
-				assert_eq!(e.kind(), std::io::ErrorKind::Other);
+				assert_eq!(e.kind(), lightning::io::ErrorKind::Other);
 				assert_eq!(e.get_ref().unwrap().to_string(), "test");
 			},
 		}
@@ -1957,7 +2018,7 @@ mod tests {
 		let data_dir = nodes[0].kv_store.get_data_dir();
 		let persister =
 			Arc::new(Persister::new(data_dir).with_graph_error(std::io::ErrorKind::Other, "test"));
-		let event_handler = |_: _| {};
+		let event_handler = |_: _| Ok(());
 		let bg_processor = BackgroundProcessor::start(
 			persister,
 			event_handler,
@@ -1986,7 +2047,7 @@ mod tests {
 		let data_dir = nodes[0].kv_store.get_data_dir();
 		let persister =
 			Arc::new(Persister::new(data_dir).with_scorer_error(std::io::ErrorKind::Other, "test"));
-		let event_handler = |_: _| {};
+		let event_handler = |_: _| Ok(());
 		let bg_processor = BackgroundProcessor::start(
 			persister,
 			event_handler,
@@ -2021,13 +2082,16 @@ mod tests {
 		// Set up a background event handler for FundingGenerationReady events.
 		let (funding_generation_send, funding_generation_recv) = std::sync::mpsc::sync_channel(1);
 		let (channel_pending_send, channel_pending_recv) = std::sync::mpsc::sync_channel(1);
-		let event_handler = move |event: Event| match event {
-			Event::FundingGenerationReady { .. } => funding_generation_send
-				.send(handle_funding_generation_ready!(event, channel_value))
-				.unwrap(),
-			Event::ChannelPending { .. } => channel_pending_send.send(()).unwrap(),
-			Event::ChannelReady { .. } => {},
-			_ => panic!("Unexpected event: {:?}", event),
+		let event_handler = move |event: Event| {
+			match event {
+				Event::FundingGenerationReady { .. } => funding_generation_send
+					.send(handle_funding_generation_ready!(event, channel_value))
+					.unwrap(),
+				Event::ChannelPending { .. } => channel_pending_send.send(()).unwrap(),
+				Event::ChannelReady { .. } => {},
+				_ => panic!("Unexpected event: {:?}", event),
+			}
+			Ok(())
 		};
 
 		let bg_processor = BackgroundProcessor::start(
@@ -2049,7 +2113,7 @@ mod tests {
 			.expect("FundingGenerationReady not handled within deadline");
 		nodes[0]
 			.node
-			.funding_transaction_generated(&temporary_channel_id, &node_1_id, funding_tx.clone())
+			.funding_transaction_generated(temporary_channel_id, node_1_id, funding_tx.clone())
 			.unwrap();
 		let msg_0 = get_event_msg!(nodes[0], MessageSendEvent::SendFundingCreated, node_1_id);
 		nodes[1].node.handle_funding_created(&node_0_id, &msg_0);
@@ -2073,7 +2137,7 @@ mod tests {
 			get_event_msg!(nodes[1], MessageSendEvent::SendChannelUpdate, node_0_id);
 		let broadcast_funding =
 			nodes[0].tx_broadcaster.txn_broadcasted.lock().unwrap().pop().unwrap();
-		assert_eq!(broadcast_funding.txid(), funding_tx.txid());
+		assert_eq!(broadcast_funding.compute_txid(), funding_tx.compute_txid());
 		assert!(nodes[0].tx_broadcaster.txn_broadcasted.lock().unwrap().is_empty());
 
 		if !std::thread::panicking() {
@@ -2082,11 +2146,14 @@ mod tests {
 
 		// Set up a background event handler for SpendableOutputs events.
 		let (sender, receiver) = std::sync::mpsc::sync_channel(1);
-		let event_handler = move |event: Event| match event {
-			Event::SpendableOutputs { .. } => sender.send(event).unwrap(),
-			Event::ChannelReady { .. } => {},
-			Event::ChannelClosed { .. } => {},
-			_ => panic!("Unexpected event: {:?}", event),
+		let event_handler = move |event: Event| {
+			match event {
+				Event::SpendableOutputs { .. } => sender.send(event).unwrap(),
+				Event::ChannelReady { .. } => {},
+				Event::ChannelClosed { .. } => {},
+				_ => panic!("Unexpected event: {:?}", event),
+			}
+			Ok(())
 		};
 		let persister = Arc::new(Persister::new(data_dir));
 		let bg_processor = BackgroundProcessor::start(
@@ -2148,7 +2215,7 @@ mod tests {
 		let sweep_tx_0 = nodes[0].tx_broadcaster.txn_broadcasted.lock().unwrap().pop().unwrap();
 		match tracked_output.status {
 			OutputSpendStatus::PendingFirstConfirmation { latest_spending_tx, .. } => {
-				assert_eq!(sweep_tx_0.txid(), latest_spending_tx.txid());
+				assert_eq!(sweep_tx_0.compute_txid(), latest_spending_tx.compute_txid());
 			},
 			_ => panic!("Unexpected status"),
 		}
@@ -2160,7 +2227,7 @@ mod tests {
 		let sweep_tx_1 = nodes[0].tx_broadcaster.txn_broadcasted.lock().unwrap().pop().unwrap();
 		match tracked_output.status {
 			OutputSpendStatus::PendingFirstConfirmation { latest_spending_tx, .. } => {
-				assert_eq!(sweep_tx_1.txid(), latest_spending_tx.txid());
+				assert_eq!(sweep_tx_1.compute_txid(), latest_spending_tx.compute_txid());
 			},
 			_ => panic!("Unexpected status"),
 		}
@@ -2172,7 +2239,7 @@ mod tests {
 		let sweep_tx_2 = nodes[0].tx_broadcaster.txn_broadcasted.lock().unwrap().pop().unwrap();
 		match tracked_output.status {
 			OutputSpendStatus::PendingFirstConfirmation { latest_spending_tx, .. } => {
-				assert_eq!(sweep_tx_2.txid(), latest_spending_tx.txid());
+				assert_eq!(sweep_tx_2.compute_txid(), latest_spending_tx.compute_txid());
 			},
 			_ => panic!("Unexpected status"),
 		}
@@ -2185,7 +2252,7 @@ mod tests {
 		let tracked_output = nodes[0].sweeper.tracked_spendable_outputs().first().unwrap().clone();
 		match tracked_output.status {
 			OutputSpendStatus::PendingThresholdConfirmations { latest_spending_tx, .. } => {
-				assert_eq!(sweep_tx_2.txid(), latest_spending_tx.txid());
+				assert_eq!(sweep_tx_2.compute_txid(), latest_spending_tx.compute_txid());
 			},
 			_ => panic!("Unexpected status"),
 		}
@@ -2200,7 +2267,7 @@ mod tests {
 		let tracked_output = nodes[0].sweeper.tracked_spendable_outputs().first().unwrap().clone();
 		match tracked_output.status {
 			OutputSpendStatus::PendingThresholdConfirmations { latest_spending_tx, .. } => {
-				assert_eq!(sweep_tx_2.txid(), latest_spending_tx.txid());
+				assert_eq!(sweep_tx_2.compute_txid(), latest_spending_tx.compute_txid());
 			},
 			_ => panic!("Unexpected status"),
 		}
@@ -2216,11 +2283,59 @@ mod tests {
 	}
 
 	#[test]
+	fn test_event_handling_failures_are_replayed() {
+		let (_, nodes) = create_nodes(2, "test_event_handling_failures_are_replayed");
+		let channel_value = 100000;
+		let data_dir = nodes[0].kv_store.get_data_dir();
+		let persister = Arc::new(Persister::new(data_dir.clone()));
+
+		let (first_event_send, first_event_recv) = std::sync::mpsc::sync_channel(1);
+		let (second_event_send, second_event_recv) = std::sync::mpsc::sync_channel(1);
+		let should_fail_event_handling = Arc::new(AtomicBool::new(true));
+		let event_handler = move |event: Event| {
+			if let Ok(true) = should_fail_event_handling.compare_exchange(
+				true,
+				false,
+				Ordering::Acquire,
+				Ordering::Relaxed,
+			) {
+				first_event_send.send(event).unwrap();
+				return Err(ReplayEvent());
+			}
+
+			second_event_send.send(event).unwrap();
+			Ok(())
+		};
+
+		let bg_processor = BackgroundProcessor::start(
+			persister,
+			event_handler,
+			nodes[0].chain_monitor.clone(),
+			nodes[0].node.clone(),
+			Some(nodes[0].messenger.clone()),
+			nodes[0].no_gossip_sync(),
+			nodes[0].peer_manager.clone(),
+			nodes[0].logger.clone(),
+			Some(nodes[0].scorer.clone()),
+		);
+
+		begin_open_channel!(nodes[0], nodes[1], channel_value);
+		assert_eq!(
+			first_event_recv.recv_timeout(Duration::from_secs(EVENT_DEADLINE)),
+			second_event_recv.recv_timeout(Duration::from_secs(EVENT_DEADLINE))
+		);
+
+		if !std::thread::panicking() {
+			bg_processor.stop().unwrap();
+		}
+	}
+
+	#[test]
 	fn test_scorer_persistence() {
 		let (_, nodes) = create_nodes(2, "test_scorer_persistence");
 		let data_dir = nodes[0].kv_store.get_data_dir();
 		let persister = Arc::new(Persister::new(data_dir));
-		let event_handler = |_: _| {};
+		let event_handler = |_: _| Ok(());
 		let bg_processor = BackgroundProcessor::start(
 			persister,
 			event_handler,
@@ -2315,7 +2430,7 @@ mod tests {
 		let data_dir = nodes[0].kv_store.get_data_dir();
 		let persister = Arc::new(Persister::new(data_dir).with_graph_persistence_notifier(sender));
 
-		let event_handler = |_: _| {};
+		let event_handler = |_: _| Ok(());
 		let background_processor = BackgroundProcessor::start(
 			persister,
 			event_handler,
@@ -2350,7 +2465,7 @@ mod tests {
 		let (exit_sender, exit_receiver) = tokio::sync::watch::channel(());
 		let bp_future = super::process_events_async(
 			persister,
-			|_: _| async {},
+			|_: _| async { Ok(()) },
 			nodes[0].chain_monitor.clone(),
 			nodes[0].node.clone(),
 			Some(nodes[0].messenger.clone()),
@@ -2492,12 +2607,15 @@ mod tests {
 	#[test]
 	fn test_payment_path_scoring() {
 		let (sender, receiver) = std::sync::mpsc::sync_channel(1);
-		let event_handler = move |event: Event| match event {
-			Event::PaymentPathFailed { .. } => sender.send(event).unwrap(),
-			Event::PaymentPathSuccessful { .. } => sender.send(event).unwrap(),
-			Event::ProbeSuccessful { .. } => sender.send(event).unwrap(),
-			Event::ProbeFailed { .. } => sender.send(event).unwrap(),
-			_ => panic!("Unexpected event: {:?}", event),
+		let event_handler = move |event: Event| {
+			match event {
+				Event::PaymentPathFailed { .. } => sender.send(event).unwrap(),
+				Event::PaymentPathSuccessful { .. } => sender.send(event).unwrap(),
+				Event::ProbeSuccessful { .. } => sender.send(event).unwrap(),
+				Event::ProbeFailed { .. } => sender.send(event).unwrap(),
+				_ => panic!("Unexpected event: {:?}", event),
+			}
+			Ok(())
 		};
 
 		let (_, nodes) = create_nodes(1, "test_payment_path_scoring");
@@ -2543,6 +2661,7 @@ mod tests {
 					Event::ProbeFailed { .. } => sender_ref.send(event).await.unwrap(),
 					_ => panic!("Unexpected event: {:?}", event),
 				}
+				Ok(())
 			}
 		};
 

@@ -22,7 +22,7 @@ use core::cmp;
 use crate::sync::{Mutex, Arc};
 #[cfg(test)] use crate::sync::MutexGuard;
 
-use bitcoin::blockdata::transaction::Transaction;
+use bitcoin::transaction::Transaction;
 use bitcoin::hashes::Hash;
 use bitcoin::sighash;
 use bitcoin::sighash::EcdsaSighashType;
@@ -33,7 +33,7 @@ use bitcoin::secp256k1::All;
 use bitcoin::secp256k1::{SecretKey, PublicKey};
 use bitcoin::secp256k1::{Secp256k1, ecdsa::Signature};
 #[cfg(taproot)]
-use musig2::types::{PartialSignature, PublicNonce, SecretNonce};
+use musig2::types::{PartialSignature, PublicNonce};
 use crate::sign::HTLCDescriptor;
 use crate::util::ser::{Writeable, Writer};
 use crate::io::Error;
@@ -172,7 +172,11 @@ impl ChannelSigner for TestChannelSigner {
 		self.inner.get_per_commitment_point(idx, secp_ctx)
 	}
 
-	fn release_commitment_secret(&self, idx: u64) -> [u8; 32] {
+	fn release_commitment_secret(&self, idx: u64) -> Result<[u8; 32], ()> {
+		#[cfg(test)]
+		if !self.is_signer_available(SignerOp::ReleaseCommitmentSecret) {
+			return Err(());
+		}
 		{
 			let mut state = self.state.lock().unwrap();
 			assert!(idx == state.last_holder_revoked_commitment || idx == state.last_holder_revoked_commitment - 1, "can only revoke the current or next unrevoked commitment - trying {}, last revoked {}", idx, state.last_holder_revoked_commitment);
@@ -348,6 +352,7 @@ impl EcdsaChannelSigner for TestChannelSigner {
 }
 
 #[cfg(taproot)]
+#[allow(unused)]
 impl TaprootChannelSigner for TestChannelSigner {
 	fn generate_local_nonce_pair(&self, commitment_number: u64, secp_ctx: &Secp256k1<All>) -> PublicNonce {
 		todo!()

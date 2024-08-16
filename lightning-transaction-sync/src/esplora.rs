@@ -367,9 +367,25 @@ where
 			// unwrap() safety: len() > 0 is checked above
 			let pos = *indexes.first().unwrap() as usize;
 			if let Some(tx) = maybe_await!(self.client.get_tx(&txid))? {
-				if tx.txid() != txid {
+				if tx.compute_txid() != txid {
 					log_error!(self.logger, "Retrieved transaction for txid {} doesn't match expectations. This should not happen. Please verify server integrity.", txid);
 					return Err(InternalError::Failed);
+				}
+
+				// Bitcoin Core's Merkle tree implementation has no way to discern between
+				// internal and leaf node entries. As a consequence it is susceptible to an
+				// attacker injecting additional transactions by crafting 64-byte
+				// transactions matching an inner Merkle node's hash (see
+				// https://web.archive.org/web/20240329003521/https://bitslog.com/2018/06/09/leaf-node-weakness-in-bitcoin-merkle-tree-design/).
+				// To protect against this (highly unlikely) attack vector, we check that the
+				// transaction is at least 65 bytes in length.
+				if tx.total_size() == 64 {
+					log_error!(
+						self.logger,
+						"Skipping transaction {} due to retrieving potentially invalid tx data.",
+						txid
+					);
+					return Ok(None);
 				}
 
 				if let Some(block_height) = known_block_height {

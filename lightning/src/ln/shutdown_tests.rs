@@ -31,9 +31,9 @@ use crate::prelude::*;
 
 use bitcoin::{Transaction, TxOut, WitnessProgram, WitnessVersion};
 use bitcoin::amount::Amount;
-use bitcoin::blockdata::locktime::absolute::LockTime;
-use bitcoin::blockdata::script::Builder;
-use bitcoin::blockdata::opcodes;
+use bitcoin::locktime::absolute::LockTime;
+use bitcoin::script::Builder;
+use bitcoin::opcodes;
 use bitcoin::network::Network;
 use bitcoin::transaction::Version;
 
@@ -50,7 +50,7 @@ fn pre_funding_lock_shutdown_test() {
 	mine_transaction(&nodes[0], &tx);
 	mine_transaction(&nodes[1], &tx);
 
-	nodes[0].node.close_channel(&ChannelId::v1_from_funding_outpoint(OutPoint { txid: tx.txid(), index: 0 }), &nodes[1].node.get_our_node_id()).unwrap();
+	nodes[0].node.close_channel(&ChannelId::v1_from_funding_outpoint(OutPoint { txid: tx.compute_txid(), index: 0 }), &nodes[1].node.get_our_node_id()).unwrap();
 	let node_0_shutdown = get_event_msg!(nodes[0], MessageSendEvent::SendShutdown, nodes[1].node.get_our_node_id());
 	nodes[1].node.handle_shutdown(&nodes[0].node.get_our_node_id(), &node_0_shutdown);
 	let node_1_shutdown = get_event_msg!(nodes[1], MessageSendEvent::SendShutdown, nodes[0].node.get_our_node_id());
@@ -364,10 +364,10 @@ fn updates_shutdown_wait() {
 	let route_params = RouteParameters::from_payment_params_and_value(payment_params_2, 100_000);
 	let route_2 = get_route(&nodes[1].node.get_our_node_id(), &route_params,
 		&nodes[1].network_graph.read_only(), None, &logger, &scorer, &Default::default(), &random_seed_bytes).unwrap();
-	unwrap_send_err!(nodes[0].node.send_payment_with_route(&route_1, payment_hash,
+	unwrap_send_err!(nodes[0].node.send_payment_with_route(route_1, payment_hash,
 			RecipientOnionFields::secret_only(payment_secret), PaymentId(payment_hash.0)
 		), true, APIError::ChannelUnavailable {..}, {});
-	unwrap_send_err!(nodes[1].node.send_payment_with_route(&route_2, payment_hash,
+	unwrap_send_err!(nodes[1].node.send_payment_with_route(route_2, payment_hash,
 			RecipientOnionFields::secret_only(payment_secret), PaymentId(payment_hash.0)
 		), true, APIError::ChannelUnavailable {..}, {});
 
@@ -1425,7 +1425,7 @@ fn batch_funding_failure() {
 
 	let err = "Error in transaction funding: Misuse error: No output matched the script_pubkey and value in the FundingGenerationReady event".to_string();
 	let temp_err = "No output matched the script_pubkey and value in the FundingGenerationReady event".to_string();
-	let post_funding_chan_id_a = ChannelId::v1_from_funding_txid(tx.txid().as_ref(), 0);
+	let post_funding_chan_id_a = ChannelId::v1_from_funding_txid(tx.compute_txid().as_ref(), 0);
 	let close = [
 		ExpectedCloseEvent::from_id_reason(post_funding_chan_id_a, true, ClosureReason::ProcessingError { err: err.clone() }),
 		ExpectedCloseEvent::from_id_reason(temp_chan_id_b, false, ClosureReason::ProcessingError { err: temp_err }),

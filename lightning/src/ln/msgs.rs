@@ -24,11 +24,11 @@
 //! raw socket events into your non-internet-facing system and then send routing events back to
 //! track the network on the less-secure system.
 
-use bitcoin::blockdata::constants::ChainHash;
+use bitcoin::constants::ChainHash;
 use bitcoin::secp256k1::PublicKey;
 use bitcoin::secp256k1::ecdsa::Signature;
 use bitcoin::{secp256k1, Witness};
-use bitcoin::blockdata::script::ScriptBuf;
+use bitcoin::script::ScriptBuf;
 use bitcoin::hash_types::Txid;
 
 use crate::blinded_path::payment::{BlindedPaymentTlvs, ForwardTlvs, ReceiveTlvs};
@@ -235,6 +235,41 @@ pub struct CommonOpenChannelFields {
 	/// If this is `None`, we derive the channel type from the intersection of our
 	/// feature bits with our counterparty's feature bits from the [`Init`] message.
 	pub channel_type: Option<ChannelTypeFeatures>,
+}
+
+impl CommonOpenChannelFields {
+	/// The [`ChannelParameters`] for this channel.
+	pub fn channel_parameters(&self) -> ChannelParameters {
+		ChannelParameters {
+			dust_limit_satoshis: self.dust_limit_satoshis,
+			max_htlc_value_in_flight_msat: self.max_htlc_value_in_flight_msat,
+			htlc_minimum_msat: self.htlc_minimum_msat,
+			commitment_feerate_sat_per_1000_weight: self.commitment_feerate_sat_per_1000_weight,
+			to_self_delay: self.to_self_delay,
+			max_accepted_htlcs: self.max_accepted_htlcs,
+		}
+	}
+}
+
+/// A subset of [`CommonOpenChannelFields`], containing various parameters which are set by the
+/// channel initiator and which are not part of the channel funding transaction.
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct ChannelParameters {
+	/// The threshold below which outputs on transactions broadcast by the channel initiator will be
+	/// omitted.
+	pub dust_limit_satoshis: u64,
+	/// The maximum inbound HTLC value in flight towards channel initiator, in milli-satoshi
+	pub max_htlc_value_in_flight_msat: u64,
+	/// The minimum HTLC size for HTLCs towards the channel initiator, in milli-satoshi
+	pub htlc_minimum_msat: u64,
+	/// The feerate for the commitment transaction set by the channel initiator until updated by
+	/// [`UpdateFee`]
+	pub commitment_feerate_sat_per_1000_weight: u32,
+	/// The number of blocks which the non-channel-initator will have to wait to claim on-chain
+	/// funds if they broadcast a commitment transaction.
+	pub to_self_delay: u16,
+	/// The maximum number of pending HTLCs towards the channel initiator.
+	pub max_accepted_htlcs: u16,
 }
 
 /// An [`open_channel`] message to be sent to or received from a peer.
@@ -2285,11 +2320,26 @@ impl_writeable_msg!(ChannelReady, {
 	(1, short_channel_id_alias, option),
 });
 
+pub(crate) fn write_features_up_to_13<W: Writer>(w: &mut W, le_flags: &[u8]) -> Result<(), io::Error> {
+	let len = core::cmp::min(2, le_flags.len());
+	(len as u16).write(w)?;
+	for i in (0..len).rev() {
+		if i == 0 {
+			le_flags[i].write(w)?;
+		} else {
+			// On byte 1, we want up-to-and-including-bit-13, 0-indexed, which is
+			// up-to-and-including-bit-5, 0-indexed, on this byte:
+			(le_flags[i] & 0b00_11_11_11).write(w)?;
+		}
+	}
+	Ok(())
+}
+
 impl Writeable for Init {
 	fn write<W: Writer>(&self, w: &mut W) -> Result<(), io::Error> {
 		// global_features gets the bottom 13 bits of our features, and local_features gets all of
 		// our relevant feature bits. This keeps us compatible with old nodes.
-		self.features.write_up_to_13(w)?;
+		write_features_up_to_13(w, self.features.le_flags())?;
 		self.features.write(w)?;
 		encode_tlv_stream!(w, {
 			(1, self.networks.as_ref().map(|n| WithoutLength(n)), option),
@@ -2721,8 +2771,8 @@ impl<NS: Deref> ReadableArgs<(Option<PublicKey>, &NS)> for InboundOnionPayload w
 		let mut custom_tlvs = Vec::new();
 
 		let tlv_len = BigSize::read(r)?;
-		let rd = FixedLengthReader::new(r, tlv_len.0);
-		decode_tlv_stream_with_custom_tlv_decode!(rd, {
+		let mut rd = FixedLengthReader::new(r, tlv_len.0);
+		decode_tlv_stream_with_custom_tlv_decode!(&mut rd, {
 			(2, amt, (option, encoding: (u64, HighZeroBytesDroppedBigSize))),
 			(4, cltv_value, (option, encoding: (u32, HighZeroBytesDroppedBigSize))),
 			(6, short_id, option),
@@ -2736,7 +2786,7 @@ impl<NS: Deref> ReadableArgs<(Option<PublicKey>, &NS)> for InboundOnionPayload w
 		}, |msg_type: u64, msg_reader: &mut FixedLengthReader<_>| -> Result<bool, DecodeError> {
 			if msg_type < 1 << 16 { return Ok(false) }
 			let mut value = Vec::new();
-			msg_reader.read_to_end(&mut value)?;
+			msg_reader.read_to_limit(&mut value, u64::MAX)?;
 			custom_tlvs.push((msg_type, value));
 			Ok(true)
 		});
@@ -3232,7 +3282,7 @@ impl_writeable_msg!(GossipTimestampFilter, {
 #[cfg(test)]
 mod tests {
 	use bitcoin::{Amount, Transaction, TxIn, ScriptBuf, Sequence, Witness, TxOut};
-	use hex::DisplayHex;
+	use bitcoin::hex::DisplayHex;
 	use crate::ln::types::{ChannelId, PaymentPreimage, PaymentHash, PaymentSecret};
 	use crate::ln::features::{ChannelFeatures, ChannelTypeFeatures, InitFeatures, NodeFeatures};
 	use crate::ln::msgs::{self, FinalOnionHopData, OnionErrorPacket, CommonOpenChannelFields, CommonAcceptChannelFields, TrampolineOnionPacket};
@@ -3241,12 +3291,12 @@ mod tests {
 	use crate::util::ser::{BigSize, FixedLengthReader, Hostname, LengthReadable, Readable, ReadableArgs, TransactionU16LenLimited, Writeable};
 	use crate::util::test_utils;
 
-	use bitcoin::hashes::hex::FromHex;
+	use bitcoin::hex::FromHex;
 	use bitcoin::address::Address;
 	use bitcoin::network::Network;
-	use bitcoin::blockdata::constants::ChainHash;
-	use bitcoin::blockdata::script::Builder;
-	use bitcoin::blockdata::opcodes;
+	use bitcoin::constants::ChainHash;
+	use bitcoin::script::Builder;
+	use bitcoin::opcodes;
 	use bitcoin::hash_types::Txid;
 	use bitcoin::locktime::absolute::LockTime;
 	use bitcoin::transaction::Version;
@@ -3957,11 +4007,11 @@ mod tests {
 				output: vec![
 					TxOut {
 						value: Amount::from_sat(12704566),
-						script_pubkey: Address::from_str("bc1qzlffunw52jav8vwdu5x3jfk6sr8u22rmq3xzw2").unwrap().payload().script_pubkey(),
+						script_pubkey: Address::from_str("bc1qzlffunw52jav8vwdu5x3jfk6sr8u22rmq3xzw2").unwrap().assume_checked().script_pubkey(),
 					},
 					TxOut {
 						value: Amount::from_sat(245148),
-						script_pubkey: Address::from_str("bc1qxmk834g5marzm227dgqvynd23y2nvt2ztwcw2z").unwrap().payload().script_pubkey(),
+						script_pubkey: Address::from_str("bc1qxmk834g5marzm227dgqvynd23y2nvt2ztwcw2z").unwrap().assume_checked().script_pubkey(),
 					},
 				],
 			}).unwrap(),
@@ -3980,7 +4030,7 @@ mod tests {
 			channel_id: ChannelId::from_bytes([2; 32]),
 			serial_id: 4886718345,
 			sats: 4886718345,
-			script: Address::from_str("bc1qxmk834g5marzm227dgqvynd23y2nvt2ztwcw2z").unwrap().payload().script_pubkey(),
+			script: Address::from_str("bc1qxmk834g5marzm227dgqvynd23y2nvt2ztwcw2z").unwrap().assume_checked().script_pubkey(),
 		};
 		let encoded_value = tx_add_output.encode();
 		let target_value = <Vec<u8>>::from_hex("0202020202020202020202020202020202020202020202020202020202020202000000012345678900000001234567890016001436ec78d514df462da95e6a00c24daa8915362d42").unwrap();
@@ -4129,7 +4179,7 @@ mod tests {
 			scriptpubkey:
 				if script_type == 1 { Address::p2pkh(&::bitcoin::PublicKey{compressed: true, inner: pubkey_1}, Network::Testnet).script_pubkey() }
 				else if script_type == 2 { Address::p2sh(&script, Network::Testnet).unwrap().script_pubkey() }
-				else if script_type == 3 { Address::p2wpkh(&::bitcoin::PublicKey{compressed: true, inner: pubkey_1}, Network::Testnet).unwrap().script_pubkey() }
+				else if script_type == 3 { Address::p2wpkh(&::bitcoin::CompressedPublicKey(pubkey_1), Network::Testnet).script_pubkey() }
 				else { Address::p2wsh(&script, Network::Testnet).script_pubkey() },
 		};
 		let encoded_value = shutdown.encode();

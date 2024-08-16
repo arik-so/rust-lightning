@@ -6,7 +6,6 @@
 ./lightning-invoice/src/tb.rs
 ./lightning-invoice/src/utils.rs
 ./lightning-invoice/tests/ser_de.rs
-./lightning-net-tokio/src/lib.rs
 ./lightning-persister/src/fs_store.rs
 ./lightning-persister/src/lib.rs
 ./lightning-persister/src/test_utils.rs
@@ -42,6 +41,7 @@
 ./lightning/src/ln/functional_test_utils.rs
 ./lightning/src/ln/functional_tests.rs
 ./lightning/src/ln/inbound_payment.rs
+./lightning/src/ln/invoice_utils.rs
 ./lightning/src/ln/max_payment_path_len_tests.rs
 ./lightning/src/ln/mod.rs
 ./lightning/src/ln/monitor_tests.rs

@@ -49,12 +49,12 @@ use crate::util::ser::{Readable, ReadableArgs, Writer, Writeable};
 use crate::util::persist::KVStore;
 
 use bitcoin::amount::Amount;
-use bitcoin::blockdata::constants::ChainHash;
-use bitcoin::blockdata::constants::genesis_block;
-use bitcoin::blockdata::transaction::{Transaction, TxOut};
-use bitcoin::blockdata::script::{Builder, Script, ScriptBuf};
-use bitcoin::blockdata::opcodes;
-use bitcoin::blockdata::block::Block;
+use bitcoin::constants::ChainHash;
+use bitcoin::constants::genesis_block;
+use bitcoin::transaction::{Transaction, TxOut};
+use bitcoin::script::{Builder, Script, ScriptBuf};
+use bitcoin::opcodes;
+use bitcoin::block::Block;
 use bitcoin::network::Network;
 use bitcoin::hash_types::{BlockHash, Txid};
 use bitcoin::hashes::Hash;
@@ -65,6 +65,8 @@ use bitcoin::secp256k1::ecdh::SharedSecret;
 use bitcoin::secp256k1::ecdsa::{RecoverableSignature, Signature};
 use bitcoin::secp256k1::schnorr;
 
+use lightning_invoice::RawBolt11Invoice;
+
 use crate::io;
 use crate::prelude::*;
 use core::cell::RefCell;
@@ -72,7 +74,6 @@ use core::time::Duration;
 use crate::sync::{Mutex, Arc};
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use core::mem;
-use bech32::u5;
 use crate::sign::{InMemorySigner, RandomBytes, Recipient, EntropySource, NodeSigner, SignerProvider};
 
 #[cfg(feature = "std")]
@@ -732,7 +733,7 @@ impl TestBroadcaster {
 	pub fn unique_txn_broadcast(&self) -> Vec<Transaction> {
 		let mut txn = self.txn_broadcasted.lock().unwrap().split_off(0);
 		let mut seen = new_hash_set();
-		txn.retain(|tx| seen.insert(tx.txid()));
+		txn.retain(|tx| seen.insert(tx.compute_txid()));
 		txn
 	}
 }
@@ -1217,7 +1218,7 @@ impl NodeSigner for TestNodeSigner {
 		Ok(SharedSecret::new(other_key, &node_secret))
 	}
 
-	fn sign_invoice(&self, _: &[u8], _: &[bech32::u5], _: Recipient) -> Result<bitcoin::secp256k1::ecdsa::RecoverableSignature, ()> {
+	fn sign_invoice(&self, _: &RawBolt11Invoice, _: Recipient) -> Result<RecoverableSignature, ()> {
 		unreachable!()
 	}
 
@@ -1270,8 +1271,8 @@ impl NodeSigner for TestKeysInterface {
 		self.backing.get_inbound_payment_key_material()
 	}
 
-	fn sign_invoice(&self, hrp_bytes: &[u8], invoice_data: &[u5], recipient: Recipient) -> Result<RecoverableSignature, ()> {
-		self.backing.sign_invoice(hrp_bytes, invoice_data, recipient)
+	fn sign_invoice(&self, invoice: &RawBolt11Invoice, recipient: Recipient) -> Result<RecoverableSignature, ()> {
+		self.backing.sign_invoice(invoice, recipient)
 	}
 
 	fn sign_bolt12_invoice_request(
@@ -1591,8 +1592,8 @@ impl WalletSource for TestWalletSource {
 				let sighash = SighashCache::new(&tx)
 					.legacy_signature_hash(i, &utxo.output.script_pubkey, EcdsaSighashType::All as u32)
 					.map_err(|_| ())?;
-				let sig = self.secp.sign_ecdsa(&secp256k1::Message::from_digest(sighash.to_byte_array()), &self.secret_key);
-				let bitcoin_sig = bitcoin::ecdsa::Signature { sig, hash_ty: EcdsaSighashType::All };
+				let signature = self.secp.sign_ecdsa(&secp256k1::Message::from_digest(sighash.to_byte_array()), &self.secret_key);
+				let bitcoin_sig = bitcoin::ecdsa::Signature { signature, sighash_type: EcdsaSighashType::All };
 				tx.input[i].script_sig = Builder::new()
 					.push_slice(&bitcoin_sig.serialize())
 					.push_slice(&self.secret_key.public_key(&self.secp).serialize())

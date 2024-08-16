@@ -38,9 +38,9 @@ use crate::util::test_utils::{panicking, TestChainMonitor, TestScorer, TestKeysI
 use crate::util::ser::{ReadableArgs, Writeable};
 
 use bitcoin::amount::Amount;
-use bitcoin::blockdata::block::{Block, Header, Version};
-use bitcoin::blockdata::locktime::absolute::LockTime;
-use bitcoin::blockdata::transaction::{Transaction, TxIn, TxOut};
+use bitcoin::block::{Block, Header, Version};
+use bitcoin::locktime::absolute::LockTime;
+use bitcoin::transaction::{Transaction, TxIn, TxOut};
 use bitcoin::hash_types::{BlockHash, TxMerkleNode};
 use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::Hash as _;
@@ -331,7 +331,7 @@ fn do_connect_block_without_consistency_checks<'a, 'b, 'c, 'd>(node: &'a Node<'b
 		let wallet_script = node.wallet_source.get_change_script().unwrap();
 		for (idx, output) in tx.output.iter().enumerate() {
 			if output.script_pubkey == wallet_script {
-				let outpoint = bitcoin::OutPoint { txid: tx.txid(), vout: idx as u32 };
+				let outpoint = bitcoin::OutPoint { txid: tx.compute_txid(), vout: idx as u32 };
 				node.wallet_source.add_utxo(outpoint, output.value);
 			}
 		}
@@ -362,8 +362,8 @@ pub fn disconnect_blocks<'a, 'b, 'c, 'd>(node: &'a Node<'b, 'c, 'd>, count: u32)
 			},
 			ConnectStyle::BestBlockFirstReorgsOnlyTip|ConnectStyle::TransactionsFirstReorgsOnlyTip => {
 				for tx in orig.0.txdata {
-					node.chain_monitor.chain_monitor.transaction_unconfirmed(&tx.txid());
-					node.node.transaction_unconfirmed(&tx.txid());
+					node.chain_monitor.chain_monitor.transaction_unconfirmed(&tx.compute_txid());
+					node.node.transaction_unconfirmed(&tx.compute_txid());
 				}
 			},
 			_ => {
@@ -1207,7 +1207,7 @@ fn internal_create_funding_transaction<'a, 'b, 'c>(node: &Node<'a, 'b, 'c>,
 			let tx = Transaction { version: transaction::Version(chan_id as i32), lock_time: LockTime::ZERO, input, output: vec![TxOut {
 				value: Amount::from_sat(*channel_value_satoshis), script_pubkey: output_script.clone(),
 			}]};
-			let funding_outpoint = OutPoint { txid: tx.txid(), index: 0 };
+			let funding_outpoint = OutPoint { txid: tx.compute_txid(), index: 0 };
 			(*temporary_channel_id, tx, funding_outpoint)
 		},
 		_ => panic!("Unexpected event"),
@@ -1218,7 +1218,7 @@ pub fn sign_funding_transaction<'a, 'b, 'c>(node_a: &Node<'a, 'b, 'c>, node_b: &
 	let (temporary_channel_id, tx, funding_output) = create_funding_transaction(node_a, &node_b.node.get_our_node_id(), channel_value, 42);
 	assert_eq!(temporary_channel_id, expected_temporary_channel_id);
 
-	assert!(node_a.node.funding_transaction_generated(&temporary_channel_id, &node_b.node.get_our_node_id(), tx.clone()).is_ok());
+	assert!(node_a.node.funding_transaction_generated(temporary_channel_id, node_b.node.get_our_node_id(), tx.clone()).is_ok());
 	check_added_monitors!(node_a, 0);
 
 	let funding_created_msg = get_event_msg!(node_a, MessageSendEvent::SendFundingCreated, node_b.node.get_our_node_id());
@@ -1249,7 +1249,7 @@ pub fn sign_funding_transaction<'a, 'b, 'c>(node_a: &Node<'a, 'b, 'c>, node_b: &
 	node_a.tx_broadcaster.txn_broadcasted.lock().unwrap().clear();
 
 	// Ensure that funding_transaction_generated is idempotent.
-	assert!(node_a.node.funding_transaction_generated(&temporary_channel_id, &node_b.node.get_our_node_id(), tx.clone()).is_err());
+	assert!(node_a.node.funding_transaction_generated(temporary_channel_id, node_b.node.get_our_node_id(), tx.clone()).is_err());
 	assert!(node_a.node.get_and_clear_pending_msg_events().is_empty());
 	check_added_monitors!(node_a, 0);
 
@@ -1279,7 +1279,7 @@ pub fn open_zero_conf_channel<'a, 'b, 'c, 'd>(initiator: &'a Node<'b, 'c, 'd>, r
 	initiator.node.handle_accept_channel(&receiver.node.get_our_node_id(), &accept_channel);
 
 	let (temporary_channel_id, tx, _) = create_funding_transaction(&initiator, &receiver.node.get_our_node_id(), 100_000, 42);
-	initiator.node.funding_transaction_generated(&temporary_channel_id, &receiver.node.get_our_node_id(), tx.clone()).unwrap();
+	initiator.node.funding_transaction_generated(temporary_channel_id, receiver.node.get_our_node_id(), tx.clone()).unwrap();
 	let funding_created = get_event_msg!(initiator, MessageSendEvent::SendFundingCreated, receiver.node.get_our_node_id());
 
 	receiver.node.handle_funding_created(&initiator.node.get_our_node_id(), &funding_created);
@@ -1456,7 +1456,7 @@ pub fn create_unannounced_chan_between_nodes_with_value<'a, 'b, 'c, 'd>(nodes: &
 	nodes[a].node.handle_accept_channel(&nodes[b].node.get_our_node_id(), &accept_channel);
 
 	let (temporary_channel_id, tx, _) = create_funding_transaction(&nodes[a], &nodes[b].node.get_our_node_id(), channel_value, 42);
-	nodes[a].node.funding_transaction_generated(&temporary_channel_id, &nodes[b].node.get_our_node_id(), tx.clone()).unwrap();
+	nodes[a].node.funding_transaction_generated(temporary_channel_id, nodes[b].node.get_our_node_id(), tx.clone()).unwrap();
 	nodes[b].node.handle_funding_created(&nodes[a].node.get_our_node_id(), &get_event_msg!(nodes[a], MessageSendEvent::SendFundingCreated, nodes[b].node.get_our_node_id()));
 	check_added_monitors!(nodes[b], 1);
 
@@ -1523,9 +1523,9 @@ pub fn update_nodes_with_chan_announce<'a, 'b, 'c, 'd>(nodes: &'a Vec<Node<'b, '
 	}
 }
 
-pub fn do_check_spends<F: Fn(&bitcoin::blockdata::transaction::OutPoint) -> Option<TxOut>>(tx: &Transaction, get_output: F) {
+pub fn do_check_spends<F: Fn(&bitcoin::transaction::OutPoint) -> Option<TxOut>>(tx: &Transaction, get_output: F) {
 	for outp in tx.output.iter() {
-		assert!(outp.value >= outp.script_pubkey.dust_value(), "Spending tx output didn't meet dust limit");
+		assert!(outp.value >= outp.script_pubkey.minimal_non_dust(), "Spending tx output didn't meet dust limit");
 	}
 	let mut total_value_in = 0;
 	for input in tx.input.iter() {
@@ -1547,12 +1547,12 @@ macro_rules! check_spends {
 		{
 			$(
 			for outp in $spends_txn.output.iter() {
-				assert!(outp.value >= outp.script_pubkey.dust_value(), "Input tx output didn't meet dust limit");
+				assert!(outp.value >= outp.script_pubkey.minimal_non_dust(), "Input tx output didn't meet dust limit");
 			}
 			)*
-			let get_output = |out_point: &bitcoin::blockdata::transaction::OutPoint| {
+			let get_output = |out_point: &bitcoin::transaction::OutPoint| {
 				$(
-					if out_point.txid == $spends_txn.txid() {
+					if out_point.txid == $spends_txn.compute_txid() {
 						return $spends_txn.output.get(out_point.vout as usize).cloned()
 					}
 				)*
@@ -2543,7 +2543,7 @@ pub fn expect_payment_failed_conditions<'a, 'b, 'c, 'd, 'e>(
 
 pub fn send_along_route_with_secret<'a, 'b, 'c>(origin_node: &Node<'a, 'b, 'c>, route: Route, expected_paths: &[&[&Node<'a, 'b, 'c>]], recv_value: u64, our_payment_hash: PaymentHash, our_payment_secret: PaymentSecret) -> PaymentId {
 	let payment_id = PaymentId(origin_node.keys_manager.backing.get_secure_random_bytes());
-	origin_node.node.send_payment_with_route(&route, our_payment_hash,
+	origin_node.node.send_payment_with_route(route, our_payment_hash,
 		RecipientOnionFields::secret_only(our_payment_secret), payment_id).unwrap();
 	check_added_monitors!(origin_node, expected_paths.len());
 	pass_along_route(origin_node, expected_paths, recv_value, our_payment_hash, our_payment_secret);
@@ -3052,7 +3052,7 @@ pub fn route_over_limit<'a, 'b, 'c>(origin_node: &Node<'a, 'b, 'c>, expected_rou
 	}
 
 	let (_, our_payment_hash, our_payment_secret) = get_payment_preimage_hash!(expected_route.last().unwrap());
-	unwrap_send_err!(origin_node.node.send_payment_with_route(&route, our_payment_hash,
+	unwrap_send_err!(origin_node.node.send_payment_with_route(route, our_payment_hash,
 			RecipientOnionFields::secret_only(our_payment_secret), PaymentId(our_payment_hash.0)),
 		true, APIError::ChannelUnavailable { ref err },
 		assert!(err.contains("Cannot send value that would put us over the max HTLC value in flight our peer will accept")));
@@ -3252,7 +3252,7 @@ pub fn create_node_chanmgrs<'a, 'b>(node_count: usize, cfgs: &'a Vec<NodeCfg<'b>
 	let mut chanmgrs = Vec::new();
 	for i in 0..node_count {
 		let network = Network::Testnet;
-		let genesis_block = bitcoin::blockdata::constants::genesis_block(network);
+		let genesis_block = bitcoin::constants::genesis_block(network);
 		let params = ChainParameters {
 			network,
 			best_block: BestBlock::from_network(network),
@@ -3369,12 +3369,12 @@ pub enum HTLCType { NONE, TIMEOUT, SUCCESS }
 pub fn test_txn_broadcast<'a, 'b, 'c>(node: &Node<'a, 'b, 'c>, chan: &(msgs::ChannelUpdate, msgs::ChannelUpdate, ChannelId, Transaction), commitment_tx: Option<Transaction>, has_htlc_tx: HTLCType) -> Vec<Transaction>  {
 	let mut node_txn = node.tx_broadcaster.txn_broadcasted.lock().unwrap();
 	let mut txn_seen = new_hash_set();
-	node_txn.retain(|tx| txn_seen.insert(tx.txid()));
+	node_txn.retain(|tx| txn_seen.insert(tx.compute_txid()));
 	assert!(node_txn.len() >= if commitment_tx.is_some() { 0 } else { 1 } + if has_htlc_tx == HTLCType::NONE { 0 } else { 1 });
 
 	let mut res = Vec::with_capacity(2);
 	node_txn.retain(|tx| {
-		if tx.input.len() == 1 && tx.input[0].previous_output.txid == chan.3.txid() {
+		if tx.input.len() == 1 && tx.input[0].previous_output.txid == chan.3.compute_txid() {
 			check_spends!(tx, chan.3);
 			if commitment_tx.is_none() {
 				res.push(tx.clone());
@@ -3390,7 +3390,7 @@ pub fn test_txn_broadcast<'a, 'b, 'c>(node: &Node<'a, 'b, 'c>, chan: &(msgs::Cha
 
 	if has_htlc_tx != HTLCType::NONE {
 		node_txn.retain(|tx| {
-			if tx.input.len() == 1 && tx.input[0].previous_output.txid == res[0].txid() {
+			if tx.input.len() == 1 && tx.input[0].previous_output.txid == res[0].compute_txid() {
 				check_spends!(tx, res[0]);
 				if has_htlc_tx == HTLCType::TIMEOUT {
 					assert_ne!(tx.lock_time, LockTime::ZERO);
@@ -3419,7 +3419,7 @@ pub fn test_revoked_htlc_claim_txn_broadcast<'a, 'b, 'c>(node: &Node<'a, 'b, 'c>
 	// for revoked htlc outputs
 	if node_txn.len() != 1 && node_txn.len() != 2 && node_txn.len() != 3 { assert!(false); }
 	node_txn.retain(|tx| {
-		if tx.input.len() == 1 && tx.input[0].previous_output.txid == revoked_tx.txid() {
+		if tx.input.len() == 1 && tx.input[0].previous_output.txid == revoked_tx.compute_txid() {
 			check_spends!(tx, revoked_tx);
 			false
 		} else { true }
@@ -3434,12 +3434,12 @@ pub fn test_revoked_htlc_claim_txn_broadcast<'a, 'b, 'c>(node: &Node<'a, 'b, 'c>
 pub fn check_preimage_claim<'a, 'b, 'c>(node: &Node<'a, 'b, 'c>, prev_txn: &Vec<Transaction>) -> Vec<Transaction>  {
 	let mut node_txn = node.tx_broadcaster.txn_broadcasted.lock().unwrap();
 	let mut txn_seen = new_hash_set();
-	node_txn.retain(|tx| txn_seen.insert(tx.txid()));
+	node_txn.retain(|tx| txn_seen.insert(tx.compute_txid()));
 
 	let mut found_prev = false;
 	for prev_tx in prev_txn {
 		for tx in &*node_txn {
-			if tx.input[0].previous_output.txid == prev_tx.txid() {
+			if tx.input[0].previous_output.txid == prev_tx.compute_txid() {
 				check_spends!(tx, prev_tx);
 				let mut iter = tx.input[0].witness.iter();
 				iter.next().expect("expected 3 witness items");
