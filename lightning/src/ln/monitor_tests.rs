@@ -199,11 +199,11 @@ fn archive_fully_resolved_monitors() {
 
 	assert_eq!(nodes[0].chain_monitor.chain_monitor.list_monitors().len(), 1);
 	// First archive should set balances_empty_height to current block height
-	nodes[0].chain_monitor.chain_monitor.archive_fully_resolved_channel_monitors();
+	nodes[0].chain_monitor.chain_monitor.archive_fully_resolved_channel_monitors(&chanmon_cfgs[0].tx_broadcaster, &chanmon_cfgs[0].fee_estimator);
 	assert_eq!(nodes[0].chain_monitor.chain_monitor.list_monitors().len(), 1);
 	connect_blocks(&nodes[0], 4032);
 	// Second call after 4032 blocks, should archive the monitor
-	nodes[0].chain_monitor.chain_monitor.archive_fully_resolved_channel_monitors();
+	nodes[0].chain_monitor.chain_monitor.archive_fully_resolved_channel_monitors(&chanmon_cfgs[0].tx_broadcaster, &chanmon_cfgs[0].fee_estimator);
 	// Should have no monitors left
 	assert_eq!(nodes[0].chain_monitor.chain_monitor.list_monitors().len(), 0);
 	// Remove the corresponding outputs and transactions the chain source is

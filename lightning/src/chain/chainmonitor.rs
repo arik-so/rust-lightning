@@ -632,7 +632,7 @@ where C::Target: chain::Filter,
 	///
 	/// Depending on the implementation of [`Persist::archive_persisted_channel`] the monitor
 	/// data could be moved to an archive location or removed entirely.
-	pub fn archive_fully_resolved_channel_monitors<BI: Deref, FE: Deref>(&self, broadcaster: &BI, fee_estimator: &FE)
+	pub fn archive_fully_resolved_channel_monitors<BI: Deref, FE: Deref>(&self, broadcaster: BI, fee_estimator: FE)
 	where
 		BI::Target: BroadcasterInterface,
 		FE::Target: FeeEstimator
@@ -653,7 +653,7 @@ where C::Target: chain::Filter,
 						"Archiving fully resolved ChannelMonitor for funding txo {}",
 						funding_txo
 					);
-					self.persister.archive_persisted_channel(broadcaster, fee_estimator, *funding_txo);
+					self.persister.archive_persisted_channel(&broadcaster, &fee_estimator, *funding_txo);
 					false
 				} else {
 					true

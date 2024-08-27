@@ -34,7 +34,7 @@ use crate::util::test_channel_signer::TestChannelSigner;
 #[cfg(test)]
 use crate::util::test_channel_signer::SignerOp;
 use crate::util::test_utils;
-use crate::util::test_utils::{TestChainMonitor, TestScorer, TestKeysInterface};
+use crate::util::test_utils::{TestChainMonitor, TestScorer, TestKeysInterface, TestPersister};
 use crate::util::ser::{ReadableArgs, Writeable};
 
 use bitcoin::amount::Amount;
@@ -381,13 +381,13 @@ pub struct TestChanMonCfg {
 	pub scorer: RwLock<test_utils::TestScorer>,
 }
 
-pub struct NodeCfg<'a> {
+pub struct NodeCfg<'a, P: Persist<TestChannelSigner>> {
 	pub chain_source: &'a test_utils::TestChainSource,
 	pub tx_broadcaster: &'a test_utils::TestBroadcaster,
 	pub fee_estimator: &'a test_utils::TestFeeEstimator,
 	pub router: test_utils::TestRouter<'a>,
 	pub message_router: test_utils::TestMessageRouter<'a>,
-	pub chain_monitor: test_utils::TestChainMonitor<'a>,
+	pub chain_monitor: test_utils::TestChainMonitor<'a, P>,
 	pub keys_manager: &'a test_utils::TestKeysInterface,
 	pub logger: &'a test_utils::TestLogger,
 	pub network_graph: Arc<NetworkGraph<&'a test_utils::TestLogger>>,
@@ -396,7 +396,7 @@ pub struct NodeCfg<'a> {
 }
 
 type TestChannelManager<'node_cfg, 'chan_mon_cfg> = ChannelManager<
-	&'node_cfg TestChainMonitor<'chan_mon_cfg>,
+	&'node_cfg TestChainMonitor<'chan_mon_cfg, TestPersister>,
 	&'chan_mon_cfg test_utils::TestBroadcaster,
 	&'node_cfg test_utils::TestKeysInterface,
 	&'node_cfg test_utils::TestKeysInterface,
@@ -428,12 +428,12 @@ impl Deref for DedicatedEntropy {
 	fn deref(&self) -> &Self::Target { &self.0 }
 }
 
-pub struct Node<'chan_man, 'node_cfg: 'chan_man, 'chan_mon_cfg: 'node_cfg> {
+pub struct Node<'chan_man, 'node_cfg: 'chan_man, 'chan_mon_cfg: 'node_cfg, P: Persist<TestChannelSigner>> {
 	pub chain_source: &'chan_mon_cfg test_utils::TestChainSource,
 	pub tx_broadcaster: &'chan_mon_cfg test_utils::TestBroadcaster,
 	pub fee_estimator: &'chan_mon_cfg test_utils::TestFeeEstimator,
 	pub router: &'node_cfg test_utils::TestRouter<'chan_mon_cfg>,
-	pub chain_monitor: &'node_cfg test_utils::TestChainMonitor<'chan_mon_cfg>,
+	pub chain_monitor: &'node_cfg test_utils::TestChainMonitor<'chan_mon_cfg, P>,
 	pub keys_manager: &'chan_mon_cfg test_utils::TestKeysInterface,
 	pub node: &'chan_man TestChannelManager<'node_cfg, 'chan_mon_cfg>,
 	pub onion_messenger: TestOnionMessenger<'chan_man, 'node_cfg, 'chan_mon_cfg>,

@@ -11,14 +11,14 @@ use crate::blinded_path::message::MessageContext;
 use crate::blinded_path::message::{BlindedMessagePath, MessageForwardNode};
 use crate::blinded_path::payment::{BlindedPaymentPath, ReceiveTlvs};
 use crate::chain;
-use crate::chain::WatchedOutput;
+use crate::chain::{ChannelMonitorUpdateStatus, WatchedOutput};
 use crate::chain::chaininterface;
 use crate::chain::chaininterface::{BroadcasterInterface, ConfirmationTarget, FeeEstimator};
 #[cfg(test)]
 use crate::chain::chaininterface::FEERATE_FLOOR_SATS_PER_KW;
 use crate::chain::chainmonitor;
 use crate::chain::channelmonitor;
-use crate::chain::channelmonitor::MonitorEvent;
+use crate::chain::channelmonitor::{ChannelMonitor, ChannelMonitorUpdate, MonitorEvent};
 use crate::chain::transaction::OutPoint;
 use crate::routing::router::{CandidateRouteHop, FirstHopCandidate, PublicHopCandidate, PrivateHopCandidate};
 use crate::sign;
@@ -78,7 +78,7 @@ use crate::sign::{InMemorySigner, RandomBytes, Recipient, EntropySource, NodeSig
 
 use bitcoin::psbt::Psbt;
 use bitcoin::Sequence;
-
+use crate::chain::chainmonitor::Persist;
 use super::test_channel_signer::SignerOp;
 
 pub fn pubkey(byte: u8) -> PublicKey {
@@ -353,11 +353,11 @@ impl SignerProvider for OnlyReadsKeysInterface {
 	fn get_shutdown_scriptpubkey(&self) -> Result<ShutdownScript, ()> { Err(()) }
 }
 
-pub struct TestChainMonitor<'a> {
+pub struct TestChainMonitor<'a, P: Persist<TestChannelSigner>> {
 	pub added_monitors: Mutex<Vec<(OutPoint, channelmonitor::ChannelMonitor<TestChannelSigner>)>>,
 	pub monitor_updates: Mutex<HashMap<ChannelId, Vec<channelmonitor::ChannelMonitorUpdate>>>,
 	pub latest_monitor_update_id: Mutex<HashMap<ChannelId, (OutPoint, u64, u64)>>,
-	pub chain_monitor: chainmonitor::ChainMonitor<TestChannelSigner, &'a TestChainSource, &'a dyn chaininterface::BroadcasterInterface, &'a TestFeeEstimator, &'a TestLogger, &'a dyn chainmonitor::Persist<TestChannelSigner>>,
+	pub chain_monitor: chainmonitor::ChainMonitor<TestChannelSigner, &'a TestChainSource, &'a dyn chaininterface::BroadcasterInterface, &'a TestFeeEstimator, &'a TestLogger, &'a P>,
 	pub keys_manager: &'a TestKeysInterface,
 	/// If this is set to Some(), the next update_channel call (not watch_channel) must be a
 	/// ChannelForceClosed event for the given channel_id with should_broadcast set to the given
@@ -367,8 +367,8 @@ pub struct TestChainMonitor<'a> {
 	/// update_channel call (not watch_channel) for the given channel_id.
 	pub expect_monitor_round_trip_fail: Mutex<Option<ChannelId>>,
 }
-impl<'a> TestChainMonitor<'a> {
-	pub fn new(chain_source: Option<&'a TestChainSource>, broadcaster: &'a dyn chaininterface::BroadcasterInterface, logger: &'a TestLogger, fee_estimator: &'a TestFeeEstimator, persister: &'a dyn chainmonitor::Persist<TestChannelSigner>, keys_manager: &'a TestKeysInterface) -> Self {
+impl<'a, P: Persist<TestChannelSigner>> TestChainMonitor<'a, P> {
+	pub fn new(chain_source: Option<&'a TestChainSource>, broadcaster: &'a dyn chaininterface::BroadcasterInterface, logger: &'a TestLogger, fee_estimator: &'a TestFeeEstimator, persister: &'a P, keys_manager: &'a TestKeysInterface) -> Self {
 		Self {
 			added_monitors: Mutex::new(Vec::new()),
 			monitor_updates: Mutex::new(new_hash_map()),
@@ -385,7 +385,7 @@ impl<'a> TestChainMonitor<'a> {
 		self.chain_monitor.channel_monitor_updated(outpoint, latest_update).unwrap();
 	}
 }
-impl<'a> chain::Watch<TestChannelSigner> for TestChainMonitor<'a> {
+impl<'a> chain::Watch<TestChannelSigner> for TestChainMonitor<'a, TestPersister> {
 	fn watch_channel(&self, funding_txo: OutPoint, monitor: channelmonitor::ChannelMonitor<TestChannelSigner>) -> Result<chain::ChannelMonitorUpdateStatus, ()> {
 		// At every point where we get a monitor update, we should be able to send a useful monitor
 		// to a watchtower and disk...
@@ -550,8 +550,12 @@ impl<Signer: sign::ecdsa::EcdsaChannelSigner> chainmonitor::Persist<Signer> for 
 		res
 	}
 
-	fn archive_persisted_channel(&self, funding_txo: OutPoint) {
-		<TestPersister as chainmonitor::Persist<TestChannelSigner>>::archive_persisted_channel(&self.persister, funding_txo);
+	fn archive_persisted_channel<B: Deref, F: Deref>(&self, broadcaster: &B, fee_estimator: &F, funding_txo: OutPoint)
+	where
+		B::Target: BroadcasterInterface,
+		F::Target: FeeEstimator
+	{
+		<TestPersister as chainmonitor::Persist<TestChannelSigner>>::archive_persisted_channel(&self.persister, broadcaster, fee_estimator, funding_txo);
 	}
 }
 
