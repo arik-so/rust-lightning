@@ -791,7 +791,16 @@ where
 					// We can't find any more updates, so we are done.
 					break;
 				}
-				Err(err) => panic!("Could not read monitor update during archiving"),
+				Err(err) => {
+					log_error!(
+						self.logger,
+						"Monitor update read failed. monitor: {} update: {} reason: {:?}",
+						monitor_name.as_str(),
+						update_name.as_str(),
+						err
+					);
+					panic!()
+				},
 			};
 
 			monitor.update_monitor(&update, broadcaster, fee_estimator, &self.logger)
