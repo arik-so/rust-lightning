@@ -234,7 +234,11 @@ impl<ChannelSigner: EcdsaChannelSigner, K: KVStore + ?Sized> Persist<ChannelSign
 		}
 	}
 
-	fn archive_persisted_channel(&self, funding_txo: OutPoint) {
+	fn archive_persisted_channel<B: Deref, F: Deref>(&self, _: &B, _: &F, funding_txo: OutPoint)
+	where
+		B::Target: BroadcasterInterface,
+		F::Target: FeeEstimator
+	{
 		let monitor_name = MonitorName::from(funding_txo);
 		let monitor = match self.read(
 			CHANNEL_MONITOR_PERSISTENCE_PRIMARY_NAMESPACE,
@@ -764,19 +768,53 @@ where
 		}
 	}
 
-	fn archive_persisted_channel(&self, funding_txo: OutPoint) {
+	fn archive_persisted_channel<B: Deref, F: Deref>(&self, broadcaster: &B, fee_estimator: &F, funding_txo: OutPoint)
+	where
+	B::Target: BroadcasterInterface,
+	F::Target: FeeEstimator {
 		let monitor_name = MonitorName::from(funding_txo);
 		let monitor = match self.read_monitor(&monitor_name) {
 			Ok((_block_hash, monitor)) => monitor,
 			Err(_) => return
 		};
+
+		let mut current_update_id = monitor.get_latest_update_id();
+		loop {
+			current_update_id = match current_update_id.checked_add(1) {
+				Some(next_update_id) => next_update_id,
+				None => break,
+			};
+			let update_name = UpdateName::from(current_update_id);
+			let update = match self.read_monitor_update(&monitor_name, &update_name) {
+				Ok(update) => update,
+				Err(err) if err.kind() == io::ErrorKind::NotFound => {
+					// We can't find any more updates, so we are done.
+					break;
+				}
+				Err(err) => panic!("Could not read monitor update during archiving"),
+			};
+
+			monitor.update_monitor(&update, broadcaster, fee_estimator, &self.logger)
+				.map_err(|e| {
+					log_error!(
+						self.logger,
+						"Monitor update failed. monitor: {} update: {} reason: {:?}",
+						monitor_name.as_str(),
+						update_name.as_str(),
+						e
+					);
+					io::Error::new(io::ErrorKind::Other, "Monitor update failed")
+				})
+				.expect("Could not apply monitor update during archiving");
+		}
+
 		match self.kv_store.write(
 			ARCHIVED_CHANNEL_MONITOR_PERSISTENCE_PRIMARY_NAMESPACE,
 			ARCHIVED_CHANNEL_MONITOR_PERSISTENCE_SECONDARY_NAMESPACE,
 			monitor_name.as_str(),
-			&monitor.encode()
+			&monitor.encode(),
 		) {
-			Ok(()) => {},
+			Ok(()) => {}
 			Err(_e) => return,
 		};
 		let _ = self.kv_store.remove(

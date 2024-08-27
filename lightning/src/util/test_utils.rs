@@ -13,7 +13,7 @@ use crate::blinded_path::payment::{BlindedPaymentPath, ReceiveTlvs};
 use crate::chain;
 use crate::chain::WatchedOutput;
 use crate::chain::chaininterface;
-use crate::chain::chaininterface::ConfirmationTarget;
+use crate::chain::chaininterface::{BroadcasterInterface, ConfirmationTarget, FeeEstimator};
 #[cfg(test)]
 use crate::chain::chaininterface::FEERATE_FLOOR_SATS_PER_KW;
 use crate::chain::chainmonitor;
@@ -73,6 +73,7 @@ use core::time::Duration;
 use crate::sync::{Mutex, Arc};
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use core::mem;
+use core::ops::Deref;
 use crate::sign::{InMemorySigner, RandomBytes, Recipient, EntropySource, NodeSigner, SignerProvider};
 
 use bitcoin::psbt::Psbt;
@@ -603,7 +604,11 @@ impl<Signer: sign::ecdsa::EcdsaChannelSigner> chainmonitor::Persist<Signer> for 
 		ret
 	}
 
-	fn archive_persisted_channel(&self, funding_txo: OutPoint) {
+	fn archive_persisted_channel<B: Deref, F: Deref>(&self, _: &B, _: &F, funding_txo: OutPoint)
+	where
+		B::Target: BroadcasterInterface,
+		F::Target: FeeEstimator
+	{
 		// remove the channel from the offchain_monitor_updates and chain_sync_monitor_persistences.
 		self.offchain_monitor_updates.lock().unwrap().remove(&funding_txo);
 		self.chain_sync_monitor_persistences.lock().unwrap().retain(|x| x != &funding_txo);

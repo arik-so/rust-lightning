@@ -160,7 +160,10 @@ pub trait Persist<ChannelSigner: EcdsaChannelSigner> {
 	///
 	/// Archiving the data in a backup location (rather than deleting it fully) is useful for
 	/// hedging against data loss in case of unexpected failure.
-	fn archive_persisted_channel(&self, channel_funding_outpoint: OutPoint);
+	fn archive_persisted_channel<B: Deref, F: Deref>(&self, broadcaster: &B, fee_estimator: &F, channel_funding_outpoint: OutPoint)
+	where
+		B::Target: BroadcasterInterface,
+		F::Target: FeeEstimator;
 }
 
 struct MonitorHolder<ChannelSigner: EcdsaChannelSigner> {
@@ -629,7 +632,11 @@ where C::Target: chain::Filter,
 	///
 	/// Depending on the implementation of [`Persist::archive_persisted_channel`] the monitor
 	/// data could be moved to an archive location or removed entirely.
-	pub fn archive_fully_resolved_channel_monitors(&self) {
+	pub fn archive_fully_resolved_channel_monitors<BI: Deref, FE: Deref>(&self, broadcaster: &BI, fee_estimator: &FE)
+	where
+		BI::Target: BroadcasterInterface,
+		FE::Target: FeeEstimator
+	{
 		let mut have_monitors_to_prune = false;
 		for (_, monitor_holder) in self.monitors.read().unwrap().iter() {
 			let logger = WithChannelMonitor::from(&self.logger, &monitor_holder.monitor, None);
@@ -646,7 +653,7 @@ where C::Target: chain::Filter,
 						"Archiving fully resolved ChannelMonitor for funding txo {}",
 						funding_txo
 					);
-					self.persister.archive_persisted_channel(*funding_txo);
+					self.persister.archive_persisted_channel(broadcaster, fee_estimator, *funding_txo);
 					false
 				} else {
 					true

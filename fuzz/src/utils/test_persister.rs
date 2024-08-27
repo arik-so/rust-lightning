@@ -1,8 +1,10 @@
 use lightning::chain;
+use lightning::chain::chaininterface::{BroadcasterInterface, FeeEstimator};
 use lightning::chain::transaction::OutPoint;
 use lightning::chain::{chainmonitor, channelmonitor};
 use lightning::util::test_channel_signer::TestChannelSigner;
 
+use core::ops::Deref;
 use std::sync::Mutex;
 
 pub struct TestPersister {
@@ -22,5 +24,10 @@ impl chainmonitor::Persist<TestChannelSigner> for TestPersister {
 		self.update_ret.lock().unwrap().clone()
 	}
 
-	fn archive_persisted_channel(&self, _: OutPoint) {}
+	fn archive_persisted_channel<B: Deref, F: Deref>(&self, _: &B, _: &F, _: OutPoint)
+	where
+		B::Target: BroadcasterInterface,
+		F::Target: FeeEstimator,
+	{
+	}
 }
