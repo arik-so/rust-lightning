@@ -1016,6 +1016,10 @@ fn test_trampoline_onion_payload_serialization() {
 
 #[test]
 fn test_trampoline_onion_payload_assembly_values() {
+	// Test that we produce Trampoline and outer onion payloads that align with our expectations
+	// from the Path argument. Additionally, ensure that the fee and HTLC values using the
+	// `create_payment_onion` method, which hides some of the Trampoline onion inner workings, match
+	// the values we arrive at by assembling each onion explicitly in this test
 	let amt_msat = 150_000_000;
 	let cur_height = 800_000;
 
@@ -1027,7 +1031,7 @@ fn test_trampoline_onion_payload_assembly_values() {
 				node_features: NodeFeatures::empty(),
 				short_channel_id: 0,
 				channel_features: ChannelFeatures::empty(),
-				fee_msat: 3000,
+				fee_msat: 3_000,
 				cltv_expiry_delta: 24,
 				maybe_announced_channel: false,
 			},
@@ -1144,6 +1148,21 @@ fn test_trampoline_onion_payload_assembly_values() {
 	} else {
 		panic!("Bob payload must be Forward");
 	}
+
+	let (_, total_msat_combined, total_htlc_offset_combined) = onion_utils::create_payment_onion(
+		&Secp256k1::new(),
+		&path,
+		&session_priv,
+		amt_msat,
+		&recipient_onion_fields,
+		cur_height,
+		&payment_hash,
+		&None,
+		None,
+		prng_seed,
+	).unwrap();
+	assert_eq!(total_msat_combined, total_msat);
+	assert_eq!(total_htlc_offset_combined, total_htlc_offset);
 }
 
 #[test]
