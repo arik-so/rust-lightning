@@ -2258,6 +2258,27 @@ where L::Target: Logger {
 		}
 	}
 
+	let mut blinded_route_hints_supporting_trampoline = vec![];
+	let mut first_hops_suppporting_trampoline = vec![];
+
+	for current_path in route_params.payment_params.payee.blinded_route_hints() {
+		match current_path.introduction_node() {
+			IntroductionNode::NodeId(current_pubkey) => {
+				let node_id = NodeId::from_pubkey(current_pubkey);
+				let current_node = network_graph.node(&node_id);
+				current_node.map(|node| {
+					let current_announcement = &node.announcement_info;
+					current_announcement.as_ref().map(|a| {
+						if a.features().supports_trampoline_routing() {
+							blinded_route_hints_supporting_trampoline.push(current_path);
+						}
+					})
+				});
+			}
+			IntroductionNode::DirectedShortChannelId(_, _) => {}
+		}
+	}
+
 	// Step (1). Prepare first and last hop targets.
 	//
 	// First cache all our direct channels so that we can insert them in the heap at startup.
@@ -2863,6 +2884,9 @@ where L::Target: Logger {
 			{
 				path_contribution_msat = hop_used_msat;
 			} else { continue }
+
+			let current_hint_supports_trampoline = blinded_route_hints_supporting_trampoline.contains(hint);
+
 			if let Some((first_channels, peer_node_counter)) = first_hop_targets.get_mut(source_node_id) {
 				sort_first_hop_channels(
 					first_channels, &used_liquidities, recommended_value_msat, our_node_pubkey
@@ -2880,6 +2904,11 @@ where L::Target: Logger {
 						compute_fees_saturating(candidate.htlc_minimum_msat(), candidate.fees()));
 					add_entry!(&first_hop_candidate, blinded_path_fee, path_contribution_msat, path_min,
 						0_u64, candidate.cltv_expiry_delta(), 0);
+
+					if current_hint_supports_trampoline && details.counterparty.features.supports_trampoline_routing() {
+						// current path supports trampoline
+						// todo: end path construction here
+					}
 				}
 			}
 		}
@@ -3335,6 +3364,12 @@ where L::Target: Logger {
 	}
 
 	let mut paths = Vec::new();
+
+	if !first_hops_suppporting_trampoline.is_empty() && !blinded_route_hints_supporting_trampoline.is_empty() {
+		let mut hops = Vec::with_capacity(2);
+
+	}
+
 	for payment_path in selected_route {
 		let mut hops = Vec::with_capacity(payment_path.hops.len());
 		for (hop, node_features) in payment_path.hops.iter()
