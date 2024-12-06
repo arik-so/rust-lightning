@@ -19,7 +19,7 @@ use crate::ln::channel::EXPIRE_PREV_CONFIG_TICKS;
 use crate::ln::channelmanager::{HTLCForwardInfo, FailureCode, CLTV_FAR_FAR_AWAY, DISABLE_GOSSIP_TICKS, MIN_CLTV_EXPIRY_DELTA, PendingAddHTLCInfo, PendingHTLCInfo, PendingHTLCRouting, PaymentId, RecipientOnionFields};
 use crate::ln::onion_utils;
 use crate::routing::gossip::{NetworkUpdate, RoutingFees};
-use crate::routing::router::{get_route, PaymentParameters, Route, RouteParameters, RouteHint, RouteHintHop};
+use crate::routing::router::{get_route, PaymentParameters, Route, RouteParameters, RouteHint, RouteHintHop, Path, TrampolineHop, BlindedTail};
 use crate::types::features::{InitFeatures, Bolt11InvoiceFeatures};
 use crate::ln::functional_test_utils::test_default_channel_config;
 use crate::ln::msgs;
@@ -40,9 +40,11 @@ use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
 
 use crate::io;
 use crate::prelude::*;
-use bitcoin::hex::FromHex;
-
+use bitcoin::hex::{DisplayHex, FromHex};
+use types::features::{Bolt12InvoiceFeatures, Features};
+use crate::blinded_path::BlindedHop;
 use crate::ln::functional_test_utils::*;
+use crate::ln::onion_utils::{construct_onion_keys, construct_trampoline_onion_packet};
 
 fn run_onion_failure_test<F1,F2>(_name: &str, test_case: u8, nodes: &Vec<Node>, route: &Route, payment_hash: &PaymentHash, payment_secret: &PaymentSecret, callback_msg: F1, callback_node: F2, expected_retryable: bool, expected_error_code: Option<u16>, expected_channel_update: Option<NetworkUpdate>, expected_short_channel_id: Option<u64>)
 	where F1: for <'a> FnMut(&'a mut msgs::UpdateAddHTLC),
@@ -999,6 +1001,79 @@ fn test_trampoline_onion_payload_serialization() {
 
 	let carol_payload_hex = slice_to_hex(&trampoline_payload.encode());
 	assert_eq!(carol_payload_hex, "2e020405f5e10004030c35000e2102edabbd16b41c8371b92ef2f04c1185b4f03b6dcd52ba9b78d9d7c89c8f221145");
+}
+
+#[test]
+fn test_trampoline_onion_payload_construction_vectors() {
+	// As per https://github.com/lightning/bolts/blob/c01d2e6267d4a8d1095f0f1188970055a9a22d29/bolt04/trampoline-payment-onion-test.json#L3
+
+	let trampoline_payload_carol = OutboundTrampolinePayload::Forward {
+		amt_to_forward: 150_150_500,
+		outgoing_cltv_value: 800_036,
+		outgoing_node_id: PublicKey::from_slice(&<Vec<u8>>::from_hex("032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991").unwrap()).unwrap(),
+	};
+	let carol_payload = trampoline_payload_carol.encode().to_lower_hex_string();
+	assert_eq!(carol_payload, "2e020408f31d6404030c35240e21032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991");
+
+	let trampoline_payload_dave = OutboundTrampolinePayload::BlindedForward {
+		encrypted_tlvs: &<Vec<u8>>::from_hex("0ccf3c8a58deaa603f657ee2a5ed9d604eb5c8ca1e5f801989afa8f3ea6d789bbdde2c7e7a1ef9ca8c38d2c54760febad8446d3f273ddb537569ef56613846ccd3aba78a").unwrap(),
+		intro_node_blinding_point: Some(PublicKey::from_slice(&<Vec<u8>>::from_hex("02988face71e92c345a068f740191fd8e53be14f0bb957ef730d3c5f76087b960e").unwrap()).unwrap()),
+	};
+	let dave_payload = trampoline_payload_dave.encode().to_lower_hex_string();
+	assert_eq!(dave_payload, "690a440ccf3c8a58deaa603f657ee2a5ed9d604eb5c8ca1e5f801989afa8f3ea6d789bbdde2c7e7a1ef9ca8c38d2c54760febad8446d3f273ddb537569ef56613846ccd3aba78a0c2102988face71e92c345a068f740191fd8e53be14f0bb957ef730d3c5f76087b960e");
+
+	let trampoline_payload_eve = OutboundTrampolinePayload::BlindedReceive {
+		sender_intended_htlc_amt_msat: 150_000_000,
+		total_msat: 150_000_000,
+		cltv_expiry_height: 800_000,
+		encrypted_tlvs: &<Vec<u8>>::from_hex("bcd747394fbd4d99588da075a623316e15a576df5bc785cccc7cd6ec7b398acce6faf520175f9ec920f2ef261cdb83dc28cc3a0eeb970107b3306489bf771ef5b1213bca811d345285405861d08a655b6c237fa247a8b4491beee20c878a60e9816492026d8feb9dafa84585b253978db6a0aa2945df5ef445c61e801fb82f43d5f00716baf9fc9b3de50bc22950a36bda8fc27bfb1242e5860c7e687438d4133e058770361a19b6c271a2a07788d34dccc27e39b9829b061a4d960eac4a2c2b0f4de506c24f9af3868c0aff6dda27281c").unwrap(),
+		intro_node_blinding_point: None,
+		keysend_preimage: None,
+		custom_tlvs: &vec![],
+	};
+	let eve_payload = trampoline_payload_eve.encode().to_lower_hex_string();
+	assert_eq!(eve_payload, "e4020408f0d18004030c35000ad1bcd747394fbd4d99588da075a623316e15a576df5bc785cccc7cd6ec7b398acce6faf520175f9ec920f2ef261cdb83dc28cc3a0eeb970107b3306489bf771ef5b1213bca811d345285405861d08a655b6c237fa247a8b4491beee20c878a60e9816492026d8feb9dafa84585b253978db6a0aa2945df5ef445c61e801fb82f43d5f00716baf9fc9b3de50bc22950a36bda8fc27bfb1242e5860c7e687438d4133e058770361a19b6c271a2a07788d34dccc27e39b9829b061a4d960eac4a2c2b0f4de506c24f9af3868c0aff6dda27281c120408f0d180");
+
+	let trampoline_payloads = vec![trampoline_payload_carol, trampoline_payload_dave, trampoline_payload_eve];
+
+	let trampoline_session_key = SecretKey::from_slice(&<Vec<u8>>::from_hex("a64feb81abd58e473df290e9e1c07dc3e56114495cadf33191f44ba5448ebe99").unwrap()).unwrap();
+	let associated_data_slice = SecretKey::from_slice(&<Vec<u8>>::from_hex("e89bc505e84aaca09613833fc58c9069078fb43bfbea0488f34eec9db99b5f82").unwrap()).unwrap();
+	let associated_data = PaymentHash(associated_data_slice.secret_bytes());
+
+	let trampoline_hops = Path {
+		hops: vec![],
+		trampoline_hops: vec![
+			// Carol's pubkey
+			TrampolineHop {
+				pubkey: PublicKey::from_slice(&<Vec<u8>>::from_hex("027f31ebc5462c1fdce1b737ecff52d37d75dea43ce11c74d25aa297165faa2007").unwrap()).unwrap(),
+				node_features: Features::empty(),
+				fee_msat: 0,
+				cltv_expiry_delta: 0,
+			}
+		],
+		blinded_tail: Some(BlindedTail {
+			hops: vec![
+				BlindedHop {
+					blinded_node_id: PublicKey::from_slice(&<Vec<u8>>::from_hex("0295d40514096a8be54859e7dfe947b376eaafea8afe5cb4eb2c13ff857ed0b4be").unwrap()).unwrap(),
+					encrypted_payload: vec![],
+				},
+				BlindedHop {
+					blinded_node_id: PublicKey::from_slice(&<Vec<u8>>::from_hex("020e2dbadcc2005e859819ddebbe88a834ae8a6d2b049233c07335f15cd1dc5f22").unwrap()).unwrap(),
+					encrypted_payload: vec![],
+				}
+			],
+			blinding_point: PublicKey::from_slice(&<Vec<u8>>::from_hex("02988face71e92c345a068f740191fd8e53be14f0bb957ef730d3c5f76087b960e").unwrap()).unwrap(),
+			excess_final_cltv_expiry_delta: 0,
+			final_value_msat: 0,
+			final_hop_supports_trampoline: false,
+		}),
+	};
+
+	let trampoline_onion_keys = construct_onion_keys(&Secp256k1::new(), &trampoline_hops, &trampoline_session_key).unwrap();
+	let trampoline_onion_packet = construct_trampoline_onion_packet(trampoline_payloads, trampoline_onion_keys, [0u8; 32], &associated_data, None).unwrap();
+	// let trampoline_onion_packet_hex = slice_to_hex(&trampoline_onion_packet.encode());
+	// println!("Trampoline Onion Packet Hex: {}", trampoline_onion_packet_hex);
+	// assert_eq!(trampoline_onion_packet_hex, "0002531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe3371860c0749bfd613056cfc5718beecc25a2f255fc7abbea3cd75ff820e9d30807d19b30f33626452fa54bb2d822e918558ed3e6714deb3f9a2a10895e7553c6f088c9a852043530dbc9abcc486030894364b205f5de60171b451ff462664ebce23b672579bf2a444ebfe0a81875c26d2fa16d426795b9b02ccbc4bdf909c583f0c2ebe9136510645917153ecb05181ca0c1b207824578ee841804a148f4c3df7306dcea52d94222907c9187bc31c0880fc084f0d88716e195c0abe7672d15217623");
 }
 
 fn do_test_fail_htlc_backwards_with_reason(failure_code: FailureCode) {
