@@ -13,7 +13,6 @@ members = [
     "lightning-background-processor",
     "lightning-rapid-gossip-sync",
     "lightning-custom-message",
-    "lightning-transaction-sync",
     "lightning-macros",
     "lightning-dns-resolver",
     "possiblyrandom",

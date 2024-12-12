@@ -2,7 +2,6 @@
 set -eox pipefail
 
 RUSTC_MINOR_VERSION=$(rustc --version | awk '{ split($2,a,"."); print a[2] }')
-HOST_PLATFORM="$(rustc --version --verbose | grep "host:" | awk '{ print $2 }')"
 
 # Some crates require pinning to meet our MSRV even for our downstream users,
 # which we do here.
@@ -52,7 +51,6 @@ WORKSPACE_MEMBERS=(
 	lightning-background-processor
 	lightning-rapid-gossip-sync
 	lightning-custom-message
-	lightning-transaction-sync
 	lightning-macros
 	lightning-dns-resolver
 	possiblyrandom
@@ -75,25 +73,6 @@ cargo test -p lightning-block-sync --verbose --color always --features rpc-clien
 cargo check -p lightning-block-sync --verbose --color always --features rpc-client,rest-client
 cargo test -p lightning-block-sync --verbose --color always --features rpc-client,rest-client,tokio
 cargo check -p lightning-block-sync --verbose --color always --features rpc-client,rest-client,tokio
-
-if [[ "$HOST_PLATFORM" != *windows* ]]; then
-	echo -e "\n\nChecking Transaction Sync Clients with features."
-	cargo check -p lightning-transaction-sync --verbose --color always --features esplora-blocking
-	cargo check -p lightning-transaction-sync --verbose --color always --features esplora-async
-	cargo check -p lightning-transaction-sync --verbose --color always --features esplora-async-https
-	cargo check -p lightning-transaction-sync --verbose --color always --features electrum
-
-	if [ -z "$CI_ENV" ] && [[ -z "$BITCOIND_EXE" || -z "$ELECTRS_EXE" ]]; then
-		echo -e "\n\nSkipping testing Transaction Sync Clients due to BITCOIND_EXE or ELECTRS_EXE being unset."
-		cargo check -p lightning-transaction-sync --tests
-	else
-		echo -e "\n\nTesting Transaction Sync Clients with features."
-		cargo test -p lightning-transaction-sync --verbose --color always --features esplora-blocking
-		cargo test -p lightning-transaction-sync --verbose --color always --features esplora-async
-		cargo test -p lightning-transaction-sync --verbose --color always --features esplora-async-https
-		cargo test -p lightning-transaction-sync --verbose --color always --features electrum
-	fi
-fi
 
 echo -e "\n\nTest futures builds"
 cargo test -p lightning-background-processor --verbose --color always --features futures
