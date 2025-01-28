@@ -365,15 +365,17 @@ fn do_forward_checks_failure(check: ForwardCheckFail, intro_fails: bool) {
 				ForwardCheckFail::ForwardPayloadEncodedAsReceive => {
 					let recipient_onion_fields = RecipientOnionFields::spontaneous_empty();
 					let session_priv = SecretKey::from_slice(&[3; 32]).unwrap();
-					let onion_keys = onion_utils::construct_onion_keys(&Secp256k1::new(), &route.paths[0], &session_priv).unwrap();
+					let mut onion_keys = onion_utils::construct_onion_keys(&Secp256k1::new(), &route.paths[0], &session_priv).unwrap();
 					let cur_height = nodes[0].best_block_info().1;
 					let (mut onion_payloads, ..) = onion_utils::build_onion_payloads(
 						&route.paths[0], amt_msat, &recipient_onion_fields, cur_height, &None, None).unwrap();
 					// Remove the receive payload so the blinded forward payload is encoded as a final payload
 					// (i.e. next_hop_hmac == [0; 32])
 					onion_payloads.pop();
+					onion_keys.pop();
 					if $target_node_idx + 1 < nodes.len() {
 						onion_payloads.pop();
+						onion_keys.pop();
 					}
 					$update_add.onion_routing_packet = onion_utils::construct_onion_packet(onion_payloads, onion_keys, [0; 32], &payment_hash).unwrap();
 				},
