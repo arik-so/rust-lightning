@@ -340,10 +340,12 @@ pub(super) fn construct_onion_keys<T: secp256k1::Signing>(
 ) -> Result<Vec<OnionKeys>, secp256k1::Error> {
 	let mut res = Vec::with_capacity(path.hops.len());
 
+	let blinded_tail =
+		if path.trampoline_hops.len() == 0 { path.blinded_tail.as_ref() } else { None };
 	construct_onion_keys_generic_callback(
 		secp_ctx,
 		&path.hops,
-		path.blinded_tail.as_ref(),
+		blinded_tail,
 		session_priv,
 		|shared_secret, _blinding_factor, ephemeral_pubkey, _, _| {
 			let (rho, mu) = gen_rho_mu_from_shared_secret(shared_secret.as_ref());
@@ -687,6 +689,8 @@ pub(super) fn construct_onion_packet(
 
 	let mut chacha = ChaCha20::new(&prng_seed, &[0; 8]);
 	chacha.process(&[0; ONION_DATA_LEN], &mut packet_data);
+
+	debug_assert_eq!(payloads.len(), onion_keys.len(), "Payloads and keys must have equal lengths");
 
 	let packet = FixedSizeOnionPacket(packet_data);
 	construct_onion_packet_with_init_noise::<_, _>(
