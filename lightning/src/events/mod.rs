@@ -1574,8 +1574,8 @@ impl Writeable for Event {
 					(2, payment_failed_permanently, required),
 					(3, false, required), // all_paths_failed in LDK versions prior to 0.0.114
 					(4, path.blinded_tail, option),
-					(6, path.trampoline_hops, optional_vec),
 					(5, path.hops, required_vec),
+					(6, path.trampoline_hops, optional_vec),
 					(7, short_channel_id, option),
 					(9, None::<RouteParameters>, option), // retry in LDK versions prior to 0.0.115
 					(11, payment_id, option),
