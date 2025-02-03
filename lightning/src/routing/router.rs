@@ -493,12 +493,22 @@ pub struct Path {
 impl Path {
 	/// Gets the fees for a given path, excluding any excess paid to the recipient.
 	pub fn fee_msat(&self) -> u64 {
+		let route_fee = self.hops.split_last()
+			.map_or(0, |(_, path_prefix)| path_prefix.iter().map(|hop| hop.fee_msat).sum());
+		let trampoline_fee = self.trampoline_hops.iter().map(|hop| hop.fee_msat).sum::<u64>();
 		match &self.blinded_tail {
-			Some(_) => self.hops.iter().map(|hop| hop.fee_msat).sum::<u64>(),
+			Some(_) => {
+				if self.trampoline_hops.is_empty() {
+					route_fee + trampoline_fee + self.hops.last().map_or(0, |hop| hop.fee_msat)
+				} else {
+					// exclude last RouteHop because its value is the outgoing amount to the
+					// Trampoline entry point
+					route_fee + trampoline_fee
+				}
+			},
 			None => {
 				// Do not count last hop of each path since that's the full value of the payment
-				self.hops.split_last().map_or(0,
-					|(_, path_prefix)| path_prefix.iter().map(|hop| hop.fee_msat).sum())
+				route_fee + trampoline_fee
 			}
 		}
 	}
@@ -507,7 +517,14 @@ impl Path {
 	pub fn final_value_msat(&self) -> u64 {
 		match &self.blinded_tail {
 			Some(blinded_tail) => blinded_tail.final_value_msat,
-			None => self.hops.last().map_or(0, |hop| hop.fee_msat)
+			None => {
+				if let Some(last_trampoline) = self.trampoline_hops.last() {
+					// Note that this scenario should never occur until as we don't support
+					// unblinded Trampoline payments
+					return last_trampoline.fee_msat;
+				}
+				self.hops.last().map_or(0, |hop| hop.fee_msat)
+			}
 		}
 	}
 
@@ -515,7 +532,14 @@ impl Path {
 	pub fn final_cltv_expiry_delta(&self) -> Option<u32> {
 		match &self.blinded_tail {
 			Some(_) => None,
-			None => self.hops.last().map(|hop| hop.cltv_expiry_delta)
+			None => {
+				if let Some(last_trampoline) = self.trampoline_hops.last() {
+					// Note that this scenario should never occur until as we don't support
+					// unblinded Trampoline payments
+					return Some(last_trampoline.cltv_expiry_delta);
+				}
+				self.hops.last().map(|hop| hop.cltv_expiry_delta)
+			}
 		}
 	}
 }
