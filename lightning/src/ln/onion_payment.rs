@@ -16,6 +16,7 @@ use crate::types::features::BlindedHopFeatures;
 use crate::ln::msgs;
 use crate::ln::onion_utils;
 use crate::ln::onion_utils::{HTLCFailReason, INVALID_ONION_BLINDING};
+use crate::routing::gossip::NodeId;
 use crate::sign::{NodeSigner, Recipient};
 use crate::util::logger::Logger;
 
@@ -298,7 +299,7 @@ where
 		onion_utils::Hop::Forward { shared_secret, next_hop_hmac, new_packet_bytes, .. } |
 		onion_utils::Hop::BlindedForward { shared_secret, next_hop_hmac, new_packet_bytes, .. } => {
 			let NextPacketDetails {
-				next_packet_pubkey, outgoing_amt_msat: _, outgoing_scid: _, outgoing_cltv_value
+				next_packet_pubkey, outgoing_amt_msat: _, outgoing_connector: _, outgoing_cltv_value
 			} = match next_packet_details_opt {
 				Some(next_packet_details) => next_packet_details,
 				// Forward should always include the next hop details
@@ -336,9 +337,17 @@ where
 	})
 }
 
+pub(super) enum HopConnector {
+	// scid-based routing
+	ShortChannelId(u64),
+	// Trampoline-based routing
+	#[allow(unused)]
+	Trampoline(NodeId),
+}
+
 pub(super) struct NextPacketDetails {
 	pub(super) next_packet_pubkey: Result<PublicKey, secp256k1::Error>,
-	pub(super) outgoing_scid: u64,
+	pub(super) outgoing_connector: HopConnector,
 	pub(super) outgoing_amt_msat: u64,
 	pub(super) outgoing_cltv_value: u32,
 }
@@ -415,7 +424,7 @@ where
 			let next_packet_pubkey = onion_utils::next_hop_pubkey(secp_ctx,
 				msg.onion_routing_packet.public_key.unwrap(), &shared_secret.secret_bytes());
 			Some(NextPacketDetails {
-				next_packet_pubkey, outgoing_scid: short_channel_id,
+				next_packet_pubkey, outgoing_connector: HopConnector::ShortChannelId(short_channel_id),
 				outgoing_amt_msat: amt_to_forward, outgoing_cltv_value
 			})
 		}
@@ -432,7 +441,7 @@ where
 			let next_packet_pubkey = onion_utils::next_hop_pubkey(&secp_ctx,
 				msg.onion_routing_packet.public_key.unwrap(), &shared_secret.secret_bytes());
 			Some(NextPacketDetails {
-				next_packet_pubkey, outgoing_scid: short_channel_id, outgoing_amt_msat: amt_to_forward,
+				next_packet_pubkey, outgoing_connector: HopConnector::ShortChannelId(short_channel_id), outgoing_amt_msat: amt_to_forward,
 				outgoing_cltv_value
 			})
 		}
