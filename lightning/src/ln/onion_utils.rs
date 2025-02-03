@@ -18,7 +18,7 @@ use crate::routing::gossip::NetworkUpdate;
 use crate::routing::router::{BlindedTail, Path, RouteHop, RouteParameters, TrampolineHop};
 use crate::sign::NodeSigner;
 use crate::types::features::{ChannelFeatures, NodeFeatures};
-use crate::types::payment::{PaymentHash, PaymentPreimage, PaymentSecret};
+use crate::types::payment::{PaymentHash, PaymentPreimage};
 use crate::util::errors::{self, APIError};
 use crate::util::logger::Logger;
 use crate::util::ser::{LengthCalculatingWriter, Readable, ReadableArgs, Writeable, Writer};
@@ -1478,7 +1478,6 @@ pub fn create_payment_onion<T: secp256k1::Signing>(
 		prng_seed,
 		None,
 		None,
-		None,
 	)
 }
 
@@ -1488,8 +1487,8 @@ pub(crate) fn create_payment_onion_internal<T: secp256k1::Signing>(
 	secp_ctx: &Secp256k1<T>, path: &Path, session_priv: &SecretKey, total_msat: u64,
 	recipient_onion: &RecipientOnionFields, cur_block_height: u32, payment_hash: &PaymentHash,
 	keysend_preimage: &Option<PaymentPreimage>, invoice_request: Option<&InvoiceRequest>,
-	prng_seed: [u8; 32], secondary_payment_secret: Option<PaymentSecret>,
-	secondary_session_priv: Option<SecretKey>, secondary_prng_seed: Option<[u8; 32]>,
+	prng_seed: [u8; 32], secondary_session_priv: Option<SecretKey>,
+	secondary_prng_seed: Option<[u8; 32]>,
 ) -> Result<(msgs::OnionPacket, u64, u32), APIError> {
 	let mut outer_total_msat = total_msat;
 	let mut outer_starting_htlc_offset = cur_block_height;
@@ -1525,53 +1524,22 @@ pub(crate) fn create_payment_onion_internal<T: secp256k1::Signing>(
 		})?;
 
 		trampoline_packet_option = Some(trampoline_packet);
-	}
-
-	let (mut onion_payloads, htlc_msat, htlc_cltv) = build_onion_payloads(
-		&path,
-		outer_total_msat,
-		recipient_onion,
-		outer_starting_htlc_offset,
-		keysend_preimage,
-		invoice_request,
-	)?;
-
-	if !path.trampoline_hops.is_empty() {
-		let last_payload = onion_payloads.pop().ok_or(APIError::InvalidRoute {
-			err: "Non-Trampoline path needs at least one hop".to_owned(),
-		})?;
-
-		match last_payload {
-			OutboundOnionPayload::Receive { payment_data, .. } => {
-				let fee_delta = path.hops.last().map_or(0, |h| h.fee_msat);
-				let cltv_delta = path.hops.last().map_or(0, |h| h.cltv_expiry_delta);
-				let multipath_trampoline_data = payment_data.map(|d| {
-					let trampoline_payment_secret = secondary_payment_secret.unwrap_or_else(|| {
-						PaymentSecret(Sha256::hash(&d.payment_secret.0).to_byte_array())
-					});
-					let total_msat = fee_delta;
-					FinalOnionHopData { payment_secret: trampoline_payment_secret, total_msat }
-				});
-				onion_payloads.push(OutboundOnionPayload::TrampolineEntrypoint {
-					amt_to_forward: fee_delta,
-					outgoing_cltv_value: outer_starting_htlc_offset + cltv_delta,
-					multipath_trampoline_data,
-					trampoline_packet: trampoline_packet_option.unwrap(),
-				});
-			},
-			_ => {
-				return Err(APIError::InvalidRoute {
-					err: "Last non-Trampoline hop must be of type OutboundOnionPayload::Receive"
-						.to_owned(),
-				});
-			},
-		};
 
 		outer_session_priv_override = Some(secondary_session_priv.unwrap_or_else(|| {
 			let session_priv_hash = Sha256::hash(&session_priv.secret_bytes()).to_byte_array();
 			SecretKey::from_slice(&session_priv_hash[..]).expect("You broke SHA-256!")
 		}));
 	}
+
+	let (onion_payloads, htlc_msat, htlc_cltv) = build_onion_payloads(
+		&path,
+		outer_total_msat,
+		recipient_onion,
+		outer_starting_htlc_offset,
+		keysend_preimage,
+		invoice_request,
+		trampoline_packet_option,
+	)?;
 
 	let outer_session_priv = outer_session_priv_override.as_ref().unwrap_or(session_priv);
 	let onion_keys = construct_onion_keys(&secp_ctx, &path, outer_session_priv).map_err(|_| {
