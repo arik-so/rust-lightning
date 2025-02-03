@@ -35,7 +35,7 @@ use bitcoin::secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 use crate::io::{Cursor, Read};
 use core::ops::Deref;
 
-use crate::ln::msgs::{FinalOnionHopData, OutboundOnionPayload};
+use crate::ln::msgs::{FinalOnionHopData, OutboundOnionPayload, TrampolineOnionPacket};
 
 #[allow(unused_imports)]
 use crate::prelude::*;
@@ -186,6 +186,10 @@ trait OnionPayload<'a, 'b> {
 		keysend_preimage: Option<PaymentPreimage>, invoice_request: Option<&'a InvoiceRequest>,
 		custom_tlvs: &'a Vec<(u64, Vec<u8>)>,
 	) -> Self;
+	fn new_trampoline_entry(
+		total_msat: u64, amt_to_forward: u64, outgoing_cltv_value: u32,
+		recipient_onion: &'a RecipientOnionFields, packet: TrampolineOnionPacket,
+	) -> Self;
 }
 impl<'a, 'b> OnionPayload<'a, 'b> for msgs::OutboundOnionPayload<'a> {
 	type PathHopForId = &'b RouteHop;
@@ -200,7 +204,7 @@ impl<'a, 'b> OnionPayload<'a, 'b> for msgs::OutboundOnionPayload<'a> {
 		Ok(Self::Receive {
 			payment_data: recipient_onion
 				.payment_secret
-				.map(|payment_secret| msgs::FinalOnionHopData { payment_secret, total_msat }),
+				.map(|payment_secret| FinalOnionHopData { payment_secret, total_msat }),
 			payment_metadata: recipient_onion.payment_metadata.as_ref(),
 			keysend_preimage,
 			custom_tlvs: &recipient_onion.custom_tlvs,
@@ -228,6 +232,20 @@ impl<'a, 'b> OnionPayload<'a, 'b> for msgs::OutboundOnionPayload<'a> {
 			keysend_preimage,
 			invoice_request,
 			custom_tlvs,
+		}
+	}
+
+	fn new_trampoline_entry(
+		total_msat: u64, amt_to_forward: u64, outgoing_cltv_value: u32,
+		recipient_onion: &'a RecipientOnionFields, packet: TrampolineOnionPacket,
+	) -> Self {
+		Self::TrampolineEntrypoint {
+			amt_to_forward,
+			outgoing_cltv_value,
+			multipath_trampoline_data: recipient_onion
+				.payment_secret
+				.map(|payment_secret| FinalOnionHopData { payment_secret, total_msat }),
+			trampoline_packet: packet,
 		}
 	}
 }
@@ -267,6 +285,13 @@ impl<'a, 'b> OnionPayload<'a, 'b> for msgs::OutboundTrampolinePayload<'a> {
 			keysend_preimage,
 			custom_tlvs,
 		}
+	}
+
+	fn new_trampoline_entry(
+		_total_msat: u64, _amt_to_forward: u64, _outgoing_cltv_value: u32,
+		_recipient_onion: &'a RecipientOnionFields, _packet: TrampolineOnionPacket,
+	) -> Self {
+		unreachable!("Trampoline onions cannot contain Trampoline entrypoints");
 	}
 }
 
@@ -367,7 +392,7 @@ pub(super) fn construct_trampoline_onion_keys<T: secp256k1::Signing>(
 	Ok(res)
 }
 
-fn build_trampoline_onion_payloads<'a>(
+pub(super) fn build_trampoline_onion_payloads<'a>(
 	path: &'a Path, total_msat: u64, recipient_onion: &'a RecipientOnionFields,
 	starting_htlc_offset: u32, keysend_preimage: &Option<PaymentPreimage>,
 ) -> Result<(Vec<msgs::OutboundTrampolinePayload<'a>>, u64, u32), APIError> {
@@ -392,6 +417,7 @@ fn build_trampoline_onion_payloads<'a>(
 		starting_htlc_offset,
 		keysend_preimage,
 		None,
+		None,
 		|action, payload| match action {
 			PayloadCallbackAction::PushBack => res.push(payload),
 			PayloadCallbackAction::PushFront => res.insert(0, payload),
@@ -404,7 +430,7 @@ fn build_trampoline_onion_payloads<'a>(
 pub(super) fn build_onion_payloads<'a>(
 	path: &'a Path, total_msat: u64, recipient_onion: &'a RecipientOnionFields,
 	starting_htlc_offset: u32, keysend_preimage: &Option<PaymentPreimage>,
-	invoice_request: Option<&'a InvoiceRequest>,
+	invoice_request: Option<&'a InvoiceRequest>, trampoline_packet: Option<TrampolineOnionPacket>,
 ) -> Result<(Vec<msgs::OutboundOnionPayload<'a>>, u64, u32), APIError> {
 	let mut res: Vec<msgs::OutboundOnionPayload> = Vec::with_capacity(
 		path.hops.len() + path.blinded_tail.as_ref().map_or(0, |t| t.hops.len()),
@@ -434,6 +460,7 @@ pub(super) fn build_onion_payloads<'a>(
 		starting_htlc_offset,
 		keysend_preimage,
 		invoice_request,
+		trampoline_packet,
 		|action, payload| match action {
 			PayloadCallbackAction::PushBack => res.push(payload),
 			PayloadCallbackAction::PushFront => res.insert(0, payload),
@@ -456,7 +483,7 @@ fn build_onion_payloads_callback<'a, 'b, H, B, F, OP>(
 	hops: H, mut blinded_tail: Option<BlindedTailHopIter<'a, B>>, total_msat: u64,
 	recipient_onion: &'a RecipientOnionFields, starting_htlc_offset: u32,
 	keysend_preimage: &Option<PaymentPreimage>, invoice_request: Option<&'a InvoiceRequest>,
-	mut callback: F,
+	trampoline_packet: Option<TrampolineOnionPacket>, mut callback: F,
 ) -> Result<(u64, u32), APIError>
 where
 	H: DoubleEndedIterator<Item = OP::PathHopForId>,
@@ -515,6 +542,17 @@ where
 						);
 					}
 				}
+			} else if let Some(trampoline_packet) = trampoline_packet.as_ref() {
+				callback(
+					PayloadCallbackAction::PushBack,
+					OP::new_trampoline_entry(
+						total_msat,
+						value_msat,
+						cur_cltv,
+						&recipient_onion,
+						trampoline_packet.clone(),
+					),
+				);
 			} else {
 				callback(
 					PayloadCallbackAction::PushBack,
@@ -605,6 +643,7 @@ pub(crate) fn set_max_path_length(
 		best_block_height,
 		&keysend_preimage,
 		invoice_request,
+		None,
 		|_, payload: msgs::OutboundOnionPayload| {
 			num_reserved_bytes = num_reserved_bytes
 				.saturating_add(payload.serialized_length())

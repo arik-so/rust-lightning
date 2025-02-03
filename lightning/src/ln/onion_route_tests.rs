@@ -366,7 +366,7 @@ fn test_onion_failure() {
 		let onion_keys = onion_utils::construct_onion_keys(&Secp256k1::new(), &route.paths[0], &session_priv).unwrap();
 		let recipient_onion_fields = RecipientOnionFields::spontaneous_empty();
 		let (mut onion_payloads, _htlc_msat, _htlc_cltv) = onion_utils::build_onion_payloads(
-			&route.paths[0], 40000, &recipient_onion_fields, cur_height, &None, None).unwrap();
+			&route.paths[0], 40000, &recipient_onion_fields, cur_height, &None, None, None).unwrap();
 		let mut new_payloads = Vec::new();
 		for payload in onion_payloads.drain(..) {
 			new_payloads.push(BogusOnionHopData::new(payload));
@@ -385,7 +385,7 @@ fn test_onion_failure() {
 		let onion_keys = onion_utils::construct_onion_keys(&Secp256k1::new(), &route.paths[0], &session_priv).unwrap();
 		let recipient_onion_fields = RecipientOnionFields::spontaneous_empty();
 		let (mut onion_payloads, _htlc_msat, _htlc_cltv) = onion_utils::build_onion_payloads(
-			&route.paths[0], 40000, &recipient_onion_fields, cur_height, &None, None).unwrap();
+			&route.paths[0], 40000, &recipient_onion_fields, cur_height, &None, None, None).unwrap();
 		let mut new_payloads = Vec::new();
 		for payload in onion_payloads.drain(..) {
 			new_payloads.push(BogusOnionHopData::new(payload));
@@ -639,7 +639,7 @@ fn test_onion_failure() {
 		let onion_keys = onion_utils::construct_onion_keys(&Secp256k1::new(), &route.paths[0], &session_priv).unwrap();
 		let recipient_onion_fields = RecipientOnionFields::spontaneous_empty();
 		let (onion_payloads, _, htlc_cltv) = onion_utils::build_onion_payloads(
-			&route.paths[0], 40000, &recipient_onion_fields, height, &None, None).unwrap();
+			&route.paths[0], 40000, &recipient_onion_fields, height, &None, None, None).unwrap();
 		let onion_packet = onion_utils::construct_onion_packet(onion_payloads, onion_keys, [0; 32], &payment_hash).unwrap();
 		msg.cltv_expiry = htlc_cltv;
 		msg.onion_routing_packet = onion_packet;
@@ -977,7 +977,7 @@ fn test_always_create_tlv_format_onion_payloads() {
 	let cur_height = nodes[0].best_block_info().1 + 1;
 	let recipient_onion_fields = RecipientOnionFields::spontaneous_empty();
 	let (onion_payloads, _htlc_msat, _htlc_cltv) = onion_utils::build_onion_payloads(
-		&route.paths[0], 40000, &recipient_onion_fields, cur_height, &None, None).unwrap();
+		&route.paths[0], 40000, &recipient_onion_fields, cur_height, &None, None, None).unwrap();
 
 	match onion_payloads[0] {
 		msgs::OutboundOnionPayload::Forward {..} => {},
@@ -1012,6 +1012,138 @@ fn test_trampoline_onion_payload_serialization() {
 
 	let carol_payload_hex = slice_to_hex(&trampoline_payload.encode());
 	assert_eq!(carol_payload_hex, "2e020405f5e10004030c35000e2102edabbd16b41c8371b92ef2f04c1185b4f03b6dcd52ba9b78d9d7c89c8f221145");
+}
+
+#[test]
+fn test_trampoline_onion_payload_assembly_values() {
+	let amt_msat = 150_000_000;
+	let cur_height = 800_000;
+
+	let path = Path {
+		hops: vec![
+			// Bob
+			RouteHop {
+				pubkey: PublicKey::from_slice(&<Vec<u8>>::from_hex("0324653eac434488002cc06bbfb7f10fe18991e35f9fe4302dbea6d2353dc0ab1c").unwrap()).unwrap(),
+				node_features: NodeFeatures::empty(),
+				short_channel_id: 0,
+				channel_features: ChannelFeatures::empty(),
+				fee_msat: 3000,
+				cltv_expiry_delta: 24,
+				maybe_announced_channel: false,
+			},
+
+			// Carol
+			RouteHop {
+				pubkey: PublicKey::from_slice(&<Vec<u8>>::from_hex("027f31ebc5462c1fdce1b737ecff52d37d75dea43ce11c74d25aa297165faa2007").unwrap()).unwrap(),
+				node_features: NodeFeatures::empty(),
+				short_channel_id: (572330 << 40) + (42 << 16) + 2821,
+				channel_features: ChannelFeatures::empty(),
+				fee_msat: 150_153_000,
+				cltv_expiry_delta: 0,
+				maybe_announced_channel: false,
+			},
+		],
+		trampoline_hops: vec![
+			// Carol's pubkey
+			TrampolineHop {
+				pubkey: PublicKey::from_slice(&<Vec<u8>>::from_hex("027f31ebc5462c1fdce1b737ecff52d37d75dea43ce11c74d25aa297165faa2007").unwrap()).unwrap(),
+				node_features: Features::empty(),
+				fee_msat: 2_500,
+				cltv_expiry_delta: 24,
+			},
+			// Dave's pubkey (the intro node needs to be duplicated)
+			TrampolineHop {
+				pubkey: PublicKey::from_slice(&<Vec<u8>>::from_hex("032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991").unwrap()).unwrap(),
+				node_features: Features::empty(),
+				fee_msat: 150_500,
+				cltv_expiry_delta: 36,
+			}
+		],
+		blinded_tail: Some(BlindedTail {
+			hops: vec![
+				// Dave's blinded node id
+				BlindedHop {
+					blinded_node_id: PublicKey::from_slice(&<Vec<u8>>::from_hex("0295d40514096a8be54859e7dfe947b376eaafea8afe5cb4eb2c13ff857ed0b4be").unwrap()).unwrap(),
+					encrypted_payload: vec![],
+				},
+				// Eve's blinded node id
+				BlindedHop {
+					blinded_node_id: PublicKey::from_slice(&<Vec<u8>>::from_hex("020e2dbadcc2005e859819ddebbe88a834ae8a6d2b049233c07335f15cd1dc5f22").unwrap()).unwrap(),
+					encrypted_payload: vec![],
+				}
+			],
+			blinding_point: PublicKey::from_slice(&<Vec<u8>>::from_hex("02988face71e92c345a068f740191fd8e53be14f0bb957ef730d3c5f76087b960e").unwrap()).unwrap(),
+			excess_final_cltv_expiry_delta: 0,
+			final_value_msat: amt_msat
+		}),
+	};
+	assert_eq!(path.fee_msat(), 156_000);
+	assert_eq!(path.final_value_msat(), amt_msat);
+	assert_eq!(path.final_cltv_expiry_delta(), None);
+
+	let payment_secret = PaymentSecret(SecretKey::from_slice(&<Vec<u8>>::from_hex("7494b65bc092b48a75465e43e29be807eb2cc535ce8aaba31012b8ff1ceac5da").unwrap()).unwrap().secret_bytes());
+	let recipient_onion_fields = RecipientOnionFields::secret_only(payment_secret);
+	let (trampoline_payloads, outer_total_msat, outer_starting_htlc_offset) = onion_utils::build_trampoline_onion_payloads(&path, amt_msat, &recipient_onion_fields, cur_height, &None).unwrap();
+	assert_eq!(trampoline_payloads.len(), 3);
+	assert_eq!(outer_total_msat, 150_153_000);
+	assert_eq!(outer_starting_htlc_offset, 800_060);
+
+	let trampoline_carol_payload = &trampoline_payloads[0];
+	let trampoline_dave_payload = &trampoline_payloads[1];
+	let trampoline_eve_payload = &trampoline_payloads[2];
+	if let OutboundTrampolinePayload::BlindedReceive { sender_intended_htlc_amt_msat, total_msat, cltv_expiry_height, .. } = trampoline_eve_payload {
+		assert_eq!(sender_intended_htlc_amt_msat, &150_000_000);
+		assert_eq!(total_msat, &150_000_000);
+		assert_eq!(cltv_expiry_height, &800_000);
+	} else {
+		panic!("Eve Trampoline payload must be BlindedReceive");
+	}
+
+	if let OutboundTrampolinePayload::BlindedForward { .. } = trampoline_dave_payload {} else {
+		panic!("Dave Trampoline payload must be BlindedForward");
+	}
+
+	if let OutboundTrampolinePayload::Forward { amt_to_forward, outgoing_cltv_value, .. } = trampoline_carol_payload {
+		assert_eq!(amt_to_forward, &150_150_500);
+		assert_eq!(outgoing_cltv_value, &800_036);
+	} else {
+		panic!("Carol Trampoline payload must be Forward");
+	}
+
+	// all dummy values
+	let secp_ctx = Secp256k1::new();
+	let session_priv = SecretKey::from_slice(&<Vec<u8>>::from_hex("a64feb81abd58e473df290e9e1c07dc3e56114495cadf33191f44ba5448ebe99").unwrap()).unwrap();
+	let prng_seed = onion_utils::gen_pad_from_shared_secret(&session_priv.secret_bytes());
+	let payment_hash = PaymentHash(session_priv.secret_bytes());
+
+	let onion_keys = construct_trampoline_onion_keys(&secp_ctx, &path, &session_priv).unwrap();
+	let trampoline_packet = construct_trampoline_onion_packet(
+		trampoline_payloads,
+		onion_keys,
+		prng_seed,
+		&payment_hash,
+		None,
+	).unwrap();
+
+	let (outer_payloads, total_msat, total_htlc_offset) = onion_utils::build_onion_payloads(&path, outer_total_msat, &recipient_onion_fields, outer_starting_htlc_offset, &None, None, Some(trampoline_packet)).unwrap();
+	assert_eq!(outer_payloads.len(), 2);
+	assert_eq!(total_msat, 150_156_000);
+	assert_eq!(total_htlc_offset, 800_084);
+
+	let outer_bob_payload = &outer_payloads[0];
+	let outer_carol_payload = &outer_payloads[1];
+	if let OutboundOnionPayload::TrampolineEntrypoint { amt_to_forward, outgoing_cltv_value, .. } = outer_carol_payload {
+		assert_eq!(amt_to_forward, &150_153_000);
+		assert_eq!(outgoing_cltv_value, &800_060);
+	} else {
+		panic!("Carol payload must be TrampolineEntrypoint");
+	}
+	if let OutboundOnionPayload::Forward { amt_to_forward, outgoing_cltv_value, .. } = outer_bob_payload {
+		assert_eq!(amt_to_forward, &150_153_000);
+		assert_eq!(outgoing_cltv_value, &800_084);
+	} else {
+		panic!("Bob payload must be Forward");
+	}
 }
 
 #[test]
@@ -1378,7 +1510,7 @@ fn test_phantom_invalid_onion_payload() {
 					let recipient_onion_fields = RecipientOnionFields::secret_only(payment_secret);
 					let (mut onion_payloads, _, _) = onion_utils::build_onion_payloads(
 						&route.paths[0], msgs::MAX_VALUE_MSAT + 1,
-						&recipient_onion_fields, height + 1, &None, None).unwrap();
+						&recipient_onion_fields, height + 1, &None, None, None).unwrap();
 					// We only want to construct the onion packet for the last hop, not the entire route, so
 					// remove the first hop's payload and its keys.
 					onion_keys.remove(0);

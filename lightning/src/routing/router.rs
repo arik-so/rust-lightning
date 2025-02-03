@@ -400,6 +400,8 @@ pub struct RouteHop {
 	/// If this is the last hop in [`Path::hops`]:
 	/// * if we're sending to a [`BlindedPaymentPath`], this is the fee paid for use of the entire
 	///   blinded path
+	/// * if we're sending to a Trampoline entrypoint, this is the total incoming amount to the
+	///   Trampoline hop
 	/// * otherwise, this is the full value of this [`Path`]'s part of the payment
 	pub fee_msat: u64,
 	/// The CLTV delta added for this hop.
