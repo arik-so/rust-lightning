@@ -399,15 +399,13 @@ pub struct RouteHop {
 	/// The fee taken on this hop (for paying for the use of the *next* channel in the path).
 	/// If this is the last hop in [`Path::hops`]:
 	/// * if we're sending to a [`BlindedPaymentPath`], this is the fee paid for use of the entire
-	///   blinded path
-	/// * if we're sending to a Trampoline entrypoint, this is the total incoming amount to the
-	///   Trampoline entrypoint
+	///   blinded path (including any Trampoline hops)
 	/// * otherwise, this is the full value of this [`Path`]'s part of the payment
 	pub fee_msat: u64,
 	/// The CLTV delta added for this hop.
 	/// If this is the last hop in [`Path::hops`]:
 	/// * if we're sending to a [`BlindedPaymentPath`], this is the CLTV delta for the entire blinded
-	///   path
+	///   path (including any Trampoline hops)
 	/// * otherwise, this is the CLTV delta expected at the destination
 	pub cltv_expiry_delta: u32,
 	/// Indicates whether this hop is possibly announced in the public network graph.
