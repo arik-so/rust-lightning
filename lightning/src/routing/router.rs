@@ -438,12 +438,12 @@ pub struct TrampolineHop {
 	pub node_features: NodeFeatures,
 	/// The fee this hop should use to pay for routing towards the next Trampoline hop, or to the
 	/// recipient if this is the last Trampoline hop.
-	/// If this is the last Trampoline hop within [`Path`], this is the fee paid for the use of
-	/// the entire blinded path, if one exists.
+	/// If this is the last Trampoline hop within [`BlindedTail`], this is the fee paid for the use of
+	/// the entire blinded path.
 	pub fee_msat: u64,
 	/// The CLTV delta added for this hop.
-	/// If this is the last Trampoline hop within [`Path`], this is the CLTV delta for the entire
-	/// blinded path, if one exists.
+	/// If this is the last Trampoline hop within [`BlindedTail`], this is the CLTV delta for the entire
+	/// blinded path.
 	pub cltv_expiry_delta: u32,
 }
 
