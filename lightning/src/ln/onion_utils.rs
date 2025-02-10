@@ -1511,7 +1511,8 @@ pub fn create_payment_onion<T: secp256k1::Signing>(
 
 /// Build a payment onion, returning the first hop msat and cltv values as well.
 /// `cur_block_height` should be set to the best known block height + 1.
-pub(crate) fn create_payment_onion_internal<T: secp256k1::Signing>(
+#[cfg_attr(test, pub(crate))]
+fn create_payment_onion_internal<T: secp256k1::Signing>(
 	secp_ctx: &Secp256k1<T>, path: &Path, session_priv: &SecretKey, total_msat: u64,
 	recipient_onion: &RecipientOnionFields, cur_block_height: u32, payment_hash: &PaymentHash,
 	keysend_preimage: &Option<PaymentPreimage>, invoice_request: Option<&InvoiceRequest>,
