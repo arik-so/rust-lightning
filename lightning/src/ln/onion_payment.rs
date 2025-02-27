@@ -104,6 +104,15 @@ pub(super) fn create_fwd_pending_htlc_info(
 				err_code: 0x4000 | 22,
 				err_data: Vec::new(),
 			}),
+		#[cfg(trampoline)]
+		onion_utils::Hop::TrampolineReceive { .. } =>
+			return Err(InboundHTLCErr {
+				msg: "Final Node OnionHopData provided for us as an intermediary node",
+				err_code: 0x4000 | 22,
+				err_data: Vec::new(),
+			}),
+		#[cfg(trampoline)]
+		onion_utils::Hop::TrampolineForward { .. } => panic!("Trampoline forwards are being handled outside of create_fwd_pending_htlc_info")
 	};
 
 	Ok(PendingHTLCInfo {
@@ -165,6 +174,8 @@ pub(super) fn create_recv_pending_htlc_info(
 			 sender_intended_htlc_amt_msat, cltv_expiry_height, None, Some(payment_context),
 			 intro_node_blinding_point.is_none(), true, invoice_request)
 		}
+		#[cfg(trampoline)]
+		onion_utils::Hop::TrampolineReceive { .. } => todo!(),
 		onion_utils::Hop::Forward { .. } => {
 			return Err(InboundHTLCErr {
 				err_code: 0x4000|22,
@@ -177,6 +188,14 @@ pub(super) fn create_recv_pending_htlc_info(
 				err_code: INVALID_ONION_BLINDING,
 				err_data: vec![0; 32],
 				msg: "Got blinded non final data with an HMAC of 0",
+			})
+		},
+		#[cfg(trampoline)]
+		onion_utils::Hop::TrampolineForward { .. } => {
+			return Err(InboundHTLCErr {
+				err_code: 0x4000|22,
+				err_data: Vec::new(),
+				msg: "Got Trampoline non final data with an HMAC of 0",
 			})
 		},
 	};
@@ -392,7 +411,7 @@ where
 		return_malformed_err!("Unknown onion packet version", 0x8000 | 0x4000 | 4);
 	}
 
-	let encode_relay_error = |message: &str, err_code: u16, shared_secret: [u8; 32], data: &[u8]| {
+	let encode_relay_error = |message: &str, err_code: u16, shared_secret: [u8; 32], trampoline_shared_secret: Option<[u8; 32]>, data: &[u8]| {
 		if msg.blinding_point.is_some() {
 			return_malformed_err!(message, INVALID_ONION_BLINDING)
 		}
@@ -402,7 +421,7 @@ where
 			channel_id: msg.channel_id,
 			htlc_id: msg.htlc_id,
 			reason: HTLCFailReason::reason(err_code, data.to_vec())
-				.get_encrypted_failure_packet(&shared_secret, &None),
+				.get_encrypted_failure_packet(&shared_secret, &trampoline_shared_secret),
 		}));
 	};
 
@@ -414,8 +433,8 @@ where
 		Err(onion_utils::OnionDecodeErr::Malformed { err_msg, err_code }) => {
 			return_malformed_err!(err_msg, err_code);
 		},
-		Err(onion_utils::OnionDecodeErr::Relay { err_msg, err_code, shared_secret }) => {
-			return encode_relay_error(err_msg, err_code, shared_secret.secret_bytes(), &[0; 0]);
+		Err(onion_utils::OnionDecodeErr::Relay { err_msg, err_code, shared_secret, trampoline_shared_secret }) => {
+			return encode_relay_error(err_msg, err_code, shared_secret.secret_bytes(), trampoline_shared_secret.map(|tss| tss.secret_bytes()), &[0; 0]);
 		},
 	};
 
@@ -435,7 +454,7 @@ where
 				Ok((amt, cltv)) => (amt, cltv),
 				Err(()) => {
 					return encode_relay_error("Underflow calculating outbound amount or cltv value for blinded forward",
-						INVALID_ONION_BLINDING, shared_secret.secret_bytes(), &[0; 32]);
+						INVALID_ONION_BLINDING, shared_secret.secret_bytes(), None, &[0; 32]);
 				}
 			};
 			let next_packet_pubkey = onion_utils::next_hop_pubkey(&secp_ctx,
@@ -443,6 +462,17 @@ where
 			Some(NextPacketDetails {
 				next_packet_pubkey, outgoing_connector: HopConnector::ShortChannelId(short_channel_id), outgoing_amt_msat: amt_to_forward,
 				outgoing_cltv_value
+			})
+		}
+		#[cfg(trampoline)]
+		onion_utils::Hop::TrampolineForward { next_trampoline_hop_data: msgs::InboundTrampolineForwardPayload { amt_to_forward, outgoing_cltv_value, outgoing_node_id }, trampoline_shared_secret, incoming_trampoline_public_key, .. } => {
+			let next_trampoline_packet_pubkey = onion_utils::next_hop_pubkey(secp_ctx,
+				incoming_trampoline_public_key, &trampoline_shared_secret.secret_bytes());
+			Some(NextPacketDetails {
+				next_packet_pubkey: next_trampoline_packet_pubkey,
+				outgoing_connector: HopConnector::Trampoline(outgoing_node_id),
+				outgoing_amt_msat: amt_to_forward,
+				outgoing_cltv_value,
 			})
 		}
 		_ => None

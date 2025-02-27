@@ -4463,12 +4463,59 @@ where
 					Err(InboundHTLCErr { err_code, err_data, msg }) => return_err!(msg, err_code, &err_data)
 				}
 			},
+			#[cfg(trampoline)]
+			onion_utils::Hop::TrampolineReceive { .. } => {
+				// OUR PAYMENT!
+				let current_height: u32 = self.best_block.read().unwrap().height;
+				match create_recv_pending_htlc_info(decoded_hop, shared_secret, msg.payment_hash,
+					msg.amount_msat, msg.cltv_expiry, None, allow_underpay, msg.skimmed_fee_msat,
+					current_height)
+				{
+					Ok(info) => {
+						// Note that we could obviously respond immediately with an update_fulfill_htlc
+						// message, however that would leak that we are the recipient of this payment, so
+						// instead we stay symmetric with the forwarding case, only responding (after a
+						// delay) once they've sent us a commitment_signed!
+						PendingHTLCStatus::Forward(info)
+					},
+					Err(InboundHTLCErr { err_code, err_data, msg }) => return_err!(msg, err_code, &err_data)
+				}
+			},
 			onion_utils::Hop::Forward { next_hop_hmac, new_packet_bytes, .. } | onion_utils::Hop::BlindedForward { next_hop_hmac, new_packet_bytes, .. } => {
 				match create_fwd_pending_htlc_info(msg, decoded_hop, next_hop_hmac,
 					new_packet_bytes, shared_secret, next_packet_pubkey_opt) {
 					Ok(info) => PendingHTLCStatus::Forward(info),
 					Err(InboundHTLCErr { err_code, err_data, msg }) => return_err!(msg, err_code, &err_data)
 				}
+			},
+			#[cfg(trampoline)]
+			onion_utils::Hop::TrampolineForward { next_trampoline_hop_data, next_trampoline_hop_hmac, new_trampoline_packet_bytes, trampoline_shared_secret, .. } => {
+				debug_assert!(next_packet_pubkey_opt.is_some());
+				let next_trampoline_packet_pubkey = match next_packet_pubkey_opt {
+					Some(Ok(pubkey)) => pubkey,
+					_ => return_err!("Missing next Trampoline hop pubkey from intermediate Trampoline forwarding data ", 0x4000 | 22, Vec::new()),
+				};
+				let outgoing_packet = msgs::TrampolineOnionPacket {
+					version: 0,
+					public_key: next_trampoline_packet_pubkey,
+					hop_data: new_trampoline_packet_bytes,
+					hmac: next_trampoline_hop_hmac,
+				};
+				PendingHTLCStatus::Forward(PendingHTLCInfo {
+					routing: PendingHTLCRouting::TrampolineForward {
+						incoming_shared_secret: trampoline_shared_secret.secret_bytes(),
+						onion_packet: outgoing_packet,
+						node_id: next_trampoline_hop_data.outgoing_node_id,
+						incoming_cltv_expiry: msg.cltv_expiry,
+						blinded: None
+					},
+					payment_hash: msg.payment_hash,
+					incoming_shared_secret: shared_secret,
+					incoming_amt_msat: Some(msg.amount_msat),
+					outgoing_amt_msat: next_trampoline_hop_data.amt_to_forward,
+					outgoing_cltv_value: next_trampoline_hop_data.outgoing_cltv_value,
+					skimmed_fee_msat: None,
+				})
 			}
 		}
 	}
@@ -5880,7 +5927,7 @@ where
 														// of the onion.
 														failed_payment!(err_msg, err_code, sha256_of_onion.to_vec(), None);
 													},
-													Err(onion_utils::OnionDecodeErr::Relay { err_msg, err_code, shared_secret }) => {
+													Err(onion_utils::OnionDecodeErr::Relay { err_msg, err_code, shared_secret, .. }) => {
 														let phantom_shared_secret = shared_secret.secret_bytes();
 														failed_payment!(err_msg, err_code, Vec::new(), Some(phantom_shared_secret));
 													},
