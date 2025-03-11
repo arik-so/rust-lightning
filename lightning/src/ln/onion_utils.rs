@@ -967,7 +967,7 @@ where
 	let mut htlc_msat = *first_hop_htlc_msat;
 	let mut _error_code_ret = None;
 	let mut _error_packet_ret = None;
-	let mut is_from_final_node = false;
+	let mut is_from_final_non_blinded_node = false;
 
 	const BADONION: u16 = 0x8000;
 	const PERM: u16 = 0x4000;
@@ -1010,6 +1010,8 @@ where
 	)
 	.expect("Route we used spontaneously grew invalid keys in the middle of it?");
 
+	let num_blinded_hops = path.blinded_tail.as_ref().map_or(0, |bt| bt.hops.len());
+
 	// Handle packed channel/node updates for passing back for the route handler
 	let mut iterator = onion_keys.into_iter().peekable();
 	while let Some((route_hop_option, shared_secret)) = iterator.next() {
@@ -1031,11 +1033,10 @@ where
 
 		// The failing hop includes either the inbound channel to the recipient or the outbound channel
 		// from the current hop (i.e., the next hop's inbound channel).
-		let num_blinded_hops = path.blinded_tail.as_ref().map_or(0, |bt| bt.hops.len());
 		// For 1-hop blinded paths, the final `path.hops` entry is the recipient.
 		let next_hop = iterator.peek();
-		is_from_final_node = next_hop.is_none() && num_blinded_hops <= 1;
-		let failing_route_hop = if is_from_final_node {
+		is_from_final_non_blinded_node = next_hop.is_none() && num_blinded_hops <= 1;
+		let failing_route_hop = if is_from_final_non_blinded_node {
 			route_hop
 		} else {
 			match next_hop {
@@ -1100,7 +1101,7 @@ where
 					res = Some(FailureLearnings {
 						network_update,
 						short_channel_id,
-						payment_failed_permanently: is_from_final_node,
+						payment_failed_permanently: is_from_final_non_blinded_node,
 						failed_within_blinded_path: false,
 					});
 					break;
@@ -1122,7 +1123,7 @@ where
 				res = Some(FailureLearnings {
 					network_update,
 					short_channel_id,
-					payment_failed_permanently: is_from_final_node,
+					payment_failed_permanently: is_from_final_non_blinded_node,
 					failed_within_blinded_path: false,
 				});
 				break;
@@ -1139,7 +1140,7 @@ where
 		let payment_failed = match error_code & 0xff {
 			15 | 16 | 17 | 18 | 19 | 23 => true,
 			_ => false,
-		} && is_from_final_node; // PERM bit observed below even if this error is from the intermediate nodes
+		} && is_from_final_non_blinded_node; // PERM bit observed below even if this error is from the intermediate nodes
 
 		let mut network_update = None;
 		let mut short_channel_id = None;
@@ -1224,7 +1225,7 @@ where
 		res = Some(FailureLearnings {
 			network_update,
 			short_channel_id,
-			payment_failed_permanently: error_code & PERM == PERM && is_from_final_node,
+			payment_failed_permanently: error_code & PERM == PERM && is_from_final_non_blinded_node,
 			failed_within_blinded_path: false,
 		});
 
@@ -1283,7 +1284,7 @@ where
 		DecodedOnionFailure {
 			network_update: None,
 			short_channel_id: None,
-			payment_failed_permanently: is_from_final_node,
+			payment_failed_permanently: is_from_final_non_blinded_node,
 			failed_within_blinded_path: false,
 			#[cfg(any(test, feature = "_test_utils"))]
 			onion_error_code: None,
