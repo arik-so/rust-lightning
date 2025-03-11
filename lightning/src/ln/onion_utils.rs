@@ -976,39 +976,67 @@ where
 
 	enum ErrorHop<'a> {
 		RouteHop(&'a RouteHop),
+		TrampolineHop(&'a TrampolineHop),
 	}
 
 	impl<'a> ErrorHop<'a> {
 		fn fee_msat(&self) -> u64 {
 			match self {
 				ErrorHop::RouteHop(rh) => rh.fee_msat,
+				ErrorHop::TrampolineHop(th) => th.fee_msat,
 			}
 		}
 
 		fn pubkey(&self) -> &PublicKey {
 			match self {
 				ErrorHop::RouteHop(rh) => rh.node_pubkey(),
+				ErrorHop::TrampolineHop(th) => th.node_pubkey(),
 			}
 		}
 
 		fn short_channel_id(&self) -> Option<u64> {
 			match self {
 				ErrorHop::RouteHop(rh) => Some(rh.short_channel_id),
+				ErrorHop::TrampolineHop(_) => None,
 			}
 		}
 	}
+
+	let outer_session_priv = path.has_trampoline_hops().then(|| {
+		// if we have Trampoline hops, the outer onion session_priv is a hash of the inner one
+		let session_priv_hash = Sha256::hash(&session_priv.secret_bytes()).to_byte_array();
+		SecretKey::from_slice(&session_priv_hash[..]).expect("You broke SHA-256!")
+	});
 
 	let mut onion_keys = Vec::with_capacity(path.hops.len());
 	construct_onion_keys_generic_callback(
 		secp_ctx,
 		&path.hops,
-		path.blinded_tail.as_ref(),
-		session_priv,
+		// if we have Trampoline hops, the blinded hops are part of the inner Trampoline onion
+		if path.has_trampoline_hops() { None } else { path.blinded_tail.as_ref() },
+		outer_session_priv.as_ref().unwrap_or(session_priv),
 		|shared_secret, _, _, route_hop_option: Option<&RouteHop>, _| {
 			onion_keys.push((route_hop_option.map(|rh| ErrorHop::RouteHop(rh)), shared_secret))
 		},
 	)
 	.expect("Route we used spontaneously grew invalid keys in the middle of it?");
+
+	if path.has_trampoline_hops() {
+		construct_onion_keys_generic_callback(
+			secp_ctx,
+			// Trampoline hops are part of the blinded tail, so this can never panic
+			&path.blinded_tail.as_ref().unwrap().trampoline_hops,
+			path.blinded_tail.as_ref(),
+			session_priv,
+			|shared_secret, _, _, trampoline_hop_option: Option<&TrampolineHop>, _| {
+				onion_keys.push((
+					trampoline_hop_option.map(|th| ErrorHop::TrampolineHop(th)),
+					shared_secret,
+				))
+			},
+		)
+		.expect("Route we used spontaneously grew invalid keys in the middle of it?");
+	}
 
 	let num_blinded_hops = path.blinded_tail.as_ref().map_or(0, |bt| bt.hops.len());
 
