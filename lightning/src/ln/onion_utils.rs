@@ -1009,11 +1009,12 @@ where
 		// from the current hop (i.e., the next hop's inbound channel).
 		let num_blinded_hops = path.blinded_tail.as_ref().map_or(0, |bt| bt.hops.len());
 		// For 1-hop blinded paths, the final `path.hops` entry is the recipient.
-		is_from_final_node = iterator.peek().is_none() && num_blinded_hops <= 1;
+		let next_hop = iterator.peek();
+		is_from_final_node = next_hop.is_none() && num_blinded_hops <= 1;
 		let failing_route_hop = if is_from_final_node {
 			route_hop
 		} else {
-			match iterator.peek() {
+			match next_hop {
 				Some((Some(hop), _)) => hop,
 				_ => {
 					// The failing hop is within a multi-hop blinded path.
