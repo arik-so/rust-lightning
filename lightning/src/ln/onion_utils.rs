@@ -1043,8 +1043,8 @@ where
 	let num_blinded_hops = path.blinded_tail.as_ref().map_or(0, |bt| bt.hops.len());
 
 	// Handle packed channel/node updates for passing back for the route handler
-	let mut iterator = onion_keys.into_iter().peekable();
-	while let Some((route_hop_option, shared_secret)) = iterator.next() {
+	let mut iterator = onion_keys.into_iter().enumerate().peekable();
+	while let Some((_hop_index, (route_hop_option, shared_secret))) = iterator.next() {
 		let route_hop = match route_hop_option.as_ref() {
 			Some(hop) => hop,
 			None => {
@@ -1070,7 +1070,7 @@ where
 			route_hop
 		} else {
 			match next_hop {
-				Some((Some(hop), _)) => hop,
+				Some((_next_hop_index, (Some(hop), _))) => hop,
 				_ => {
 					// The failing hop is within a multi-hop blinded path.
 					#[cfg(not(test))]
