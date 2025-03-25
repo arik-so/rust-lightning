@@ -2148,7 +2148,25 @@ fn do_test_trampoline_single_hop_receive(success: bool) {
 			.expect_failure(HTLCDestination::InvalidOnion);
 		do_pass_along_path(args);
 
-		fail_blinded_htlc_backwards(payment_hash, 1, &[&nodes[0], &nodes[1], &nodes[2]], false);
+		{
+			let unblinded_node_updates = get_htlc_update_msgs!(nodes[2], nodes[1].node.get_our_node_id());
+			nodes[1].node.handle_update_fail_htlc(
+				nodes[2].node.get_our_node_id(), &unblinded_node_updates.update_fail_htlcs[0]
+			);
+			do_commitment_signed_dance(&nodes[1], &nodes[2], &unblinded_node_updates.commitment_signed, true, false);
+		}
+		{
+			let unblinded_node_updates = get_htlc_update_msgs!(nodes[1], nodes[0].node.get_our_node_id());
+			nodes[0].node.handle_update_fail_htlc(
+				nodes[1].node.get_our_node_id(), &unblinded_node_updates.update_fail_htlcs[0]
+			);
+			do_commitment_signed_dance(&nodes[0], &nodes[1], &unblinded_node_updates.commitment_signed, false, false);
+		}
+		{
+			let payment_failed_conditions = PaymentFailedConditions::new()
+				.expected_htlc_error_data(0x4000 | 22, &[0; 0]);
+			expect_payment_failed_conditions(&nodes[0], payment_hash, true, payment_failed_conditions);
+		}
 	}
 }
 
