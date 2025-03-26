@@ -1861,22 +1861,27 @@ where
 							err_code: INVALID_ONION_BLINDING,
 						})
 					},
-					Ok((_, None)) => Err(OnionDecodeErr::Relay {
-						err_msg: "Non-final Trampoline onion data provided to us as last hop",
-						err_code: 0x4000 | 22,
-						shared_secret,
-						trampoline_shared_secret: Some(SharedSecret::from_bytes(
-							trampoline_shared_secret,
-						)),
-					}),
-					Ok((_, Some(_))) => Err(OnionDecodeErr::Relay {
-						err_msg: "Final Trampoline onion data provided to us as intermediate hop",
-						err_code: 0x4000 | 22,
-						shared_secret,
-						trampoline_shared_secret: Some(SharedSecret::from_bytes(
-							trampoline_shared_secret,
-						)),
-					}),
+					Ok((msgs::InboundTrampolinePayload::Forward(_), None)) => {
+						Err(OnionDecodeErr::Relay {
+							err_msg: "Non-final Trampoline onion data provided to us as last hop",
+							err_code: 0x4000 | 22,
+							shared_secret,
+							trampoline_shared_secret: Some(SharedSecret::from_bytes(
+								trampoline_shared_secret,
+							)),
+						})
+					},
+					Ok((msgs::InboundTrampolinePayload::Receive(_), Some(_))) => {
+						Err(OnionDecodeErr::Relay {
+							err_msg:
+								"Final Trampoline onion data provided to us as intermediate hop",
+							err_code: 0x4000 | 22,
+							shared_secret,
+							trampoline_shared_secret: Some(SharedSecret::from_bytes(
+								trampoline_shared_secret,
+							)),
+						})
+					},
 					Err(e) => Err(e),
 				}
 			},
