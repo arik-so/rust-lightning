@@ -1286,10 +1286,12 @@ where
 			short_channel_id = route_hop.short_channel_id()
 		}
 
+		println!("is code permanent? {}", error_code & PERM == PERM);
+		println!("is from final non-blinded node? {}", is_from_final_non_blinded_node);
 		res = Some(FailureLearnings {
 			network_update,
 			short_channel_id,
-			payment_failed_permanently: error_code & PERM == PERM && is_from_final_non_blinded_node,
+			payment_failed_permanently: error_code & PERM == PERM,
 			failed_within_blinded_path: false,
 		});
 
