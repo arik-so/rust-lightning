@@ -6278,6 +6278,16 @@ where
 									}
 								};
 
+								let proportional_fee = self.default_configuration.channel_config.forwarding_fee_proportional_millionths as u64 * outgoing_amt_msat / 1_000_000;
+								let forwarding_fee = proportional_fee + self.default_configuration.channel_config.forwarding_fee_base_msat as u64;
+								let max_total_routing_fee_msat = match incoming_amount.checked_sub(forwarding_fee + outgoing_amt_msat) {
+									Some(amount) => amount,
+									None => {
+										push_trampoline_forwarding_failure(format!("Insufficient fee to forward to the next Trampoline hop {next_node_id}"), htlc_source, None, 0x2000 | 26, Vec::new());
+										continue;
+									}
+								};
+
 								let usable_channels: Vec<ChannelDetails> = self.list_usable_channels();
 								let route = match self.router.find_route(
 									&self.node_signer.get_node_id(Recipient::Node).unwrap(),
@@ -6298,7 +6308,7 @@ where
 											previously_failed_blinded_path_idxs: vec![],
 										},
 										final_value_msat: outgoing_amt_msat,
-										max_total_routing_fee_msat: Some(incoming_amount - outgoing_amt_msat),
+										max_total_routing_fee_msat: Some(max_total_routing_fee_msat),
 									},
 									Some(&usable_channels.iter().collect::<Vec<_>>()),
 									self.compute_inflight_htlcs()
