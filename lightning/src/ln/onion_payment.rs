@@ -65,7 +65,7 @@ fn check_trampoline_sanity(outer_hop_data: &msgs::InboundTrampolineEntrypointPay
 	if outer_hop_data.outgoing_cltv_value < trampoline_cltv_value {
 		return Err(());
 	}
-	if outer_hop_data.amt_to_forward < trampoline_amount {
+	if outer_hop_data.multipath_trampoline_data.as_ref().map_or(outer_hop_data.amt_to_forward, |mtd| mtd.total_msat) < trampoline_amount {
 		return Err(());
 	}
 	Ok(())
