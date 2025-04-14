@@ -8887,8 +8887,8 @@ impl<SP: Deref> FundedChannel<SP> where
 		}
 
 		if amount_msat > available_balances.next_outbound_htlc_limit_msat {
-			return Err(ChannelError::Ignore(format!("Cannot send more than our next-HTLC maximum - {} msat",
-				available_balances.next_outbound_htlc_limit_msat)));
+			return Err(ChannelError::Ignore(format!("Cannot send more ({}) than our next-HTLC maximum - {} msat",
+				amount_msat, available_balances.next_outbound_htlc_limit_msat)));
 		}
 
 		if self.context.channel_state.is_peer_disconnected() {

@@ -307,8 +307,14 @@ pub(super) fn create_recv_pending_htlc_info(
 					err_data: Vec::new(),
 				}
 			})?;
-			(payment_data, keysend_preimage, custom_tlvs, sender_intended_htlc_amt_msat,
-				cltv_expiry_height, payment_metadata, None, false, keysend_preimage.is_none(), None)
+			// todo: move to a pre-processing step
+			if let Some(outer_payment_data) = &outer_hop_data.multipath_trampoline_data {
+				(Some(outer_payment_data.clone()), None, Vec::new(), outer_hop_data.amt_to_forward,
+					outer_hop_data.outgoing_cltv_value, payment_metadata, None, false, keysend_preimage.is_none(), None)
+			} else {
+				(payment_data, keysend_preimage, custom_tlvs, sender_intended_htlc_amt_msat,
+					cltv_expiry_height, payment_metadata, None, false, keysend_preimage.is_none(), None)
+			}
 		},
 		onion_utils::Hop::TrampolineBlindedReceive {
 			ref outer_hop_data,
@@ -392,6 +398,7 @@ pub(super) fn create_recv_pending_htlc_info(
 		(allow_underpay && onion_amt_msat >
 		 amt_msat.saturating_add(counterparty_skimmed_fee_msat.unwrap_or(0)))
 	{
+		println!("UPSTREAM NODE SENT {amt_msat}, but promised us {onion_amt_msat}!");
 		return Err(InboundHTLCErr {
 			err_code: 19,
 			err_data: amt_msat.to_be_bytes().to_vec(),

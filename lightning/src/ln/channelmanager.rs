@@ -6287,6 +6287,10 @@ where
 									}
 								};
 
+								println!("INCOMING -> OUTGOING AMOUNT: {incoming_amount} -> {outgoing_amt_msat}");
+								println!("FORWARDING FEE: {forwarding_fee}");
+								println!("MAX_TOTAL_ROUTING_FEE: {max_total_routing_fee_msat}");
+
 								let usable_channels: Vec<ChannelDetails> = self.list_usable_channels();
 
 								// assume any Trampoline node supports MPP
@@ -6326,6 +6330,8 @@ where
 
 								let inter_trampoline_payment_secret = PaymentSecret(self.entropy_source.get_secure_random_bytes());
 								for current_path in route.paths {
+
+									println!("CURRENT PATH FINAL VALUE: {}", current_path.final_value_msat());
 									let inter_trampoline_session_priv = SecretKey::from_slice(&self.entropy_source.get_secure_random_bytes()).unwrap();
 									let inter_trampoline_hops = current_path.hops.clone();
 									let mut current_htlc_source = htlc_source.clone();
@@ -6409,6 +6415,8 @@ where
 
 										(onion_packet, htlc_msat, htlc_cltv)
 									};
+
+									println!("CURRENT PATH OUTER VALUE: {outer_value_msat}");
 
 									// Forward the HTLC over the most appropriate channel with the corresponding peer,
 									// applying non-strict forwarding.
